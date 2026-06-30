@@ -1,4 +1,3 @@
-/** @type {import('jest').Config} */
 export default {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
@@ -12,8 +11,11 @@ export default {
     "^.+\\.tsx?$": [
       "ts-jest",
       {
-        useESM: true,
         tsconfig: "tsconfig.json",
+        useESM: true,
+        diagnostics: {
+          ignoreCodes: [151001, 151002, 2307],
+        },
       },
     ],
   },
