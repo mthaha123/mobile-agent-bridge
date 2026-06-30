@@ -20,12 +20,14 @@ import { useAuthStore } from '../stores/authStore'
 export const ConnectScreen: React.FC = () => {
   const [urlInput, setUrlInput] = useState('')
   const [passwordInput, setPasswordInput] = useState('')
+  const [directoryInput, setDirectoryInput] = useState('')
 
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
 
   const handleConnect = () => {
     useAuthStore.getState().setBridgeUrl(urlInput)
+    useAuthStore.getState().setDirectory(directoryInput)
     useAuthStore.getState().login(passwordInput || undefined)
   }
 
@@ -56,6 +58,16 @@ export const ConnectScreen: React.FC = () => {
             value={passwordInput}
             onChangeText={setPasswordInput}
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="project directory (e.g. /home/user/project)"
+            placeholderTextColor="#555"
+            value={directoryInput}
+            onChangeText={setDirectoryInput}
             autoCapitalize="none"
             autoCorrect={false}
           />

@@ -19,8 +19,11 @@ export interface AuthState {
   error: string | null
   /** BridgeClient 实例 */
   client: BridgeClient | null
+  /** OpenCode 项目目录 */
+  directory: string
 
   setBridgeUrl: (url: string) => void
+  setDirectory: (dir: string) => void
   login: (password?: string) => Promise<void>
   logout: () => void
   clearError: () => void
@@ -33,13 +36,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
   client: null,
+  directory: '',
 
   setBridgeUrl: (url: string) => {
     set({ bridgeUrl: url, error: null })
   },
 
+  setDirectory: (dir: string) => {
+    set({ directory: dir })
+  },
+
   login: async (password?: string) => {
-    const { bridgeUrl, client: existingClient } = get()
+    const { bridgeUrl, directory } = get()
     if (!bridgeUrl) {
       set({ error: '请先输入 Bridge 地址' })
       return
@@ -65,6 +73,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await client.connect()
 
+      // 初始化 OpenCode 项目（SDK 需要 directory 才能工作）
+      const setupDir = directory || '/'
+      await client.call('project.setup', { directory: setupDir })
+
       set({
         client,
         token: result.token,
@@ -89,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token: null,
       authenticated: false,
       bridgeUrl: '',
+      directory: '',
       loading: false,
       error: null,
     })

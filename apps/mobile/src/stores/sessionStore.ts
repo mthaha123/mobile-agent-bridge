@@ -75,7 +75,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   deleteSession: async (id, clientCall) => {
     try {
-      await clientCall('session.delete', { id })
+      await clientCall('session.delete', { sessionID: id })
       get().removeSession(id)
     } catch {
       // ignore
