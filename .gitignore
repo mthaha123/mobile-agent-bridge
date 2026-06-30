@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.turbo/
+apps/mobile/android/app/build/
+apps/mobile/ios/
+apps/mobile/.metro-health-check*
+*.log

@@ -1,0 +1,11 @@
+{
+  "name": "mobile-agent-bridge",
+  "private": true,
+  "scripts": {
+    "bridge:dev": "cd servers/bridge && pnpm dev",
+    "bridge:build": "cd servers/bridge && pnpm build",
+    "bridge:test": "cd servers/bridge && pnpm test",
+    "mobile:android": "cd apps/mobile && npx react-native run-android",
+    "clean": "rm -rf servers/*/dist apps/*/node_modules"
+  }
+}
