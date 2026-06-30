@@ -766,13 +766,13 @@ OpenCode TUI 中通过 Tab 键在 build/plan 两个主 Agent 间切换。手机�
 
 | 方面 | OpenCode TUI 实际使用 | 手机端实现方案 |
 |------|----------------------|--------------|
-| **SDK 版本** | `@opencode-ai/sdk/v2` | ❌ 无法使用，需自实现 |
-| **消息发送** | `client.session.prompt()` + `client.session.shell()` + `client.session.command()` | 原生 `fetch()` 调用 `POST /session/{id}/prompt_async` |
-| **事件订阅** | `sdk.global.event()` → 16ms 批处理 → 全局 emitter | 原生 `EventSource` 订阅 `GET /event` |
+| **SDK 版本** | `@opencode-ai/sdk/v2` | ❌ 无法使用，经 Bridge 代理 |
+| **消息发送** | `client.session.prompt()` + `client.session.shell()` + `client.session.command()` | WS `message.send/shell/command` → Bridge 代理 → SDK |
+| **事件订阅** | `sdk.global.event()` → 16ms 批处理 → 全局 emitter | WS `event` 帧 → Bridge 将 SSE 转发为 WS |
 | **状态管理** | SolidJS `createStore` + `reconcile` | Zustand |
-| **权限处理** | `client.permission.reply()` + inline 拒绝消息 | 原生 `fetch()` 调用 `POST /session/{id}/permissions/{pid}` |
-| **Question 处理** | `client.question.reply()/reject()` | 原生 `fetch()` 调用对应 REST 端点 |
-| **文件搜索** | `client.find.files()` + fuzzysort | 原生 `fetch()` 调用 `GET /find/file?query=` |
+| **权限处理** | `client.permission.reply()` + inline 拒绝消息 | WS `permission.reply` → Bridge 代理 → SDK |
+| **Question 处理** | `client.question.reply()/reject()` | WS `question.reply/reject` → Bridge 代理 → SDK |
+| **文件搜索** | `client.find.files()` + fuzzysort | WS `file.search` → Bridge 转发到 OpenCode REST `/find/file` |
 
 ### 13.4 关键差异总结
 
@@ -897,8 +897,9 @@ TUI 调用 @opencode-ai/sdk  ───HTTP+SSE──→  OpenCode serve
 |------|------------------|-------------------|
 | **传输** | HTTP + SSE（两条连接） | WebSocket（一条连接双向） |
 | **事件流** | `sdk.global.event()` SSE 流 | Bridge 转为 WS `event` 帧推送 |
-| **文件操作** | ❌ TUI 无 `client.file.*` 调用 | ✅ 手机端额外实现 `file.list/read` |
-| **SDK 方法数** | 85 个调用点，21 个命名空间 | 约 25 个 Bridge 代理方法 |
+| **文件操作** | ❌ TUI 无 `client.file.*` 调用 | ✅ 手机端额外实现 `file.list/read`（Bridge 直接 fs） |
+| **接口处理** | 全部经 SDK 调用 OpenCode REST | 代理（session/message/permission 等经 SDK）+ 直接（auth/file/health 自处理） |
+| **SDK 方法数** | 85 个调用点，21 个命名空间 | 约 25 个 Bridge 代理方法 + 7 个直接实现 |
 
 ### 14.3 完整接口对比
 
