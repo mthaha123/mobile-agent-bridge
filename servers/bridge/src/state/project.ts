@@ -22,10 +22,12 @@ async function startSSE(signal: AbortSignal): Promise<void> {
         if (signal.aborted) break
         // GlobalEvent: { directory, project?, workspace?, payload: { id, type, properties } }
         const ev = event as any
+        const eventType: string = ev.payload?.type || "unknown"
+        const eventData: unknown = ev.payload?.properties || ev
         broadcastToAll({
-          type: "event",
-          event: ev.payload?.type || "unknown",
-          data: ev.payload?.properties || ev,
+          type: "notify",
+          method: eventType,
+          payload: eventData,
         })
       }
     } catch (err: any) {
@@ -65,9 +67,9 @@ export async function setupProject(directory: string): Promise<{ directory: stri
     // 广播 project.changed
     setTimeout(() => {
       broadcastToAll({
-        type: "event",
-        event: "project.changed",
-        data: { directory: activeDirectory, project: currentProject },
+        type: "notify",
+        method: "project.changed",
+        payload: { directory: activeDirectory, project: currentProject },
       })
     }, 0)
 

@@ -4,7 +4,7 @@ import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { setupProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 
-type Handler = (params: any, payload: TokenPayload) => Promise<any> | any
+type Handler = (params: any, payload: TokenPayload | null) => Promise<any> | any
 
 const handlers = new Map<string, Handler>()
 
@@ -12,13 +12,20 @@ export function registerHandler(method: string, handler: Handler): void {
   handlers.set(method, handler)
 }
 
-export async function handleFrame(connID: string, ws: WebSocket, frame: any, payload: TokenPayload): Promise<void> {
+export async function handleFrame(connID: string, ws: WebSocket, frame: any, payload: TokenPayload | null): Promise<void> {
   if (frame.type !== "req") {
     ws.send(JSON.stringify({ type: "res", id: frame.id || "0", ok: false, error: "invalid frame type" }))
     return
   }
 
   const method = frame.method || ""
+
+  // 非 auth 方法需要已认证
+  if (!payload && !method.startsWith("auth.")) {
+    ws.send(JSON.stringify({ type: "res", id: frame.id, ok: false, error: "unauthorized" }))
+    return
+  }
+
   const handler = handlers.get(method)
 
   if (!handler) {

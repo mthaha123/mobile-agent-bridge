@@ -21,18 +21,14 @@ export function createWSServer(port: number): WebSocketServer {
     const url = new URL(req.url || "/", `http://${req.headers.host}`)
     const token = url.searchParams.get("token") || ""
 
-    // JWT 验证
-    const payload = verifyToken(token)
-    if (!payload) {
-      ws.send(JSON.stringify({ type: "res", id: "0", ok: false, error: "unauthorized" }))
-      ws.close(4001, "unauthorized")
-      return
-    }
+    // JWT 验证 — 允许空 token 连接（用于 auth.login）
+    const payload = verifyToken(token) || null
 
     const connID = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     connections.set(connID, ws)
 
-    console.log(`[WS] 新连接: ${connID}, user: ${payload.sub}`)
+    const userLabel = payload ? payload.sub : "unauthenticated"
+    console.log(`[WS] 新连接: ${connID}, user: ${userLabel}`)
 
     ws.on("message", (data: Buffer) => {
       try {
