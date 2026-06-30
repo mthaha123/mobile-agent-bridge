@@ -276,32 +276,34 @@
 
 ### 8.1 架构选择
 
-**推荐：HTTP + SSE（OpenCode 模式）**
+**推荐：WebSocket 桥接模式（手机 → Bridge → Agent）**
 
 理由：
-- 完善的协议，广泛的客户端支持
-- SSE 提供高效的服务器推送，无需 WebSocket 的复杂度
-- REST 端点操作简单直接
-- 与现有 OpenCode 生态兼容
+- 手机只需一条 WebSocket 连接处理请求、响应、事件推送
+- Bridge 服务端可使用 `@opencode-ai/sdk`（依赖 Node.js），手机不感知
+- SSE 事件由 Bridge 转为 WS `event` 帧，手机端没有 SSE 复杂度
+- Bridge 同时承担 NAT 穿透、多 Agent 协议转换、认证
+- 与 OpenCode 兼容（Bridge ↔ OpenCode 仍走 HTTP+SSE）
 
 ### 8.2 功能优先级
 
 **Phase 1 (MVP)：**
+- Bridge 服务器骨架（WS 服务 + JWT + RPC 路由 + OpenCode 适配器）
+- 手机 BridgeClient（WS 连接 + call/event 模式）
 - 带流式传输的聊天界面
-- 基本文件操作（read, write, edit）
-- 会话管理
-- 连接 OpenCode 服务器
+- 会话管理（CRUD）
+- 工具审批
 
 **Phase 2：**
-- 工具执行（bash, grep, glob）
-- MCP 服务器集成
-- Markdown/HTML 渲染
-- 文件浏览器
+- 文件浏览器（Bridge 直接 fs 操作）
+- 14 种工具专用渲染器
+- 项目目录切换
+- Shell 模式、斜杠命令
 
 **Phase 3：**
-- 多服务器支持
+- 多 Agent 支持（Hermes/OpenClaw 适配器）
 - 离线缓存
-- 媒体处理
+- 推送通知
 - 语音输入
 
 ### 8.3 技术栈
@@ -309,14 +311,15 @@
 **手机客户端：**
 - 框架：React Native + ArkUI（鸿蒙）
 - 状态管理：Zustand
-- HTTP 客户端：Axios
+- WebSocket：浏览器原生 WebSocket（RN）/ `@ohos.net.webSocket`（ArkUI）
 - Markdown：react-native-markdown
 
 **Bridge 服务器：**
-- 运行时：Node.js 或 Bun
-- HTTP 框架：Express 或 Fastify
-- 数据库：SQLite via better-sqlite3
-- WebSocket：ws 或 Socket.IO
+- 运行时：Node.js（必须，SDK 依赖 Node.js cross-spawn）
+- WebSocket 库：`ws`
+- SDK：`@opencode-ai/sdk` v2
+- 认证：JWT（jsonwebtoken）
+- 隧道：Tailscale/FRP（部署层，不入代码）
 
 ---
 

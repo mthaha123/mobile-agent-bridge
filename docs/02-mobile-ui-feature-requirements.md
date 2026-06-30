@@ -195,7 +195,7 @@
 
 #### 3.1.3 流式显示
 
-OpenCode 通过 SSE 事件 `message.part.updated`（含 `delta` 字段）实现令牌流式传输。因 `@opencode-ai/sdk` 依赖 Node.js 无法在移动端使用，需使用原生 EventSource 实现：
+OpenCode 通过 SSE 事件 `message.part.updated`（含 `delta` 字段）实现令牌流式传输。手机端不直接连接 OpenCode SSE，而是通过 Bridge 将 SSE 事件转为 WebSocket `event` 帧推送。Bridge 在服务端使用 `@opencode-ai/sdk` 订阅 SSE，实时转发给手机端 WebSocket 连接：
 
 ```
 ┌─────────────────────────────────────────┐

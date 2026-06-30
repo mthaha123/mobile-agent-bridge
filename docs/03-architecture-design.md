@@ -139,29 +139,35 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 | 手机 WS 方法 | SDK v2 调用 |
 |-------------|-------------|
-| `session.create` | `client.session.create()` |
-| `session.list` | `client.session.list()` |
-| `session.get` | `client.session.get()` |
-| `session.delete` | `client.session.delete()` |
-| `session.rename` | `client.session.update()` |
-| `session.messages` | `client.session.messages()` |
-| `session.diff` | `client.session.diff()` |
-| `session.abort` | `client.session.abort()` |
-| `session.revert` | `client.session.revert()` |
-| `session.unrevert` | `client.session.unrevert()` |
-| `session.todo` | `client.session.todo()` |
-| `message.send` | `client.session.prompt()` |
-| `message.shell` | `client.session.shell()` |
-| `message.command` | `client.session.command()` |
-| `permission.reply` | `client.permission.reply()` |
-| `question.reply` | `client.question.reply()` |
-| `question.reject` | `client.question.reject()` |
-| `config.get` | `client.config.get()` |
-| `config.providers` | `client.config.providers()` |
-| `config.agents` | `client.app.agents()` |
-| `provider.list` | `client.provider.list()` |
-| `vcs.get` | `client.vcs.get()` |
-| `command.list` | `client.command.list()` |
+| `session.create` | `client.session.create({ title?, agent?, model?, parentID?, permission?, workspaceID? })` |
+| `session.list` | `client.session.list({ scope?, path?, roots?, start?, search?, limit? })` |
+| `session.get` | `client.session.get({ sessionID })` |
+| `session.status` | `client.session.status({})` |
+| `session.delete` | `client.session.delete({ sessionID })` |
+| `session.rename` | `client.session.update({ sessionID, title })` |
+| `session.messages` | `client.session.messages({ sessionID, limit?, before? })` |
+| `session.diff` | `client.session.diff({ sessionID, messageID? })` |
+| `session.abort` | `client.session.abort({ sessionID })` |
+| `session.revert` | `client.session.revert({ sessionID, messageID? })` |
+| `session.unrevert` | `client.session.unrevert({ sessionID })` |
+| `session.todo` | `client.session.todo({ sessionID })` |
+| `session.fork` | `client.session.fork({ sessionID, messageID? })` |
+| `message.send` | `client.session.prompt({ sessionID, parts })` |
+| `message.shell` | `client.session.shell({ sessionID, command, agent?, model? })` |
+| `message.command` | `client.session.command({ sessionID, command, arguments?, agent? })` |
+| `permission.reply` | `client.permission.reply({ requestID, reply?, message? })` |
+| `question.reply` | `client.question.reply({ requestID, answers? })` |
+| `question.reject` | `client.question.reject({ requestID })` |
+| `config.get` | `client.config.get({})` |
+| `config.providers` | `client.config.providers({})` |
+| `config.agents` | `client.app.agents({})` |
+| `provider.list` | `client.provider.list({})` |
+| `vcs.get` | `client.vcs.get({})` |
+| `command.list` | `client.command.list({})` |
+| `project.current` | `client.project.current({})` |
+| `project.list` | `client.project.list({})` |
+
+所有 SDK 方法均接受 `directory?` 和 `workspace?` 参数，但 **Bridge 通过创建 `OpencodeClient({ directory })` 自动注入**，手机端不需要传递这些参数。`workspace?` 为实验性功能暂不使用。
 
 事件订阅：Bridge 调用 `client.global.event()` 获取 SSE 流，实时转为 WS `event` 帧推送手机端。
 
@@ -288,14 +294,16 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口（全代理）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `session.create` | `{ title, agent?, model? }` | `create()` | 1 |
-| `session.list` | `{ search?, limit? }` | `list()` | 1 |
-| `session.get` | `{ sessionID }` | `get()` | 1 |
-| `session.delete` | `{ sessionID }` | `delete()` | 1 |
-| `session.rename` | `{ sessionID, title }` | `update()` | 1 |
-| `session.messages` | `{ sessionID, limit?, before? }` | `messages()` | 1 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `session.create` | `{ title?, agent?, model?, parentID?, permission?, workspaceID? }` | `session.create(...)` | 1 |
+| `session.list` | `{ scope?, path?, roots?, start?, search?, limit? }` | `session.list(...)` | 1 |
+| `session.get` | `{ sessionID }` | `session.get(...)` | 1 |
+| `session.status` | `{}` | `session.status(...)` | 1 |
+| `session.delete` | `{ sessionID }` | `session.delete(...)` | 1 |
+| `session.rename` | `{ sessionID, title }` | `session.update(...)` | 1 |
+| `session.messages` | `{ sessionID, limit?, before? }` | `session.messages(...)` | 1 |
+| `session.fork` | `{ sessionID, messageID? }` | `session.fork(...)` | 3 |
 
 **事件：** 无。结果通过 `res` 帧返回。
 
@@ -321,12 +329,12 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口（全代理）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `message.send` | `{ sessionID, text, attachments? }` | `prompt()` | 1 |
-| `message.shell` | `{ sessionID, command }` | `shell()` | 2 |
-| `message.command` | `{ sessionID, command, args? }` | `command()` | 2 |
-| `message.abort` | `{ sessionID }` | `abort()` | 1 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `message.send` | `{ sessionID, parts }` | `session.prompt(...)` | 1 |
+| `message.shell` | `{ sessionID, command, agent?, model? }` | `session.shell(...)` | 2 |
+| `message.command` | `{ sessionID, command, arguments?, agent? }` | `session.command(...)` | 2 |
+| `message.abort` | `{ sessionID }` | `session.abort(...)` | 1 |
 
 **事件：**
 
@@ -355,9 +363,9 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口（全代理）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `permission.reply` | `{ requestID, reply, message? }` | `reply()` | 1 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `permission.reply` | `{ requestID, reply?, message? }` | `permission.reply(...)` | 1 |
 
 **事件：**
 
@@ -387,10 +395,10 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口（全代理，v2 only）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `question.reply` | `{ requestID, answers }` | `reply()` | 2 |
-| `question.reject` | `{ requestID }` | `reject()` | 2 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `question.reply` | `{ requestID, answers? }` | `question.reply(...)` | 2 |
+| `question.reject` | `{ requestID }` | `question.reject(...)` | 2 |
 
 **事件：**
 
@@ -432,22 +440,147 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **事件：** 无。
 
-### 2.7 配置与启动
+### 2.7 配置与项目上下文
 
-手机启动时一次性加载。
+配置查询和项目目录管理。`directory` 由 Bridge 自动管理，手机端不感知。
+
+#### 2.7.1 静态配置（启动时一次性加载）
 
 **接口（全代理）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `config.get` | `{ directory?, workspace? }` | `config.get()` | 1 |
-| `config.providers` | `{ directory?, workspace? }` | `config.providers()` | 1 |
-| `config.agents` | `{ directory?, workspace? }` | `app.agents()` | 1 |
-| `provider.list` | `{ directory?, workspace? }` | `provider.list()` | 1 |
-| `vcs.get` | `{ directory?, workspace? }` | `vcs.get()` | 1 |
-| `command.list` | `{ directory?, workspace? }` | `command.list()` | 1 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `config.get` | `{}` | `config.get(...)` | 1 |
+| `config.providers` | `{}` | `config.providers(...)` | 1 |
+| `config.agents` | `{}` | `app.agents(...)` | 1 |
+| `provider.list` | `{}` | `provider.list(...)` | 1 |
+| `vcs.get` | `{}` | `vcs.get(...)` | 1 |
+| `command.list` | `{}` | `command.list(...)` | 1 |
 
 **事件：** 无。
+
+#### 2.7.2 项目目录切换（runtime）
+
+手机端可随时切换 Bridge 绑定的 OpenCode 工作目录。**全局只有一个活跃目录。**
+
+**原理：**
+
+OpenCode SDK 的 `createOpencodeClient({ directory })` 是一个**纯函数式组合**——它在请求头中注入 `x-opencode-directory`，并在 `GET` 拦截器中追加 `?directory=` 参数。`OpencodeClient` 对象**不持有任何原生资源**（无 socket 池、无文件句柄），唯一的活跃网络连接是 SSE stream。
+
+目录切换 = 丢弃旧 client（GC 回收）+ 创建新 client + 重建 SSE。不需要调 `instance.dispose()`（那是切换 org/provider 用的）。
+
+**状态模型：**
+
+```
+Bridge 内部状态（§1.1 三层架构中 Bridge 的运行时数据）：
+┌──────────────────────────────────────┐
+│  activeDirectory: string | null       │
+│  currentProject: { name? } | null     │  项目元信息（从 package.json 等读取）
+│  sdk: OpencodeClient | null           │  当前绑定了 activeDirectory 的 SDK 实例
+│  sseAbort: AbortController | null     │  当前 SSE stream 的终止控制器
+│  sseLoop: Promise<void> | null        │  SSE 消费协程
+│  isSwitching: boolean                 │  切换中锁
+└──────────────────────────────────────┘
+```
+
+**SSE 生命周期：**
+
+SSE 是唯一 Active 的网络连接。使用 `AbortController` 管理：
+
+```typescript
+async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
+  while (true) {
+    if (signal.aborted) break
+    const events = await sdk.global.event({ signal, sseMaxRetryAttempts: 0 })
+    for await (const event of events.stream) {
+      if (signal.aborted) break
+      broadcastToMobile(event)
+    }
+    await sleep(3000)  // 外层重试
+  }
+}
+```
+
+切换时 `abort()` → SSE 循环在下一个 `signal.aborted` 检查点退出 → 旧 HTTP 连接关闭。
+
+**时序：**
+
+```
+手机                         Bridge                      OpenCode
+ │  project.switch            │                           │
+ │  { directory: "/proj-b" }  │                           │
+ │───────────────────────────▶│                           │
+ │                            │  isSwitching = true        │
+ │                            │  ① sseAbort.abort()       │
+ │                            │  ② sdk = null（GC）        │
+ │                            │  ③ sdk = createOpencodeClient    │
+ │                            │       ({ baseUrl, directory })   │
+ │                            │  ④ sseAbort = new AbortController() │
+ │                            │  ⑤ startSSE(sdk, sseAbort.signal) │
+ │                            │──────────────────────────▶│
+ │                            │  ◀── SSE: session.list / config... ──│
+ │                            │  读取 package.json          │
+ │◀───────────────────────────│                            │
+ │  { ok, directory,          │                            │
+ │    project: { name } }     │                            │
+ │◀── event: project.changed │                            │
+ │  isSwitching = false       │                            │
+```
+
+**接口：**
+
+| 手机 WS 方法 | 参数 | 实现 | Phase |
+|-------------|------|------|-------|
+| `project.switch` | `{ directory }` | Bridge 重建 client + SSE（非 SDK 方法） | 2 |
+| `project.current` | `{}` | `project.current(...)` | 2 |
+| `project.list` | `{}` | `project.list(...)` | 3 |
+
+**`project.switch` 实现伪码：**
+
+```
+1. 校验 directory 存在、可读
+2. if isSwitching → 返回 error "already switching"
+3. isSwitching = true
+4. 清理旧状态：
+   a. sseAbort?.abort()
+   b. sdk = null, sseAbort = null, sseLoop = null
+5. 创建新 client：
+   sdk = createOpencodeClient({ baseUrl, directory })
+6. 建立新 SSE：
+   sseAbort = new AbortController()
+   sseLoop = startSSE(sdk, sseAbort.signal)
+7. 读取项目元信息（package.json / Cargo.toml）
+8. isSwitching = false
+9. 返回 { directory, project }
+10. 广播 event: project.changed
+```
+
+**事件：**
+
+| 事件 | 数据 | 说明 |
+|------|------|------|
+| `project.changed` | `{ directory, project }` | 切换成功，手机端应刷新本地所有状态 |
+
+**并发与边界：**
+
+| 场景 | 处理 |
+|------|------|
+| **切换中收到请求** | 返回 `{ error: "switching directory" }`，手机端自动重试 |
+| **切换中收到第二次 `project.switch`** | 拒绝：`{ error: "already switching" }` |
+| **新目录无效** | 不销毁旧 client，返回 `{ error: "directory not found" }`，`isSwitching = false` |
+| **SDK 创建失败** | 旧 client 已丢弃 → 无目录状态。`activeDirectory = null, sdk = null`。返回错误，手机端重试 |
+| **手机断线重连** | Bridge 保留当前 `activeDirectory`。重连后手机端调 `project.current` 恢复 |
+| **快速连续切换** | 第二次被 `isSwitching` 拒绝。手机端应等前一次完成 |
+
+**切换后手机端行为：**
+
+```
+1. 清空会话列表（旧目录的会话不适用）
+2. 调用 session.list 拉取新目录会话
+3. 调用 config.get / config.providers / config.agents 刷新配置
+4. 更新文件浏览器根路径为新的 directory
+5. 更新 UI 顶部显示当前项目名
+```
 
 ### 2.8 会话进阶
 
@@ -455,12 +588,12 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口（全代理）：**
 
-| 方法 | 参数 | SDK v2 | Phase |
-|------|------|--------|-------|
-| `session.diff` | `{ sessionID, messageID? }` | `diff()` | 2 |
-| `session.revert` | `{ sessionID, messageID }` | `revert()` | 2 |
-| `session.unrevert` | `{ sessionID }` | `unrevert()` | 2 |
-| `session.todo` | `{ sessionID }` | `todo()` | 2 |
+| 手机 WS 方法 | 参数 | SDK v2 | Phase |
+|-------------|------|--------|-------|
+| `session.diff` | `{ sessionID, messageID? }` | `session.diff(...)` | 2 |
+| `session.revert` | `{ sessionID, messageID? }` | `session.revert(...)` | 2 |
+| `session.unrevert` | `{ sessionID }` | `session.unrevert(...)` | 2 |
+| `session.todo` | `{ sessionID }` | `session.todo(...)` | 2 |
 
 **事件：**
 
@@ -476,6 +609,7 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 | 分片 | 职责 |
 |------|------|
 | `connection` | 连接状态、服务器 URL、Agent 类型 |
+| `project` | 当前工作目录、项目信息、切换状态 |
 | `sessions` | 会话列表、当前会话 ID |
 | `messages` | 消息历史、流式增量 |
 | `ui` | 导航、主题、字体 |
@@ -488,9 +622,11 @@ Bridge 使用 `@opencode-ai/sdk` v2。所有代理方法的实际调用：
 
 **接口覆盖：** 核心交互（会话/消息/审批/问答）全部对齐 OpenCode TUI，覆盖率 100%。文件浏览器是手机端独有增强功能。
 
+**项目切换（§2.7.2）：** Bridge 持有唯一活跃 SDK client 和 SSE stream。切换 = 销毁旧 client + abort 旧 SSE → 创建新 client + 订阅新 SSE。切换期间请求返回错误、手机端重试。
+
 **代码参考：** 适配器实现见 `docs/code-reference/bridge-adapters.md`，手机客户端见 `docs/code-reference/bridge-client.md`。
 
 ---
 
-*文档版本：1.1*
+*文档版本：1.2*
 *最后更新：2026-06-28*
