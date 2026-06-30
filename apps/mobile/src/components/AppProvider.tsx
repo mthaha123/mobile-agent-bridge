@@ -53,33 +53,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setToolReplyCall(createReplyCall(client))
 
     // 通知：AI 消息流（SDK event: message.part.updated）
+    //   payload = { sessionID, part: { id, sessionID, messageID, type: "text", text, ... }, time }
     client.on('notification', (method: string, payload: any) => {
       if (method === 'message.part.updated') {
-        useChatStore.getState().addMessage({
-          role: 'assistant',
-          content: payload?.message || payload?.text || '',
-        })
+        const text = payload?.part?.text || payload?.part?.content || ''
+        if (text) {
+          useChatStore.getState().addMessage({
+            role: 'assistant',
+            content: text,
+          })
+        }
         useChatStore.getState().setWaiting(false)
       }
 
       // 工具审批请求（SDK event: permission.asked）
+      //   payload = { id, sessionID, permission: "file.read", patterns: ["src/**"], metadata: {...} }
       if (method === 'permission.asked') {
         useToolStore.getState().enqueue({
           id: payload?.id || 'unknown',
-          tool: payload?.name || payload?.tool || 'unknown',
-          args: (payload?.arguments || payload?.args || {}) as Record<string, unknown>,
-          sessionId: payload?.sessionId || '',
+          tool: payload?.permission || 'unknown',
+          args: { patterns: payload?.patterns || [] } as Record<string, unknown>,
+          sessionId: payload?.sessionID || '',
           requestedAt: Date.now(),
         })
       }
     })
 
     // 通知：session 更新（SDK event: session.updated）
+    //   payload 结构取决于 SDK session.updated 事件的具体 properties
     client.on('notification', (method: string, payload: any) => {
-      if (method === 'session.updated' && payload?.session) {
-        useSessionStore
-          .getState()
-          .updateSession(payload.session.id, payload.session)
+      if (method === 'session.updated') {
+        // session.updated 的 properties 中包含 session 信息
+        // 可能是 properties.session 或 properties.info
+        const info = payload?.session || payload?.info || payload
+        if (info?.id) {
+          useSessionStore.getState().updateSession(info.id, info)
+        }
       }
     })
 

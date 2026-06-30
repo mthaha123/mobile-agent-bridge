@@ -79,13 +79,25 @@ registerHandler("session.revert", async (p) => sdk().session.revert(p))
 registerHandler("session.unrevert", async (p) => sdk().session.unrevert(p))
 
 // message.*（映射到 session.*）
-registerHandler("message.send", async (p) => sdk().session.prompt(p))
+registerHandler("message.send", async (p) => {
+  // 转换移动端参数 { sessionId, message } → SDK 期望的 { sessionID, parts: [{ type: "text", text }] }
+  return sdk().session.prompt({
+    sessionID: p.sessionId,
+    parts: [{ type: "text" as const, text: p.message }],
+  })
+})
 registerHandler("message.shell", async (p) => sdk().session.shell(p))
 registerHandler("message.command", async (p) => sdk().session.command(p))
 registerHandler("message.abort", async (p) => sdk().session.abort(p))
 
 // permission.*
-registerHandler("permission.reply", async (p) => sdk().permission.reply(p))
+registerHandler("permission.reply", async (p) => {
+  // 转换移动端参数 { id, approved } → SDK 期望的 { requestID, reply: "once"|"reject" }
+  return sdk().permission.reply({
+    requestID: p.id,
+    reply: p.approved ? "once" : "reject",
+  })
+})
 
 // question.*
 registerHandler("question.reply", async (p) => sdk().question.reply(p))
