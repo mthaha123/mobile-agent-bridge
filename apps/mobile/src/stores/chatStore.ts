@@ -24,8 +24,8 @@ export interface ChatState {
 
   setActiveSession: (sessionId: string | null) => void
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  updateLastAssistant: (text: string) => void
   setInputText: (text: string) => void
-  sendMessage: () => void
   setWaiting: (w: boolean) => void
   clearMessages: () => void
 }
@@ -51,15 +51,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setInputText: (text) => set({ inputText: text }),
 
-  sendMessage: () => {
-    const { inputText, activeSessionId } = get()
-    if (!inputText.trim()) return
-    if (!activeSessionId) return
-
-    get().addMessage({ role: 'user', content: inputText.trim() })
-    set({ inputText: '', waiting: true })
-
-    // BridgeClient 发送 prompt 的逻辑由外层调用
+  updateLastAssistant: (text: string) => {
+    set((state) => {
+      const messages = [...state.messages]
+      const lastIdx = messages.length - 1
+      if (lastIdx >= 0 && messages[lastIdx].role === 'assistant') {
+        messages[lastIdx] = { ...messages[lastIdx], content: text, timestamp: Date.now() }
+      } else {
+        messages.push({
+          id: `msg_${++msgCounter}_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: Date.now(),
+        })
+      }
+      return { messages }
+    })
   },
 
   setWaiting: (w) => set({ waiting: w }),

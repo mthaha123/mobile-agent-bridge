@@ -56,11 +56,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null })
 
     try {
-      // 临时 client 用于登录
+      // 临时 client 用于登录（无需 token，服务器接受未认证连接）
       const loginClient = new BridgeClient({ url: bridgeUrl })
 
       // 先连接再调用 auth.login
-      await loginClient.connect('temp-token-for-login')
+      await loginClient.connect()
 
       const result = (await loginClient.call('auth.login', {
         password: password ?? null,
@@ -73,17 +73,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await client.connect()
 
-      // 初始化 OpenCode 项目（SDK 需要 directory 才能工作）
+      // 步骤1：先设置 client 触发 AppProvider 注册通知处理器
+      // 此时 authenticated=false，ConnectScreen 仍然显示
+      set({ client, token: result.token, loading: false, error: null })
+
+      // 步骤2：注册完处理器后再启动 project.setup（SSE 事件流）
+      // handler 已就绪，不会丢失初始化事件
       const setupDir = directory || '/'
       await client.call('project.setup', { directory: setupDir })
 
-      set({
-        client,
-        token: result.token,
-        authenticated: true,
-        loading: false,
-        error: null,
-      })
+      // 步骤3：最后标记已认证，页面跳转至 SessionsScreen
+      set({ authenticated: true, loading: false })
     } catch (e: any) {
       set({
         loading: false,

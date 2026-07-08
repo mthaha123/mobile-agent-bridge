@@ -27,10 +27,10 @@ export function generateToken(): { token: string; expiresIn: number } {
 }
 
 // auth.login handler（直接实现）
-export function handleLogin(params: { password?: string }): { token: string; expiresIn: number } | { error: string } {
+export function handleLogin(params: { password?: string }): { token: string; expiresIn: number } {
   const envPassword = process.env.BRIDGE_PASSWORD
   if (envPassword && params.password !== envPassword) {
-    return { error: "invalid password" }
+    throw new Error("invalid password")
   }
   return generateToken()
 }

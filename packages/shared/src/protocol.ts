@@ -15,15 +15,15 @@ export interface WsRes {
   error?: string
 }
 
-export interface WsEvent {
-  type: "event"
-  event: string
-  data: unknown
+export interface WsNotify {
+  type: "notify"
+  method: string
+  payload: unknown
 }
 
-export type WsFrame = WsReq | WsRes | WsEvent
+export type WsFrame = WsReq | WsRes | WsNotify
 
-// ===== 认证 (Bridge 直接实现) §2.1 ====
+// ===== 认证 (Bridge 直接实现) =====
 
 export interface AuthLoginParams {
   password?: string
@@ -43,7 +43,7 @@ export interface AuthLogoutResult {
   ok: true
 }
 
-// ===== 项目设置 (Bridge 直接实现，Phase 1 新增) ====
+// ===== 项目设置 (Bridge 直接实现) =====
 
 export interface ProjectSetupParams {
   directory: string
@@ -64,32 +64,16 @@ export interface ProjectCurrentResult {
   project: { name?: string } | null
 }
 
-// ===== 会话管理 (代理 → client.session.*) §2.2 ====
+// ===== 会话管理 (代理 → v2 命名空间) =====
 
 export interface SessionCreateParams {
-  sessionID?: string
+  agent?: string
+  model?: string
+  /** @deprecated v2 session.create 不支持 title */
   title?: string
-  agent?: string
-  model?: string
-  parentID?: string
-  permission?: string
-  workspaceID?: string
-}
-
-export interface SessionInfo {
-  id: string
-  title: string
-  status: string
-  createdAt: string
-  agent?: string
-  model?: string
 }
 
 export interface SessionListParams {
-  scope?: string
-  path?: string
-  roots?: string[]
-  start?: string
   search?: string
   limit?: number
 }
@@ -102,15 +86,14 @@ export interface SessionDeleteParams {
   sessionID: string
 }
 
-export interface SessionRenameParams {
+export interface SessionUpdateParams {
   sessionID: string
-  title: string
+  title?: string
 }
 
 export interface SessionMessagesParams {
   sessionID: string
   limit?: number
-  before?: string
 }
 
 export interface SessionStatusResult {
@@ -118,51 +101,52 @@ export interface SessionStatusResult {
   sessionID?: string
 }
 
-// ===== 消息通信 (代理 → client.session.*) §2.3 ====
+/** v2.session.messages 返回的分页格式 */
+export interface PaginatedMessages {
+  data: unknown[]
+  cursor?: { previous?: string; next?: string }
+}
+
+/** v2.session.list 返回的分页格式 */
+export interface PaginatedSessions {
+  data: unknown[]
+  cursor?: { previous?: string; next?: string }
+}
+
+// ===== 消息通信 (代理 → v2 命名空间) =====
 
 export interface MessageSendParams {
   sessionID: string
-  parts: unknown[]
+  message: string
 }
 
 export interface MessageAbortParams {
   sessionID: string
 }
 
-export interface MessageShellParams {
-  sessionID: string
-  command: string
-  agent?: string
-  model?: unknown
-}
-
-export interface MessageCommandParams {
-  sessionID: string
-  command: string
-  arguments?: string
-  agent?: string
-}
-
-// ===== 工具审批 (代理 → client.permission.*) §2.4 ====
+// ===== 工具审批 (代理 → v2.session.permission) =====
 
 export interface PermissionReplyParams {
   requestID: string
+  sessionID: string
   reply?: "once" | "always" | "reject"
   message?: string
 }
 
-// ===== 问答系统 (代理 → client.question.*) §2.5 ====
+// ===== 问答系统 (代理 → v2.session.question) =====
 
 export interface QuestionReplyParams {
   requestID: string
-  answers?: unknown[]
+  sessionID: string
+  answers?: string[][]
 }
 
 export interface QuestionRejectParams {
   requestID: string
+  sessionID: string
 }
 
-// ===== 文件操作 (Bridge 直接实现) §2.6 ====
+// ===== 文件操作 (Bridge 直接实现) =====
 
 export interface FileListParams {
   path: string
@@ -197,7 +181,7 @@ export interface FileSearchResult {
   content: string
 }
 
-// ===== 配置与项目 (代理 → client.config.*) §2.7 ====
+// ===== 配置与项目 =====
 
 export interface ConfigGetResult {
   [key: string]: unknown
@@ -216,60 +200,164 @@ export interface AgentInfo {
 }
 
 export interface VcsInfo {
-  branch: string
-  status: string
+  branch?: string
+  default_branch?: string
 }
 
 export interface CommandInfo {
   name: string
-  description: string
+  description?: string
 }
 
-// ===== 事件 (Bridge SSE→WS 转发) §2.3-§2.5 ====
+// ===== V2Event 格式 (SSE → notify 帧的 payload 结构) =====
 
-export interface MessagePartUpdatedEvent {
+/** 流式文本增量 */
+export interface SessionNextTextDelta {
   sessionID: string
-  messageID: string
+  assistantMessageID: string
+  textID: string
   delta: string
 }
 
+/** 文本段结束 */
+export interface SessionNextTextEnded {
+  sessionID: string
+  assistantMessageID: string
+  textID: string
+  text: string
+}
+
+/** 推理增量 */
+export interface SessionNextReasoningDelta {
+  sessionID: string
+  assistantMessageID: string
+  reasoningID: string
+  delta: string
+}
+
+/** 工具被调用 */
+export interface SessionNextToolCalled {
+  sessionID: string
+  assistantMessageID: string
+  callID: string
+  tool: string
+  input: Record<string, unknown>
+}
+
+/** 工具成功 */
+export interface SessionNextToolSuccess {
+  sessionID: string
+  assistantMessageID: string
+  callID: string
+  content: unknown[]
+  result?: unknown
+  outputPaths?: string[]
+}
+
+/** 工具失败 */
+export interface SessionNextToolFailed {
+  sessionID: string
+  assistantMessageID: string
+  callID: string
+  error: unknown
+}
+
+/** 会话 idle */
 export interface SessionIdleEvent {
   sessionID: string
 }
 
+/** 会话错误 */
 export interface SessionErrorEvent {
+  sessionID?: string
+  error?: unknown
+}
+
+/** 会话状态变更 */
+export interface SessionStatusEvent {
   sessionID: string
-  error: string
+  status: { type: "idle" } | { type: "busy" } | { type: "retry"; attempt: number; message: string; next: number }
 }
 
-export interface PermissionAskedEvent {
-  requestID: string
+/** 权限请求 (v2) */
+export interface PermissionV2AskedEvent {
+  id: string
   sessionID: string
-  tool: string
-  args: unknown
+  action: string
+  resources: string[]
+  save?: string[]
+  metadata?: Record<string, unknown>
+  source?: { type: "tool"; messageID: string; callID: string }
 }
 
-export interface PermissionRepliedEvent {
+/** 权限已处理 */
+export interface PermissionV2RepliedEvent {
+  sessionID: string
   requestID: string
-  reply: string
+  reply: "once" | "always" | "reject"
 }
 
-export interface QuestionAskedEvent {
-  requestID: string
-  questions: unknown[]
+/** 问答请求 */
+export interface QuestionV2AskedEvent {
+  id: string
+  sessionID: string
+  questions: Array<{
+    question: string
+    header: string
+    options: Array<{ label: string; description: string }>
+    multiple?: boolean
+    custom?: boolean
+  }>
+  tool?: { messageID: string; callID: string }
 }
 
+/** Part 增量更新 */
+export interface MessagePartDeltaEvent {
+  sessionID: string
+  messageID: string
+  partID: string
+  field: string
+  delta: string
+}
+
+/** 文件变更 */
+export interface SessionDiffEvent {
+  sessionID: string
+  diff: Array<{
+    file?: string
+    patch?: string
+    additions: number
+    deletions: number
+    status?: "added" | "deleted" | "modified"
+  }>
+}
+
+/** 待办更新 */
+export interface TodoUpdatedEvent {
+  sessionID: string
+  todos: Array<{
+    content: string
+    status: string
+    priority: string
+  }>
+}
+
+/** 项目切换 */
 export interface ProjectChangedEvent {
   directory: string
   project?: { name?: string }
 }
 
-export interface TodoUpdatedEvent {
-  sessionID: string
-  todos: unknown[]
-}
-
-export interface SessionDiffEvent {
-  sessionID: string
-  files: unknown[]
+/** V2Event 完整类型（SSE 流中每条事件的结构） */
+export interface V2Event {
+  id: string
+  type: string
+  metadata?: Record<string, unknown>
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: { directory: string; workspaceID?: string }
+  data: Record<string, unknown>
 }

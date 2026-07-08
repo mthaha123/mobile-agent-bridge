@@ -6,7 +6,7 @@
 
 **OpenCode TUI 源码参考：** OpenCode 的 TUI 使用 `@opentui/solid`（SolidJS 终端 UI 框架，非 Ink/React），位于 `packages/opencode/src/cli/cmd/tui/`。包含 30+ 组件文件、18+ 对话框（dialog-agent、dialog-model、dialog-session-list 等）、prompt 系统（autocomplete、frecency、history、stash）、feature-plugins（diff-viewer、which-key、sidebar）、33 套主题引擎等。本需求文档基于对 `D:\code\opencode\packages\opencode\src\cli\cmd\tui\` 源码的逐文件分析，将这些终端 UI 能力映射到移动端交互模式。
 
-**已在 OpenCode TUI 源码中验证的功能：** 会话管理（create/list/switch/fork/share）、Agent 切换（Tab/plan_enter自动切换）、模型选择（frecency/favorites）、消息流式显示（SSE message.part.updated + delta）、14 种工具调用渲染器（Shell/Read/Write/Edit/ApplyPatch/Glob/Grep/WebFetch/WebSearch/Task/Question/Skill/TodoWrite/GenericTool）、权限审批（allow once/always/reject with message）、Question 多步向导、Sidebar 面板（Context/Files/LSP/MCP/Todo）、差异查看器（split/unified/file tree）、主题系统（33 themes + custom + system）、Prompt 历史/暂存、Shell 模式（`!` 开头）、斜杠命令、@-mention 文件补全等。
+**已在 OpenCode TUI 源码中验证的功能：** 会话管理（create/list/switch/fork/share）、Agent 切换（Tab/plan_enter自动切换）、模型选择（frecency/favorites）、消息流式显示（SSE V2Event: `session.next.text.delta` + `data.delta`）、14 种工具调用渲染器（Shell/Read/Write/Edit/ApplyPatch/Glob/Grep/WebFetch/WebSearch/Task/Question/Skill/TodoWrite/GenericTool）、权限审批（allow once/always/reject with message）、Question 多步向导、Sidebar 面板（Context/Files/LSP/MCP/Todo）、差异查看器（split/unified/file tree）、主题系统（33 themes + custom + system）、Prompt 历史/暂存、Shell 模式（`!` 开头）、斜杠命令、@-mention 文件补全等。
 
 ---
 
@@ -195,7 +195,7 @@
 
 #### 3.1.3 流式显示
 
-OpenCode 通过 SSE 事件 `message.part.updated`（含 `delta` 字段）实现令牌流式传输。手机端不直接连接 OpenCode SSE，而是通过 Bridge 将 SSE 事件转为 WebSocket `event` 帧推送。Bridge 在服务端使用 `@opencode-ai/sdk` 订阅 SSE，实时转发给手机端 WebSocket 连接：
+OpenCode 通过 SSE V2Event `session.next.text.delta`（含 `data.sessionID`, `data.delta`）实现令牌流式传输。手机端不直接连接 OpenCode SSE，而是通过 Bridge 将 SSE V2Event（`{ id, type, data }`）转为 WebSocket `notify` 帧（`{ type: "notify", method: event.type, payload: event.data }`）推送。Bridge 在服务端使用 `@opencode-ai/sdk` 的 `v2.event.subscribe()` 订阅 SSE，实时转发给手机端 WebSocket 连接：
 
 ```
 ┌─────────────────────────────────────────┐
@@ -767,11 +767,11 @@ OpenCode TUI 中通过 Tab 键在 build/plan 两个主 Agent 间切换。手机�
 | 方面 | OpenCode TUI 实际使用 | 手机端实现方案 |
 |------|----------------------|--------------|
 | **SDK 版本** | `@opencode-ai/sdk/v2` | ❌ 无法使用，经 Bridge 代理 |
-| **消息发送** | `client.session.prompt()` + `client.session.shell()` + `client.session.command()` | WS `message.send/shell/command` → Bridge 代理 → SDK |
-| **事件订阅** | `sdk.global.event()` → 16ms 批处理 → 全局 emitter | WS `event` 帧 → Bridge 将 SSE 转发为 WS |
+| **消息发送** | `client.v2.session.prompt()` + `client.session.shell()` + `client.session.command()` | WS `message.send/{sessionID, message}` → Bridge 代理 → `v2.session.prompt({ prompt: { text } })` |
+| **事件订阅** | `sdk.v2.event.subscribe()` → V2Event 流 | WS `notify` 帧 → Bridge 将 SSE V2Event 转发为 `{ type: "notify", method, payload }` |
 | **状态管理** | SolidJS `createStore` + `reconcile` | Zustand |
-| **权限处理** | `client.permission.reply()` + inline 拒绝消息 | WS `permission.reply` → Bridge 代理 → SDK |
-| **Question 处理** | `client.question.reply()/reject()` | WS `question.reply/reject` → Bridge 代理 → SDK |
+| **权限处理** | `client.v2.session.permission.reply()` + session 作用域 | WS `permission.reply/{sessionID, requestID, reply}` → Bridge 代理 → SDK |
+| **Question 处理** | `client.v2.session.question.reply()/reject()` | WS `question.reply/reject` → Bridge 代理 → SDK |
 | **文件搜索** | `client.find.files()` + fuzzysort | WS `file.search` → Bridge 转发到 OpenCode REST `/find/file` |
 
 ### 13.4 关键差异总结
@@ -951,33 +951,31 @@ TUI 调用 @opencode-ai/sdk  ───HTTP+SSE──→  OpenCode serve
 
 | TUI 调用 | 源码位置 | 必须？ | 手机端方法 | 说明 |
 |----------|---------|--------|-----------|------|
-| `client.session.prompt()` | `prompt/index.tsx:1177` | ✅ 核心 | `message.send` | 发送文本消息 |
-| `client.session.shell()` | `prompt/index.tsx:1136` | ✅ 核心 | `message.shell` | Shell 命令 |
-| `client.session.command()` | `prompt/index.tsx:1161` | ✅ 核心 | `message.command` | 斜杠命令 |
+| `client.v2.session.prompt()` | `prompt/index.tsx:1177` | ✅ 核心 | `message.send` | 发送文本消息（`prompt: { text }`） |
+| `client.session.shell()` | `prompt/index.tsx:1136` | ❌ 降级 | `message.send` | 由 message.send + text prompt 替代 |
+| `client.session.command()` | `prompt/index.tsx:1161` | ❌ 降级 | `message.send` | 由 message.send + text prompt 替代 |
 
 #### E. 工具审批 — 4 个，全部必须
 
 | TUI 调用 | 源码位置 | 手机端方法 |
 |----------|---------|-----------|
-| `client.permission.reply("once")` | `permission.tsx:428` | `permission.reply` |
-| `client.permission.reply("always")` | `permission.tsx:171` | `permission.reply` |
-| `client.permission.reply("reject")` | `permission.tsx:182` | `permission.reply` |
-| `client.permission.reply("reject with message")` | `permission.tsx:421` | `permission.reply` |
+| `client.v2.session.permission.reply({ sessionID, requestID, reply })` | `permission.tsx:428` | `permission.reply` | `reply: "once"\|"always"\|"reject"` |
+| `client.permission.reply("always")` | `permission.tsx:171` | `permission.reply` | 全局路径（v1） |
+| `client.permission.reply("reject") with message` | `permission.tsx:182` | `permission.reply` | 同上 |
 
 #### F. Question 处理 — 3 个，全部必须
 
 | TUI 调用 | 源码位置 | 手机端方法 |
 |----------|---------|-----------|
-| `client.question.reply()` | `question.tsx:50` | `question.reply` |
-| `client.question.reply(single)` | `question.tsx:72` | `question.reply` |
-| `client.question.reject()` | `question.tsx:57` | `question.reject` |
+| `client.v2.session.question.reply({ sessionID, requestID, questionV2Reply })` | `question.tsx:50` | `question.reply` | `questionV2Reply: { answers: [[string]] }` |
+| `client.v2.session.question.reject({ sessionID, requestID })` | `question.tsx:57` | `question.reject` | |
 
 #### G. 文件搜索（TUI 没有文件浏览器！）— 关键发现
 
 | TUI 调用 | 源码位置 | 用途 | 手机端方法 |
 |----------|---------|------|-----------|
-| `client.find.files()` | `autocomplete.tsx:390` | @-mention 文件模糊搜索 | `file.search` |
-| `client.find.files()` | `dialog-tag.tsx:20` | 文件标签 | 同上 |
+| `client.v2.fs.find()` | `autocomplete.tsx:390` | @-mention 文件模糊搜索 | `file.search` | Bridge 转发到 OpenCode |
+| `client.find.files()` | `dialog-tag.tsx:20` | 文件标签 | 同上 | 顶层 SDK 也可用 |
 
 **⚠️ 关键发现：** TUI **没有** `client.file.list()` 或 `client.file.read()` 调用。TUI 没有独立的"文件浏览器"功能——文件只通过 @-mention 搜索（`client.find.files`）和会话差异（`client.session.diff`）展示。**手机端的文件浏览器和文件查看器是额外增强功能**，TUI 本身不支持。
 
@@ -1009,15 +1007,17 @@ Agent 和模型信息通过启动时加载的数据（`client.app.agents()`、`c
 | 类别 | TUI 调用数 | 手机端实现 | 覆盖率 |
 |------|-----------|-----------|--------|
 | 应用启动（必须） | 7 | 7（含 Bridge 自动） | **100%** |
-| 非阻塞加载 | 8 | 2（其余跳过） | 25% |
-| 会话 CRUD | 14 | 8 | **57%** |
-| 消息发送 | 3 | 3 | **100%** |
-| 工具审批 | 4 | 4 | **100%** |
-| Question | 3 | 3 | **100%** |
+| 非阻塞加载 | 8 | 5（LSP/MCP 跳过） | **62%** |
+| 会话 CRUD | 14 | 12（含顶层 SDK delete/update/fork/revert/unrevert） | **86%** |
+| 消息发送 | 3 | 3（shell/command 降级为 message.send） | **100%** |
+| 工具审批 | 4 | 4（v2.session.permission.reply） | **100%** |
+| Question | 3 | 3（v2.session.question.reply/reject） | **100%** |
 | 文件搜索 | 2 | 2（含文件浏览器增强） | **100%+** |
-| 提供商/OAuth | 8 | 0 | 0%（桌面操作） |
+| 提供商/OAuth | 11（含顶层 SDK providers） | 0 | 0%（桌面操作） |
 | 工作区管理 | 7 | 0 | 0%（桌面概念） |
-| **总计** | **85** | **约 40** | **47%** |
+| **总计** | **约 85** | **约 43** | **~51%** |
+
+**更新（2026-07-08）：** 通过与 SDK v2 实际 API 表面核对发现，`session.delete`、`session.update`、`config.providers`、`vcs.get`、`session.diff`、`session.todo`、`session.fork`、`session.revert`、`session.unrevert` 均可通过顶层 SDK（非 `v2` 命名空间）调用，并非不可用。设计文档 `03-architecture-design.md §1.6` 已同步修正。
 
 ### 14.5 结论
 

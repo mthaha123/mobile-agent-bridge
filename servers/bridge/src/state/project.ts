@@ -9,21 +9,21 @@ let isSwitching = false
 
 async function startSSE(signal: AbortSignal): Promise<void> {
   const backend = getBackend()
+  let htmlResponseCount = 0
   while (true) {
     if (signal.aborted) break
     try {
-      // 注意：sdk.global.event() 不支持 sseMaxRetryAttempts 参数时的类型约束
-      // 以 AbortSignal 作为 signal.name 传递
-      const result = await backend.sdk!.global.event({
+      const result = await backend.sdk!.v2.event.subscribe({
         signal,
         sseMaxRetryAttempts: 0,
       } as any)
       for await (const event of result.stream) {
         if (signal.aborted) break
-        // GlobalEvent: { directory, project?, workspace?, payload: { id, type, properties } }
+        // V2Event 格式: { id, type, data, metadata?, durable?, location? }
+        // 注意：不是 GlobalEvent 格式 ({ directory, payload: { type, properties } })
         const ev = event as any
-        const eventType: string = ev.payload?.type || "unknown"
-        const eventData: unknown = ev.payload?.properties || ev
+        const eventType: string = ev.type || "unknown"
+        const eventData: unknown = ev.data || ev
         broadcastToAll({
           type: "notify",
           method: eventType,
@@ -32,6 +32,15 @@ async function startSSE(signal: AbortSignal): Promise<void> {
       }
     } catch (err: any) {
       if (signal.aborted) break
+      // 检查是否因为 OpenCode 服务端返回 HTML（不支持 event endpoint）
+      const isHtmlResponse = err.message?.includes("text/html") || err.message?.includes("HTML")
+      if (isHtmlResponse) {
+        htmlResponseCount++
+        if (htmlResponseCount >= 2) {
+          console.warn("[SSE] OpenCode 服务端不支持 /api/event（返回 HTML），停止 SSE 重试")
+          break
+        }
+      }
       console.error("[SSE] 错误:", err.message)
     }
     // 断线后等待重试（指数退避已在 SDK 内部处理）
@@ -39,8 +48,8 @@ async function startSSE(signal: AbortSignal): Promise<void> {
   }
 }
 
-export async function setupProject(directory: string): Promise<{ directory: string; project?: { name?: string } } | { error: string }> {
-  if (isSwitching) return { error: "already switching" }
+export async function setupProject(directory: string): Promise<{ directory: string; project?: { name?: string } }> {
+  if (isSwitching) throw new Error("already switching")
   isSwitching = true
 
   try {
@@ -76,7 +85,7 @@ export async function setupProject(directory: string): Promise<{ directory: stri
     return { directory: activeDirectory, project: currentProject }
   } catch (err: any) {
     isSwitching = false
-    return { error: err.message || "setup failed" }
+    throw err
   }
 }
 

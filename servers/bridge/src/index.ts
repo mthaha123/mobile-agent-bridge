@@ -1,6 +1,13 @@
 import { createWSServer } from "./server/ws.js"
 import { initBackend } from "./adapters/OpenCodeAdapter.js"
 
+process.on("uncaughtException", (err) => {
+  console.error("[Bridge] uncaughtException:", err)
+})
+process.on("unhandledRejection", (err) => {
+  console.error("[Bridge] unhandledRejection:", err)
+})
+
 const PORT = parseInt(process.env.BRIDGE_PORT || "8080", 10)
 const OPENCODE_URL = process.env.OPENCODE_URL || "http://localhost:4096"
 

@@ -1,4 +1,4 @@
-import { signToken, verifyToken, handleLogin } from "../src/server/auth.js"
+import { signToken, verifyToken, handleLogin, handleRefresh, handleLogout } from "../src/server/auth.js"
 
 describe("JWT Auth", () => {
   it("should sign and verify a token", () => {
@@ -36,8 +36,7 @@ describe("JWT Auth", () => {
   it("should reject login with wrong password", () => {
     const oldPwd = process.env.BRIDGE_PASSWORD
     process.env.BRIDGE_PASSWORD = "test123"
-    const result = handleLogin({ password: "wrong" })
-    expect(result).toHaveProperty("error")
+    expect(() => handleLogin({ password: "wrong" })).toThrow("invalid password")
     process.env.BRIDGE_PASSWORD = oldPwd
   })
 
@@ -47,5 +46,16 @@ describe("JWT Auth", () => {
     const result = handleLogin({})
     expect(result).toHaveProperty("token")
     process.env.BRIDGE_PASSWORD = oldPwd
+  })
+
+  it("should handle auth.refresh", () => {
+    const result = handleRefresh()
+    expect(result).toHaveProperty("token")
+    expect(result).toHaveProperty("expiresIn")
+  })
+
+  it("should handle auth.logout", () => {
+    const result = handleLogout()
+    expect(result).toEqual({ ok: true })
   })
 })

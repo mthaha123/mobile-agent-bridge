@@ -66,7 +66,8 @@ export class BridgeClient {
 
   constructor(options: BridgeClientOptions) {
     this.url = options.url
-    this._token = options.token
+    // 确保 undefined 不变成 "undefined" 字符串
+    this._token = options.token || undefined
     this.reconnectInterval = options.reconnectInterval ?? 3000
     this.requestTimeout = options.requestTimeout ?? 30000
     this.tag = options.tag ?? 'BridgeClient'
@@ -96,16 +97,23 @@ export class BridgeClient {
   async connect(token?: string): Promise<void> {
     if (token) this._token = token
 
-    if (!this._token) {
-      throw new Error('BridgeClient: token 未设置，请先 login')
-    }
+    // 允许无 token 连接（用于 auth.login），服务器会拒绝非 auth 方法
+    const tokenParam = this._token ? `?token=${encodeURIComponent(this._token)}` : ''
 
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `${this.url}?token=${encodeURIComponent(this._token!)}`
+        const wsUrl = `${this.url}${tokenParam}`
         this.ws = new WebSocket(wsUrl)
 
+        // 连接超时（移动网络不稳定场景）
+        const connectTimer = setTimeout(() => {
+          this.ws?.close()
+          this.ws = null
+          reject(new Error(`BridgeClient: 连接超时 (${this.requestTimeout}ms)`))
+        }, this.requestTimeout)
+
         this.ws.onopen = () => {
+          clearTimeout(connectTimer)
           console.log(`[${this.tag}] 已连接`)
           this.emit('connected')
           resolve()
@@ -122,21 +130,29 @@ export class BridgeClient {
 
         this.ws.onclose = (event: WebSocketCloseEvent) => {
           console.log(`[${this.tag}] 断开 (code=${event.code})`)
+          // 拒绝所有待处理请求（避免用户等待 30s 超时）
+          for (const [id, pending] of this.pending) {
+            clearTimeout(pending.timer)
+            pending.reject(new Error('BridgeClient: 连接已断开'))
+          }
+          this.pending.clear()
           this.ws = null
           this.emit('disconnected', event.code)
 
-          // 401 → token 过期
+          // 4001 → token 过期，不自动重连（会死循环），由外部 auth_expired 处理
           if (event.code === 4001) {
             this.emit('auth_expired')
+            return
           }
 
-          // 自动重连
+          // 自动重连（仅非认证失败场景）
           if (!this.destroyed && this.reconnectInterval > 0) {
             this.scheduleReconnect()
           }
         }
 
         this.ws.onerror = (err: Event) => {
+          clearTimeout(connectTimer)
           console.error(`[${this.tag}] WS 错误:`, err)
           this.emit('error', err)
           reject(err)

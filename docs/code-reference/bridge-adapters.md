@@ -1,179 +1,119 @@
 # Bridge 适配器实现参考
 
-## AgentBackend 接口
-
-```typescript
-interface AgentBackend {
-  connect(config: any): Promise<void>
-  sendMessage(sessionID: string, parts: PartInput[]): Promise<void>
-  sendShell(sessionID: string, command: string, agent?: string, model?: ModelRef): Promise<void>
-  sendCommand(sessionID: string, command: string, args?: string, agent?: string): Promise<void>
-  abortSession(sessionID: string): Promise<void>
-  replyPermission(requestID: string, reply?: "once" | "always" | "reject", message?: string): Promise<void>
-  replyQuestion(requestID: string, answers?: QuestionAnswer[]): Promise<void>
-  rejectQuestion(requestID: string): Promise<void>
-  startSSE(signal: AbortSignal): Promise<void>
-}
-```
-
 ## OpenCode 适配器
 
 使用 `@opencode-ai/sdk` v2。Bridge 持有唯一活跃的 `OpencodeClient` 实例。
 
 ```typescript
-import { createOpencodeClient, OpencodeClient } from "@opencode-ai/sdk/v2"
-import type { PartInput, ModelRef, QuestionAnswer } from "@opencode-ai/sdk/v2"
+import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/v2"
+import http from "http"
+import { URL } from "url"
 
 class OpenCodeBackend {
-  private sdk: OpencodeClient | null = null
+  public sdk: OpencodeClient | null = null
   private baseUrl: string
 
   constructor(baseUrl: string) {
+    // baseUrl 不带 /api 后缀——v2 路径已内嵌 /api/ 前缀
     this.baseUrl = baseUrl
   }
 
   /** 创建 SDK client（绑定 directory） */
   createClient(directory: string): void {
-    // 销毁旧 client（GC 回收纯 JS 对象）
-    this.sdk = null
+    // dispose 清理旧 client（SSE、HTTP 连接）
+    this.sdk?.global.dispose().catch(() => {})
     this.sdk = createOpencodeClient({
       baseUrl: this.baseUrl,
+      fetch: this.createNodeFetch(), // 自定义 fetch 避免 tsx hang 问题
       directory,
     })
   }
 
-  async sendMessage(sessionID: string, parts: PartInput[]): Promise<void> {
-    await this.sdk!.session.prompt({ sessionID, parts })
+  /** 销毁当前 client */
+  dispose(): void {
+    if (this.sdk) {
+      this.sdk.global.dispose().catch(() => {})
+      this.sdk = null
+    }
   }
 
-  async sendShell(sessionID: string, command: string, agent?: string, model?: ModelRef): Promise<void> {
-    await this.sdk!.session.shell({ sessionID, command, agent, model })
-  }
+  /** 基于 http 模块的 fetch，避免 tsx/undici 下 req.timeout=false 导致 hang */
+  private createNodeFetch(): typeof globalThis.fetch {
+    const baseUrl = this.baseUrl
+    return async (input: any, init?: any): Promise<Response> => {
+      const req = input instanceof Request ? input : new Request(String(input), init)
+      const urlStr = req.url
+      const absUrl = urlStr.startsWith("http") ? urlStr : `${baseUrl.replace(/\/+$/, "")}/${urlStr.replace(/^\/+/, "")}`
+      const url = new URL(absUrl)
+      const method = req.method
+      const reqHeaders: Record<string, string> = {}
+      req.headers.forEach((v, k) => { reqHeaders[k] = v })
+      const bodyStr = method !== "GET" && method !== "HEAD" ? await req.text() : undefined
 
-  async sendCommand(sessionID: string, command: string, args?: string, agent?: string): Promise<void> {
-    await this.sdk!.session.command({ sessionID, command, arguments: args, agent })
-  }
-
-  async abortSession(sessionID: string): Promise<void> {
-    await this.sdk!.session.abort({ sessionID })
-  }
-
-  async replyPermission(requestID: string, reply?: "once" | "always" | "reject", message?: string): Promise<void> {
-    await this.sdk!.permission.reply({ requestID, reply, message })
-  }
-
-  async replyQuestion(requestID: string, answers?: QuestionAnswer[]): Promise<void> {
-    await this.sdk!.question.reply({ requestID, answers })
-  }
-
-  async rejectQuestion(requestID: string): Promise<void> {
-    await this.sdk!.question.reject({ requestID })
-  }
-
-  /** 订阅 SSE，事件由调用方通过 signal 管理生命周期 */
-  async startSSE(signal: AbortSignal, onEvent: (event: any) => void): Promise<void> {
-    while (true) {
-      if (signal.aborted) break
-      const events = await this.sdk!.global.event({
-        signal,
-        sseMaxRetryAttempts: 0,
+      return new Promise((resolve, reject) => {
+        const nodeReq = http.request({
+          hostname: url.hostname,
+          port: parseInt(url.port || "80"),
+          path: url.pathname + url.search,
+          method,
+          headers: bodyStr ? { ...reqHeaders, "Content-Length": Buffer.byteLength(bodyStr).toString() } : reqHeaders,
+          timeout: 15000,
+        }, (res) => {
+          const chunks: Buffer[] = []
+          res.on("data", (chunk: Buffer) => chunks.push(chunk))
+          res.on("end", () => {
+            const responseBody = Buffer.concat(chunks).toString()
+            resolve(new Response(responseBody, {
+              status: res.statusCode || 200,
+              statusText: res.statusMessage || "",
+              headers: { "content-type": res.headers["content-type"] || "application/json" },
+            }))
+          })
+        })
+        nodeReq.on("error", (err) => reject(err))
+        nodeReq.on("timeout", () => { nodeReq.destroy(); reject(new Error("Request timeout")) })
+        if (bodyStr) nodeReq.write(bodyStr)
+        nodeReq.end()
       })
-      for await (const event of events.stream) {
-        if (signal.aborted) break
-        onEvent(event)
-      }
-      // 断线后等待重试
-      await new Promise(r => setTimeout(r, 3000))
     }
   }
 }
 ```
 
-## Hermes 适配器
+**注记：** Phase 1 的 OpenCodeAdapter 职责已简化——仅管理 SDK client 生命周期。具体的 SDK 方法调用（`createSession`、`sendMessage`、`replyPermission` 等）在 Router handler 中内联完成，不在 adapter 中二次封装。这样做的好处是每个方法可以独立处理参数转换和错误格式。
 
-通过 JSON-RPC over stdio 与 Hermes Python 进程通信。
+完整的方法调用映射见 `docs/03-architecture-design.md §1.6`。
+
+## SSE 事件订阅
+
+SSE 订阅使用 `v2.event.subscribe()`（路径 `/api/event`），不直接使用 `global.event()`。事件格式为 `V2Event`（`{ id, type, data }`），非 `GlobalEvent` 格式。
 
 ```typescript
-import { spawn, ChildProcess } from "child_process"
-import * as readline from "readline"
-
-class HermesBackend {
-  private proc: ChildProcess | null = null
-  private requestId = 0
-  private pending = new Map<number, { resolve: Function; reject: Function }>()
-
-  async connect(): Promise<void> {
-    this.proc = spawn("python", ["-m", "tui_gateway.entry"], {
-      stdio: ["pipe", "pipe", "pipe"],
-    })
-
-    const reader = readline.createInterface({ input: this.proc.stdout! })
-    reader.on("line", (line) => {
-      const msg = JSON.parse(line)
-      if (msg.id && this.pending.has(msg.id)) {
-        const p = this.pending.get(msg.id)!
-        p.resolve(msg.result)
-        this.pending.delete(msg.id)
+async function startSSE(sdk: OpencodeClient, signal: AbortSignal, onEvent: (type: string, data: unknown) => void): Promise<void> {
+  while (true) {
+    if (signal.aborted) break
+    try {
+      const events = await sdk.v2.event.subscribe({ signal, sseMaxRetryAttempts: 0 } as any)
+      for await (const event of events.stream) {
+        if (signal.aborted) break
+        // V2Event 格式: { id, type, data, metadata?, durable?, location? }
+        const ev = event as any
+        onEvent(ev.type || "unknown", ev.data || ev)
       }
-    })
-  }
-
-  async sendMessage(sessionID: string, parts: any[]): Promise<void> {
-    await this.rpcCall("chat.send", { sessionId: sessionID, content: parts })
-  }
-
-  private rpcCall(method: string, params: any): Promise<any> {
-    const id = ++this.requestId
-    this.proc!.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n")
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-      setTimeout(() => reject(new Error("RPC 超时")), 30000)
-    })
-  }
-
-  async startSSE(signal: AbortSignal, onEvent: (event: any) => void): Promise<void> {
-    // Hermes 的事件通过 stdout 行推送，过滤 method 为 "event" 的行
-    // 具体实现取决于 Hermes 网关协议
-    throw new Error("待实现")
+    } catch (err: any) {
+      if (signal.aborted) break
+      // 服务端不支持 event 端点时停止重试
+      if (err.message?.includes("text/html") || err.message?.includes("HTML")) break
+    }
+    await new Promise(r => setTimeout(r, 3000))
   }
 }
 ```
 
-## OpenClaw 适配器
+## Hermes 适配器（待 Phase 3）
 
-通过 WebSocket 原生协议连接 OpenClaw Gateway。
+通过 JSON-RPC over stdio 与 Hermes Python 进程通信。见 `docs/03-architecture-design.md §1.7`。
 
-```typescript
-import WebSocket from "ws"
+## OpenClaw 适配器（待 Phase 3）
 
-class OpenClawBackend {
-  private ws: WebSocket | null = null
-
-  async connect(config: { host: string; token: string }): Promise<void> {
-    this.ws = new WebSocket(`wss://${config.host}:18789`)
-    await this.sendFrame({
-      type: "req",
-      method: "connect",
-      params: { role: "operator", auth: { token: config.token } },
-    })
-  }
-
-  async sendMessage(sessionID: string, parts: any[]): Promise<void> {
-    await this.sendFrame({
-      type: "req",
-      method: "agent",
-      params: { sessionId: sessionID, message: parts },
-    })
-  }
-
-  private async sendFrame(frame: any): Promise<void> {
-    this.ws!.send(JSON.stringify(frame))
-  }
-
-  async startSSE(signal: AbortSignal, onEvent: (event: any) => void): Promise<void> {
-    // 从 ws.onmessage 过滤 type === "event"
-    // 具体实现取决于 OpenClaw 网关协议
-    throw new Error("待实现")
-  }
-}
-```
+通过 WebSocket 原生协议连接 OpenClaw Gateway。见 `docs/03-architecture-design.md §1.7`。
