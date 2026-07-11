@@ -16,6 +16,7 @@ import {
   Platform,
 } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
+import { useProjectStore } from '../stores/projectStore'
 
 export const ConnectScreen: React.FC = () => {
   const [urlInput, setUrlInput] = useState('')
@@ -27,7 +28,7 @@ export const ConnectScreen: React.FC = () => {
 
   const handleConnect = () => {
     useAuthStore.getState().setBridgeUrl(urlInput)
-    useAuthStore.getState().setDirectory(directoryInput)
+    useProjectStore.getState().setDirectory(directoryInput)
     useAuthStore.getState().login(passwordInput || undefined)
   }
 

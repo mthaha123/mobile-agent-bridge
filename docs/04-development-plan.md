@@ -149,18 +149,20 @@
 | 任务 | 描述 |
 |------|------|
 | 7.1 | Bridge `project.switch`：abort 旧 SSE → 重建 client → 新 SSE |
-| 7.2 | Bridge `project.current`/`project.list` |
-| 7.3 | 手机端项目选择 UI |
-| 7.4 | Shell 模式：`!` 开头检测 → `message.shell` |
-| 7.5 | 斜杠命令：`/model`、`/agent` 等 |
+| 7.2 | Bridge `project.current`（已实现）/`project.list`（Phase 3） |
+| 7.3 | 手机端项目选择 UI（调用已存在的 `project.switch`） |
+| 7.4 | Shell 模式：`!` 开头检测 → `message.shell`（Bridge 侧 `session.shell()` 已实现） |
+| 7.5 | 斜杠命令：`/model`、`/agent` 等（手机端逻辑；Bridge 侧 `session.command()` 已实现） |
+
+**注：Bridge 侧 `session.diff`/`session.todo`/`session.fork`/`session.revert`/`session.unrevert`/`question.reply`/`question.reject`/`message.shell`/`message.command` 已在 Phase 1 实现。Phone 侧 UI 渲染器仍为 Phase 2 独立任务。**
 
 #### 第 8 周：Markdown + Question + 打磨
 
 | 任务 | 描述 |
 |------|------|
 | 8.1 | Markdown 渲染（代码块 + 表格 + 图片） |
-| 8.2 | Question 多步向导（`question.asked` 事件 → 表单式 UI） |
-| 8.3 | 思考/推理折叠组件 |
+| 8.2 | Question 多步向导（`question.v2.asked` 事件 → 表单式 UI；Bridge 侧 `question.reply/reject` 已实现） |
+| 8.3 | 思考/推理折叠组件（`session.next.reasoning.delta` 事件已转发） |
 | 8.4 | 集成测试 + Bug 修复 |
 
 ### 4.3 Phase 2 交付物

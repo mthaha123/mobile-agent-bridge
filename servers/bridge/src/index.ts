@@ -15,7 +15,7 @@ console.log("[Bridge] 启动中...")
 console.log(`[Bridge] WS 端口: ${PORT}`)
 console.log(`[Bridge] OpenCode URL: ${OPENCODE_URL}`)
 
-// 初始化后端（但还不连接 — 等 project.setup）
+// 初始化后端（但还不连接 — 等 project.switch）
 initBackend(OPENCODE_URL)
 
 createWSServer(PORT)

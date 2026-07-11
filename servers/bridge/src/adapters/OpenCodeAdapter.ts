@@ -73,14 +73,15 @@ export class OpenCodeBackend {
 
   /** 创建 SDK client（绑定 directory） */
   createClient(directory: string): void {
-    this.sdk?.global.dispose().catch(() => {})
-    // SDK v2 内部已在路径中添加 /api/ 前缀，baseUrl 用裸地址即可
     const apiBaseUrl = `${this.baseUrl.replace(/\/+$/, "")}`
-    this.sdk = createOpencodeClient({
+    const newSdk = createOpencodeClient({
       baseUrl: apiBaseUrl,
       fetch: this.createNodeFetch(),
       directory,
     })
+    // 新 client 就绪后才销毁旧的（防回滚丢失）
+    this.sdk?.global.dispose().catch(() => {})
+    this.sdk = newSdk
   }
 
   /** 销毁当前 client */

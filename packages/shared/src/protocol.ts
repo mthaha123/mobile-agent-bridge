@@ -68,8 +68,8 @@ export interface ProjectCurrentResult {
 
 export interface SessionCreateParams {
   agent?: string
-  model?: string
-  /** @deprecated v2 session.create 不支持 title */
+  /** SDK 需要 { id, providerID } 对象；Bridge 也接受纯字符串自动填充 */
+  model?: string | { id: string; providerID: string; variant?: string }
   title?: string
 }
 

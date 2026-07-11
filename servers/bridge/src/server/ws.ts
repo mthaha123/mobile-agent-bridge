@@ -4,6 +4,8 @@ import { verifyToken } from "./auth.js"
 import { handleFrame } from "./router.js"
 
 const connections = new Map<string, WebSocket>()
+/** @internal 测试用 */
+export function _testGetConnections(): Map<string, WebSocket> { return connections }
 const connTokens = new Map<string, string>()
 
 export function broadcastToAll(frame: unknown): void {

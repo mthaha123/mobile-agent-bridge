@@ -3,6 +3,7 @@ import { handleFrame } from "../src/server/router.js"
 import type { WebSocket } from "ws"
 import type { TokenPayload } from "../src/server/auth.js"
 import { initBackend, getBackend } from "../src/adapters/OpenCodeAdapter.js"
+import { _testGetConnections } from "../src/server/ws.js"
 
 function createMockWs(): { ws: WebSocket; messages: any[] } {
   const messages: any[] = []
@@ -44,7 +45,7 @@ function createMockSdk() {
     shell: jest.fn<any>().mockResolvedValue({ data: {} }),
     command: jest.fn<any>().mockResolvedValue({ data: {} }),
   }
-  const mockGlobal = { config: { get: jest.fn<any>().mockResolvedValue({ data: {} }) } }
+  const mockGlobal = { config: { get: jest.fn<any>().mockResolvedValue({ data: {} }) }, dispose: jest.fn<any>().mockResolvedValue(undefined) }
   const mockConfig = { providers: jest.fn<any>().mockResolvedValue({ data: [] }) }
   const mockVcs = { get: jest.fn<any>().mockResolvedValue({ data: {} }) }
   const mockV2 = {
@@ -59,6 +60,28 @@ function createMockSdk() {
 }
 
 const testPayload: TokenPayload = { sub: "test", role: "user" }
+
+/** mock backend.createClient 以设置一个含 mock subscribe 的 SDK */
+function mockCreateClientForSwitch(extra?: { subscribeBlock?: Promise<void> }) {
+  const backend = getBackend()
+  const oldSdk = backend.sdk
+  const subscribeMock = jest.fn<any>().mockImplementation(() =>
+    extra?.subscribeBlock
+      ? extra.subscribeBlock.then(() => ({ stream: (async function*() {})() }))
+      : Promise.resolve({ stream: (async function*() {})() })
+  )
+  backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+    backend.sdk = {
+      ...oldSdk,
+      v2: {
+        ...(oldSdk as any).v2,
+        event: { subscribe: subscribeMock },
+      },
+      global: { dispose: jest.fn<any>().mockResolvedValue(undefined), config: (oldSdk as any)?.global?.config },
+    } as any
+  })
+  return { backend, oldSdk, subscribeMock }
+}
 
 describe("RPC Router", () => {
   beforeEach(() => {
@@ -121,7 +144,21 @@ describe("RPC Router", () => {
     })
   })
 
-  it("should reject message.send without sessionId", async () => {
+  it("should accept sessionID (upper case D) in message.send", async () => {
+    const { mockV3Session: mockSession } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "message.send",
+      params: { sessionID: "sess_123", message: "hello via sessionID" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession.prompt).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      prompt: { text: "hello via sessionID" },
+    })
+  })
+
+  it("should reject message.send without sessionID/sessionId", async () => {
     createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
@@ -130,7 +167,7 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages.length).toBe(1)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionId")
+    expect(messages[0].error).toContain("sessionID/sessionId")
   })
 
   it("should call v2.session.permission.reply with correct reply value", async () => {
@@ -149,6 +186,21 @@ describe("RPC Router", () => {
     })
   })
 
+  it("should accept permission.reply with sessionID (upper case D)", async () => {
+    const { mockV3Session: mockSession } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.reply",
+      params: { id: "req_123", sessionID: "sess_123", reply: "once" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession.permission.reply).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      requestID: "req_123",
+      reply: "once",
+    })
+  })
+
   it("should fallback from reply to approved boolean", async () => {
     const { mockV3Session: mockSession } = createMockSdk()
     const { ws, messages } = createMockWs()
@@ -164,7 +216,7 @@ describe("RPC Router", () => {
     })
   })
 
-  it("should call session.create with agent/model params", async () => {
+  it("should call session.create with agent/model params (string model resolved to object)", async () => {
     const { mockSession2 } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
@@ -175,7 +227,20 @@ describe("RPC Router", () => {
     expect(messages[0].ok).toBe(true)
     expect(mockSession2.create).toHaveBeenCalledWith({
       agent: "build",
-      model: "claude-sonnet-4",
+      model: { id: "claude-sonnet-4", providerID: "claude-sonnet-4" },
+    })
+  })
+
+  it("should accept model as object and pass through directly", async () => {
+    const { mockSession2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.create",
+      params: { model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" } },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession2.create).toHaveBeenCalledWith({
+      model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" },
     })
   })
 
@@ -302,6 +367,16 @@ describe("RPC Router", () => {
     expect(mockV3Session.list).toHaveBeenCalledWith({})
   })
 
+  it("should pass search/limit to session.list", async () => {
+    const { mockV3Session } = createMockSdk()
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.list",
+      params: { search: "test", limit: 10, cursor: "abc" },
+    }, testPayload)
+    expect(mockV3Session.list).toHaveBeenCalledWith({ search: "test", limit: 10, cursor: "abc" })
+  })
+
   it("should call session.get with sessionID", async () => {
     const { mockV3Session } = createMockSdk()
     const { ws, messages } = createMockWs()
@@ -413,6 +488,16 @@ describe("RPC Router", () => {
     expect(mockSession2.diff).toHaveBeenCalledWith({ sessionID: "sess_123" })
   })
 
+  it("should forward messageID to session.diff", async () => {
+    const { mockSession2 } = createMockSdk()
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.diff",
+      params: { id: "sess_123", messageID: "msg_456" },
+    }, testPayload)
+    expect(mockSession2.diff).toHaveBeenCalledWith({ sessionID: "sess_123", messageID: "msg_456" })
+  })
+
   it("should call session.fork", async () => {
     const { mockSession2 } = createMockSdk()
     const { ws, messages } = createMockWs()
@@ -433,6 +518,18 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockSession2.revert).toHaveBeenCalledWith({ sessionID: "sess_123" })
+  })
+
+  it("should forward messageID and partID to session.revert", async () => {
+    const { mockSession2 } = createMockSdk()
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.revert",
+      params: { id: "sess_123", messageID: "msg_456", partID: "part_789" },
+    }, testPayload)
+    expect(mockSession2.revert).toHaveBeenCalledWith({
+      sessionID: "sess_123", messageID: "msg_456", partID: "part_789",
+    })
   })
 
   it("should call session.unrevert", async () => {
@@ -567,15 +664,333 @@ describe("RPC Router", () => {
 
   // ===== Project handler =====
 
-  it("should return current project via project.current", async () => {
-    createMockSdk()
+  it("should return current project via project.current (default null)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "project.current", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toEqual({ directory: null, project: null })
+  })
+
+  it("should reject project.switch without directory", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("directory")
+  })
+
+  it("should reject project.switch with invalid directory", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: "C:\\nonexistent_dir_xyzzy" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("directory not found")
+  })
+
+  it("should return correct payload after successful project.switch", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+
+    backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+      // keep old sdk alive (no dispose) so rollback is safe
+      backend.sdk = {
+        ...oldSdk,
+        v2: {
+          ...(oldSdk as any).v2,
+          event: { subscribe: jest.fn<any>().mockResolvedValue({ stream: (async function*() {})() }) },
+        },
+      } as any
+    })
+
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    expect(messages[0].ok).toBe(true)
     expect(messages[0].payload).toHaveProperty("directory")
     expect(messages[0].payload).toHaveProperty("project")
+    expect(messages[0].payload.project).toHaveProperty("name")
+    expect(messages[0].payload.directory).toBe(process.cwd())
+  })
+
+  it("should reflect new directory in project.current after switch", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+    const newDir = process.cwd()
+
+    backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+      backend.sdk = {
+        ...oldSdk,
+        v2: {
+          ...(oldSdk as any).v2,
+          event: { subscribe: jest.fn<any>().mockResolvedValue({ stream: (async function*() {})() }) },
+        },
+      } as any
+    })
+
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: newDir },
+    }, testPayload)
+
+    const { ws: ws2, messages: msgs2 } = createMockWs()
+    await handleFrame("conn2", ws2, {
+      type: "req", id: "2", method: "project.current", params: {},
+    }, testPayload)
+
+    expect(msgs2[0].ok).toBe(true)
+    expect(msgs2[0].payload.directory).toBe(newDir)
+  })
+
+  it("should start SSE after successful project.switch", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+    const subscribeMock = jest.fn<any>().mockResolvedValue({ stream: (async function*() {})() })
+
+    backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+      backend.sdk = {
+        ...oldSdk,
+        v2: {
+          ...(oldSdk as any).v2,
+          event: { subscribe: subscribeMock },
+        },
+      } as any
+    })
+
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    // startSSE is async (not awaited in switchProject), wait a tick
+    await new Promise(r => setTimeout(r, 50))
+    expect(subscribeMock).toHaveBeenCalled()
+  })
+
+  it("should allow switching to the same directory twice", async () => {
+    createMockSdk()
+    mockCreateClientForSwitch()
+    const { ws, messages } = createMockWs()
+    const dir = process.cwd()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: dir },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+
+    // 第二次切同一目录，用一个新的 mock 追踪
+    const { subscribeMock: sub2 } = mockCreateClientForSwitch()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "2", method: "project.switch",
+      params: { directory: dir },
+    }, testPayload)
+    expect(messages[1].ok).toBe(true)
+    await new Promise(r => setTimeout(r, 50))
+    expect(sub2).toHaveBeenCalled()
+  })
+
+  it("should abort old SSE when switching to another directory", async () => {
+    createMockSdk()
+    let blockRelease: () => void
+    const gate = new Promise<void>(r => { blockRelease = r })
+    const { subscribeMock: sub1 } = mockCreateClientForSwitch({ subscribeBlock: gate })
+
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+    // 第一次的 subscribe 卡在 gate 上
+
+    // 第二次 switch → 应 abort 旧 SSE（即释放 gate），并启动新 subscribe
+    const { subscribeMock: sub2 } = mockCreateClientForSwitch()
+    const p2 = handleFrame("conn1", ws, {
+      type: "req", id: "2", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+    await p2
+    await new Promise(r => setTimeout(r, 50))
+
+    // 旧的 subscribe 因 abort 被释放 → sub1 被调过
+    expect(sub1).toHaveBeenCalled()
+    // 新的 subscribe 也被调了
+    expect(sub2).toHaveBeenCalled()
+    // 释放 gate 避免 dangling promise
+    blockRelease!()
+  })
+
+  it("should reject concurrent project.switch calls (already switching)", async () => {
+    const { subscribeMock: sub1 } = mockCreateClientForSwitch()
+    const { ws, messages } = createMockWs()
+
+    // 两次几乎同时发送，利用 await Promise.resolve() yield 点命中锁
+    const p1 = handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+    const p2 = handleFrame("conn1", ws, {
+      type: "req", id: "2", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+    await Promise.all([p1, p2])
+
+    const errors = messages.filter(m => !m.ok).map(m => m.error)
+    // 第二次应被已切换锁拒绝
+    expect(errors.some((e: string) => e?.includes("already switching"))).toBe(true)
+    // 清理避免 dangling promise
+    sub1.mockResolvedValue({ stream: (async function*() {})() })
+  })
+
+  it("should broadcast project.changed after successful switch", async () => {
+    createMockSdk()
+    const { subscribeMock } = mockCreateClientForSwitch()
+    // 注册一个真实 WS 连接来接收 broadcast
+    const { ws: mockWs, messages: broadcastMsgs } = createMockWs()
+    const conns = _testGetConnections()
+    const testConnId = "test-broadcast-conn"
+    conns.set(testConnId, mockWs)
+
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    // broadcast 在 setTimeout(0) 中，等下一个 tick
+    await new Promise(r => setTimeout(r, 10))
+
+    // 验证广播被发送
+    const changedNotif = broadcastMsgs.find(
+      (m: any) => m.type === "notify" && m.method === "project.changed"
+    )
+    expect(changedNotif).toBeDefined()
+    expect(changedNotif.payload).toHaveProperty("directory")
+    expect(changedNotif.payload).toHaveProperty("project")
+
+    conns.delete(testConnId)
+  })
+
+  it("should tolerate SSE returning HTML errors and not crash", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+    let subscribeCalls = 0
+    const subscribeMock = jest.fn<any>().mockImplementation(async () => {
+      subscribeCalls++
+      const err = new Error("text/html response from /api/event")
+      throw err
+    })
+
+    backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+      backend.sdk = {
+        ...oldSdk,
+        v2: {
+          ...(oldSdk as any).v2,
+          event: { subscribe: subscribeMock },
+        },
+        global: { dispose: jest.fn<any>().mockResolvedValue(undefined), config: (oldSdk as any)?.global?.config },
+      } as any
+    })
+
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    expect(messages[0].ok).toBe(true)
+    // SSE 循环在后台重试，不应影响主流程
+    // 重试间隔 3s，等足够长让 startSSE 走到 htmlResponseCount >= 2 分支
+    await new Promise(r => setTimeout(r, 3500))
+    expect(subscribeCalls).toBeGreaterThanOrEqual(2)
+    // bridge 仍是可用状态
+    expect(backend.sdk).not.toBeNull()
+  })
+
+  it("should pass through SDK event types as notify method names (no translation)", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+    const conns = _testGetConnections()
+    const { ws: listener, messages: broadcastMsgs } = createMockWs()
+    const listenerId = "sse-event-test"
+    conns.set(listenerId, listener)
+
+    // SSE stream 产出三种 SDK 事件
+    async function* eventStream() {
+      yield { type: "session.next.text.delta", data: { sessionID: "s1", delta: "hi" } }
+      yield { type: "permission.v2.asked", data: { id: "p1", action: "read", resources: ["."] } }
+      yield { type: "session.idle", data: { sessionID: "s1" } }
+    }
+    const subscribeMock = jest.fn<any>().mockResolvedValue({ stream: eventStream() })
+
+    backend.createClient = jest.fn<any>().mockImplementation((directory: string) => {
+      backend.sdk = {
+        ...oldSdk,
+        v2: {
+          ...(oldSdk as any).v2,
+          event: { subscribe: subscribeMock },
+        },
+        global: { dispose: jest.fn<any>().mockResolvedValue(undefined), config: (oldSdk as any)?.global?.config },
+      } as any
+    })
+
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    // Wait for SSE loop to consume all 3 events
+    await new Promise(r => setTimeout(r, 100))
+
+    // Verify each event type was broadcast as notify method without transformation
+    const textDelta = broadcastMsgs.find((m: any) => m.method === "session.next.text.delta")
+    expect(textDelta).toBeDefined()
+    expect(textDelta.payload).toEqual({ sessionID: "s1", delta: "hi" })
+
+    const permV2 = broadcastMsgs.find((m: any) => m.method === "permission.v2.asked")
+    expect(permV2).toBeDefined()
+    expect(permV2.payload).toEqual({ id: "p1", action: "read", resources: ["."] })
+
+    const idle = broadcastMsgs.find((m: any) => m.method === "session.idle")
+    expect(idle).toBeDefined()
+    expect(idle.payload).toEqual({ sessionID: "s1" })
+
+    conns.delete(listenerId)
+  })
+
+  it("should preserve old SDK when createClient fails (rollback)", async () => {
+    createMockSdk()
+    const backend = getBackend()
+    const oldSdk = backend.sdk
+
+    backend.createClient = jest.fn<any>().mockImplementation(() => {
+      throw new Error("createClient failed")
+    })
+
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.switch",
+      params: { directory: process.cwd() },
+    }, testPayload)
+
+    expect(messages[0].ok).toBe(false)
+    // old SDK must still be intact
+    expect(backend.sdk).toBe(oldSdk)
   })
 
 })

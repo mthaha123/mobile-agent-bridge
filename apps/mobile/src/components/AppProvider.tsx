@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useToolStore } from '../stores/toolStore'
 import { useSessionStore } from '../stores/sessionStore'
+import { useProjectStore } from '../stores/projectStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 
@@ -56,28 +57,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     // 注册 tool approval replyCall
     setToolReplyCall(createReplyCall(client))
 
-    // 通知：AI 消息流（SDK event: message.part.updated）
-    //   payload = { sessionID, part: { id, sessionID, messageID, type: "text", text, ... }, time }
-    //   text 字段包含流式增量内容，每帧应替换最后一条助理消息而非追加
     client.on('notification', (method: string, payload: any) => {
-      if (method === 'message.part.updated') {
-        const text = payload?.part?.text || payload?.part?.content || ''
-        if (text) {
-          useChatStore.getState().updateLastAssistant(text)
+      // 流式文本增量（SDK event: session.next.text.delta）
+      //   payload = { sessionID, assistantMessageID, textID, delta }
+      //   delta 是增量文本，每帧替换最后一条助理消息
+      if (method === 'session.next.text.delta') {
+        const delta = payload?.delta || ''
+        if (delta) {
+          useChatStore.getState().updateLastAssistant(delta)
         }
-        // waiting 不清除在流式帧上 —— 仅在 session.updated / session.idle 时清除
-      }
-
-      // 工具审批请求 v1（SDK event: permission.asked）
-      //   payload = { id, sessionID, permission: "file.read", patterns: ["src/**"], metadata: {...} }
-      if (method === 'permission.asked') {
-        useToolStore.getState().enqueue({
-          id: payload?.id || 'unknown',
-          tool: payload?.permission || 'unknown',
-          args: { patterns: payload?.patterns || [] } as Record<string, unknown>,
-          sessionId: payload?.sessionID || '',
-          requestedAt: Date.now(),
-        })
       }
 
       // 工具审批请求 v2（SDK event: permission.v2.asked）
@@ -92,28 +80,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
-      // session 更新（SDD event: session.updated）
-      //   payload = { id, sessionID, session: {...}, info: {...}, ... }
-      if (method === 'session.updated') {
-        useChatStore.getState().setWaiting(false)
-        const info = payload?.session || payload?.info || payload
+      // session 状态变更（SDK event: session.status）
+      //   payload = { sessionID, status: { type: "idle"|"busy"|"retry" } }
+      if (method === 'session.status') {
+        const statusType = payload?.status?.type
+        if (statusType === 'idle') {
+          useChatStore.getState().setWaiting(false)
+        } else if (statusType === 'busy') {
+          useChatStore.getState().setWaiting(true)
+        }
+        const info = payload?.session || payload
         if (info?.id) {
           useSessionStore.getState().updateSession(info.id, info)
         }
       }
 
-      // 回复完成（SDD event: session.idle）
+      // 回复完成（SDK event: session.idle）
       if (method === 'session.idle') {
         useChatStore.getState().setWaiting(false)
       }
 
-      // 回复出错（SDD event: session.error）
+      // 回复出错（SDK event: session.error）
       if (method === 'session.error') {
         useChatStore.getState().setWaiting(false)
         const errorMsg = payload?.error || 'unknown error'
         useChatStore.getState().addMessage({
           role: 'system',
           content: `Error: ${errorMsg}`,
+        })
+      }
+
+      // 项目切换（bridge-emitted event: project.changed）
+      if (method === 'project.changed') {
+        useProjectStore.getState().setProject({
+          directory: payload?.directory || '',
+          project: payload?.project,
         })
       }
     })

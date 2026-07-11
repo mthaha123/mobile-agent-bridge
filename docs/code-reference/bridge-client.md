@@ -81,7 +81,7 @@ export class BridgeClient {
   logout() { return this.call("auth.logout") }
 
   // === 项目（Bridge 直接实现） ===
-  setupProject(directory: string) { return this.call("project.setup", { directory }) }
+  switchProject(directory: string) { return this.call("project.switch", { directory }) }
   getCurrentProject() { return this.call("project.current") }
 
   // === 会话（代理，v2 命名空间） ===

@@ -19,11 +19,8 @@ export interface AuthState {
   error: string | null
   /** BridgeClient 实例 */
   client: BridgeClient | null
-  /** OpenCode 项目目录 */
-  directory: string
 
   setBridgeUrl: (url: string) => void
-  setDirectory: (dir: string) => void
   login: (password?: string) => Promise<void>
   logout: () => void
   clearError: () => void
@@ -36,18 +33,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
   error: null,
   client: null,
-  directory: '',
 
   setBridgeUrl: (url: string) => {
     set({ bridgeUrl: url, error: null })
   },
 
-  setDirectory: (dir: string) => {
-    set({ directory: dir })
-  },
-
   login: async (password?: string) => {
-    const { bridgeUrl, directory } = get()
+    const { bridgeUrl } = get()
     if (!bridgeUrl) {
       set({ error: '请先输入 Bridge 地址' })
       return
@@ -77,10 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 此时 authenticated=false，ConnectScreen 仍然显示
       set({ client, token: result.token, loading: false, error: null })
 
-      // 步骤2：注册完处理器后再启动 project.setup（SSE 事件流）
+      // 步骤2：注册完处理器后再初始化项目
       // handler 已就绪，不会丢失初始化事件
-      const setupDir = directory || '/'
-      await client.call('project.setup', { directory: setupDir })
+      const { useProjectStore } = await import('./projectStore')
+      await useProjectStore.getState().switchProject()
 
       // 步骤3：最后标记已认证，页面跳转至 SessionsScreen
       set({ authenticated: true, loading: false })
@@ -101,7 +93,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token: null,
       authenticated: false,
       bridgeUrl: '',
-      directory: '',
       loading: false,
       error: null,
     })

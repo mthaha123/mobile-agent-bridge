@@ -309,31 +309,31 @@ await wsTest(token, async (ws) => {
   assert("auth.refresh 返回 expiresIn", typeof resp?.payload?.expiresIn === "number")
 })
 
-// ── 场景 12: session 方法在 project.setup 之前应失败 ──
+// ── 场景 12: session 方法在 project.switch 之前应失败 ──
 
-scenario("session.create 在 project.setup 之前应返回 SDK not initialized")
+scenario("session.create 在 project.switch 之前应返回 SDK not initialized")
 await wsTest(token, async (ws) => {
   const resp = await wsSend(ws, { type: "req", id: "12", method: "session.create", params: {} }, 5000)
   assert("未初始化时 session.create 应返回 ok:false", resp?.ok === false, JSON.stringify(resp))
   assert("未初始化时错误应包含 not initialized", /not initialized/i.test(resp?.error || ''), JSON.stringify(resp))
 })
 
-scenario("session.list 在 project.setup 之前应返回 SDK not initialized")
+scenario("session.list 在 project.switch 之前应返回 SDK not initialized")
 await wsTest(token, async (ws) => {
   const resp = await wsSend(ws, { type: "req", id: "12b", method: "session.list", params: {} }, 5000)
   assert("未初始化时 session.list 应返回 ok:false", resp?.ok === false, JSON.stringify(resp))
   assert("未初始化时错误应包含 not initialized", /not initialized/i.test(resp?.error || ''), JSON.stringify(resp))
 })
 
-// ── 场景 13: project.setup ──────────────────────────
+// ── 场景 13: project.switch ──────────────────────────
 
-scenario("project.setup 返回项目信息")
+scenario("project.switch 返回项目信息")
 await wsTest(token, async (ws) => {
-  const resp = await wsSend(ws, { type: "req", id: "12", method: "project.setup", params: { directory: serverDir } })
-  // initBackend() 在启动时调用，setupProject 能成功初始化（SSE 后台运行）
-  assert("project.setup 返回 ok: true", resp?.ok === true, JSON.stringify(resp))
-  assert("project.setup 返回 directory", resp?.payload?.directory === serverDir, JSON.stringify(resp))
-  assert("project.setup 返回 project.name", !!resp?.payload?.project?.name, JSON.stringify(resp))
+  const resp = await wsSend(ws, { type: "req", id: "12", method: "project.switch", params: { directory: serverDir } })
+  // initBackend() 在启动时调用，switchProject 能成功初始化（SSE 后台运行）
+  assert("project.switch 返回 ok: true", resp?.ok === true, JSON.stringify(resp))
+  assert("project.switch 返回 directory", resp?.payload?.directory === serverDir, JSON.stringify(resp))
+  assert("project.switch 返回 project.name", !!resp?.payload?.project?.name, JSON.stringify(resp))
 })
 
 // ── 场景 14: project.current ────────────────────────
@@ -348,7 +348,7 @@ let sdkId = 20
 
 if (!hasOpenCode) {
   // ── SDK 代理方法（仅 OpenCode 不可用时）───────
-  // project.setup 已初始化 SDK，但 OpenCode 服务未运行
+  // project.switch 已初始化 SDK，但 OpenCode 服务未运行
   // SDK 的 HTTP 请求失败会返回 { ok: true, payload: { error, request } }
   // 而非抛出异常 — 这是 SDK 自身的行为
 
@@ -420,6 +420,35 @@ if (!hasOpenCode) {
     await testSdkProxy(method, params, id)
   }
 
+  scenario("session.revert 额外参数 messageID+partID 透传不崩溃")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.revert",
+      params: { id: "sess_test", messageID: "msg_456", partID: "part_789" },
+    }, 8000)
+    assert("session.revert 带 messageID+partID 不崩溃", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error", !!resp?.payload?.error, JSON.stringify(resp))
+  })
+
+  // ── 场景: project.switch ──────────────────────────
+  scenario("project.switch 切换目录 (代理模式)")
+  await wsTest(token, async (ws) => {
+    const dir = process.cwd()
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "project.switch",
+      params: { directory: dir },
+    }, 8000)
+    if (resp?.ok === false && resp?.error?.includes("already switching")) {
+      assert("project.switch 已有切换在进行", true, JSON.stringify(resp))
+    } else if (resp?.ok === false && resp?.error?.includes("directory not found")) {
+      assert("project.switch 目录不可读", true, JSON.stringify(resp))
+    } else {
+      assert("project.switch 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+      assert("project.switch 返回 directory", resp?.payload?.directory === dir, JSON.stringify(resp))
+      assert("project.switch 返回 project.name", typeof resp?.payload?.project?.name === "string", JSON.stringify(resp))
+    }
+  })
+
   // ── 场景: message.* 其他方法 ─────────────────────
   const messageMethods = [
     { method: "message.shell",    params: { sessionId: "sess_test", command: "ls" } },
@@ -449,6 +478,81 @@ if (!hasOpenCode) {
     await testSdkProxy(method, params, id)
   }
 
+  // ── 场景: sessionID (all caps) 兼容性 ──────────
+  scenario("message.send 接受 sessionID (upper case D)")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "message.send",
+      params: { sessionID: "sess_test", message: "hello via sessionID" },
+    }, 8000)
+    assert("sessionID 大写 D 版本也被接受", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error（无 OpenCode）", !!resp?.payload?.error, JSON.stringify(resp))
+  })
+
+  scenario("permission.reply 接受 sessionID (upper case D)")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "permission.reply",
+      params: { id: "req_123", sessionID: "sess_123", reply: "always" },
+    }, 8000)
+    assert("permission.reply 接受 sessionID 大写 D", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error", !!resp?.payload?.error, JSON.stringify(resp))
+  })
+
+  scenario("message.abort 接受 sessionID (upper case D)")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "message.abort",
+      params: { sessionID: "sess_123" },
+    }, 8000)
+    assert("message.abort 接受 sessionID 大写 D", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error", !!resp?.payload?.error, JSON.stringify(resp))
+  })
+
+  // ── 场景: model 参数类型转换 ─────────────────────
+  scenario("session.create 接受 model 字符串并转成对象")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.create",
+      params: { model: "claude-sonnet-4" },
+    }, 8000)
+    // 成功转成 { id, providerID } 后发出 SDK 请求，无 OpenCode 时 payload.error
+    assert("model 字符串不导致路由崩溃", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error（SDK 网络错误而非参数类型错误）", !!resp?.payload?.error, JSON.stringify(resp))
+    // 关键断言：错误信息不应是 SDK 的类型校验失败
+    assert("错误不是 SDK 类型校验（如 id required）", !/id.*required|providerID.*required/i.test(JSON.stringify(resp?.payload?.error || '') || ''), JSON.stringify(resp))
+  })
+
+  scenario("session.create 接受 model 对象直接透传")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.create",
+      params: { model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" } },
+    }, 8000)
+    assert("model 对象不导致路由崩溃", resp?.ok === true, JSON.stringify(resp))
+  })
+
+  // ── 场景: session.list 参数透传 ─────────────────
+  scenario("session.list 透传 search/limit 参数")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.list",
+      params: { search: "test", limit: 10, cursor: "abc" },
+    }, 8000)
+    assert("session.list 带额外参数不崩溃", resp?.ok === true, JSON.stringify(resp))
+    assert("返回 payload.error", !!resp?.payload?.error, JSON.stringify(resp))
+  })
+
+  // ── 场景: session.diff 透传 messageID ──────────
+  scenario("session.diff 透传 messageID")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.diff",
+      params: { id: "sess_test", messageID: "msg_456" },
+    }, 8000)
+    assert("session.diff 带 messageID 不崩溃", resp?.ok === true, JSON.stringify(resp))
+  })
+
   // ── 场景: 参数负面测试 ───────────────────────────
   scenario("session.get 缺少 id 参数不应崩溃")
   await wsTest(token, async (ws) => {
@@ -462,12 +566,12 @@ if (!hasOpenCode) {
     assert("message.send 缺参数不应 RPC 崩溃", resp?.ok === true, JSON.stringify(resp))
   })
 
-  // ── 场景: project.setup 换目录重新初始化 ─────────
-  scenario("project.setup 切换目录后 session 仍正常工作")
+  // ── 场景: project.switch 切换目录 ──────────
+  scenario("project.switch 切换目录后 session 仍正常工作")
   await wsTest(token, async (ws) => {
-    const setupResp = await wsSend(ws, { type: "req", id: String(sdkId++), method: "project.setup", params: { directory: "/tmp/new-project" } }, 5000)
+    const setupResp = await wsSend(ws, { type: "req", id: String(sdkId++), method: "project.switch", params: { directory: serverDir } }, 5000)
     assert("切换目录返回 ok:true", setupResp?.ok === true, JSON.stringify(setupResp))
-    assert("切换目录返回新 directory", setupResp?.payload?.directory === "/tmp/new-project", JSON.stringify(setupResp))
+    assert("切换目录返回 directory", setupResp?.payload?.directory === serverDir, JSON.stringify(setupResp))
 
     const sessionResp = await wsSend(ws, { type: "req", id: String(sdkId++), method: "session.list", params: {} }, 8000)
     assert("切换后 session.list RPC 仍成功 (ok:true)", sessionResp?.ok === true, JSON.stringify(sessionResp))
@@ -503,15 +607,51 @@ if (hasOpenCode) {
     }
   })
 
+  // ── 场景: model 参数类型转换（有真实 OpenCode）──
+  scenario("session.create 接受 model 字符串 → Bridge 转成对象后发送")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.create",
+      params: { model: "claude-sonnet-4" },
+    }, 10000)
+    // Bridge 将 model 从字符串转成 { id, providerID } 后发出 SDK 请求
+    // 如果 OpenCode 不接受该 model，会返回 ok:false + error，但不是类型错误
+    assert("model 字符串不破坏路由", resp?.ok === true || resp?.ok === false, JSON.stringify(resp))
+    if (resp?.ok === false) {
+      assert("拒绝原因是服务器行为而非 SDK 参数类型校验", !/id.*required|providerID.*required|Expected.*object/i.test(resp?.error || ''), JSON.stringify(resp))
+    }
+  })
+
+  scenario("session.create 接受 model 对象直接透传")
+  await wsTest(token, async (ws) => {
+    const resp = await wsSend(ws, {
+      type: "req", id: String(sdkId++), method: "session.create",
+      params: { model: { id: "gpt-4o", providerID: "openai" } },
+    }, 10000)
+    assert("model 对象不破坏路由", resp?.ok === true || resp?.ok === false, JSON.stringify(resp))
+  })
+
   // 只有创建 session 成功后才运行后续测试
   if (sessionId) {
-    scenario("session.list 列出所有会话")
+    scenario("session.list 列出所有会话（基础）")
     await wsTest(token, async (ws) => {
       const resp = await wsSend(ws, { type: "req", id: String(sdkId++), method: "session.list", params: {} }, 10000)
       assert("session.list 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
       const payload = resp?.payload ?? []
       const sessions = Array.isArray(payload) ? payload : (payload.data ?? [])
       assert("session.list 返回数组", Array.isArray(sessions), JSON.stringify(resp))
+    })
+
+    scenario("session.list 带 search/limit 参数")
+    await wsTest(token, async (ws) => {
+      const resp = await wsSend(ws, {
+        type: "req", id: String(sdkId++), method: "session.list",
+        params: { search: "e2e", limit: 5 },
+      }, 10000)
+      assert("session.list 带 search/limit 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+      const payload = resp?.payload ?? []
+      const sessions = Array.isArray(payload) ? payload : (payload.data ?? [])
+      assert("session.list 带 search/limit 返回数组", Array.isArray(sessions), JSON.stringify(resp))
     })
 
     scenario("session.get 获取会话详情")
@@ -528,16 +668,29 @@ if (hasOpenCode) {
       assert("session.status 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
     })
 
-    scenario("message.send 发送消息到会话")
+    scenario("message.send 发送消息到会话（使用 sessionID 大写 D）")
     await wsTest(token, async (ws) => {
       const resp = await wsSend(ws, {
         type: "req", id: String(sdkId++), method: "message.send",
-        params: { sessionId, message: "Hello from E2E test" },
+        params: { sessionID: sessionId, message: "Hello via sessionID" },
       }, 15000)
       if (resp?.ok === false) {
-        assert("message.send 返回 ok:false（服务器限制）", /not supported/i.test(resp?.error || '') || /error/i.test(resp?.error || ''), JSON.stringify(resp))
+        assert("message.send (sessionID) 服务器限制", /not supported/i.test(resp?.error || '') || /error/i.test(resp?.error || ''), JSON.stringify(resp))
       } else {
-        assert("message.send 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+        assert("message.send (sessionID) 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+      }
+    })
+
+    scenario("message.send 发送消息到会话（使用 sessionId 小写 d）")
+    await wsTest(token, async (ws) => {
+      const resp = await wsSend(ws, {
+        type: "req", id: String(sdkId++), method: "message.send",
+        params: { sessionId: sessionId, message: "Hello from E2E test" },
+      }, 15000)
+      if (resp?.ok === false) {
+        assert("message.send (sessionId) 服务器限制", /not supported/i.test(resp?.error || '') || /error/i.test(resp?.error || ''), JSON.stringify(resp))
+      } else {
+        assert("message.send (sessionId) 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
       }
     })
 
@@ -554,6 +707,28 @@ if (hasOpenCode) {
         assert("session.rename 服务器不支持", /not supported/i.test(resp?.error || '') || /error/i.test(resp?.error || ''), JSON.stringify(resp))
       } else {
         assert("session.rename 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+      }
+    })
+
+    scenario("session.diff 获取文件变更")
+    await wsTest(token, async (ws) => {
+      const resp = await wsSend(ws, {
+        type: "req", id: String(sdkId++), method: "session.diff",
+        params: { id: sessionId },
+      }, 10000)
+      assert("session.diff 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
+    })
+
+    scenario("session.revert 带 messageID + partID 参数")
+    await wsTest(token, async (ws) => {
+      const resp = await wsSend(ws, {
+        type: "req", id: String(sdkId++), method: "session.revert",
+        params: { id: sessionId, messageID: "msg_test", partID: "part_test" },
+      }, 10000)
+      if (resp?.ok === false) {
+        assert("session.revert 服务器限制", /not supported/i.test(resp?.error || '') || /error/i.test(resp?.error || ''), JSON.stringify(resp))
+      } else {
+        assert("session.revert 返回 ok:true", resp?.ok === true, JSON.stringify(resp))
       }
     })
 

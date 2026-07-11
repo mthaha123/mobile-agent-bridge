@@ -1,7 +1,7 @@
 import { WebSocket } from "ws"
 import type { TokenPayload } from "./auth.js"
 import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
-import { setupProject, getCurrentProject } from "../state/project.js"
+import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 
 type Handler = (params: any, payload: TokenPayload | null) => Promise<any> | any
@@ -53,7 +53,7 @@ export async function handleFrame(
 
 function sdk() {
   const backend = getBackend()
-  if (!backend.sdk) throw new Error("SDK not initialized. Call project.setup first.")
+  if (!backend.sdk) throw new Error("SDK not initialized. Call project.switch first.")
   return backend.sdk
 }
 
@@ -71,20 +71,38 @@ registerHandler("auth.logout", () => handleLogout())
 
 registerHandler("health.ping", () => ({ ok: true }))
 
-registerHandler("project.setup", async (params) => setupProject(params.directory))
+registerHandler("project.switch", async (params) => switchProject(params.directory))
 registerHandler("project.current", async () => getCurrentProject())
 
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
 // SDK 内部使用 createOpencodeClient 时传入的 fetch，确保 tsx 兼容
 
+/** 将字符串 model 转为 SDK 需要的 { id, providerID } 格式 */
+function resolveModel(model: unknown): { id: string; providerID: string; variant?: string } | undefined {
+  if (!model) return undefined
+  if (typeof model === "string") return { id: model, providerID: model }
+  if (typeof model === "object" && model !== null) {
+    const m = model as Record<string, unknown>
+    if (typeof m.id === "string" && typeof m.providerID === "string") return { id: m.id, providerID: m.providerID, variant: m.variant as string | undefined }
+  }
+  return undefined
+}
+
 registerHandler("session.create", async (p) => {
   const params: Record<string, unknown> = {}
   if (p.agent) params.agent = p.agent
-  if (p.model) params.model = p.model
+  const model = resolveModel(p.model)
+  if (model) params.model = model
   if (p.title) params.title = p.title
   return sdkCall(() => sdk().session.create(params))
 })
-registerHandler("session.list", async () => sdkCall(() => sdk().v2.session.list({})))
+registerHandler("session.list", async (p) => {
+  const params: Record<string, unknown> = {}
+  if (p.search) params.search = p.search
+  if (p.limit) params.limit = p.limit
+  if (p.cursor) params.cursor = p.cursor
+  return sdkCall(() => sdk().v2.session.list(params))
+})
 registerHandler("session.get", async (p) => {
   const id = p.id || p.sessionID || p.session_id
   if (!id) throw new Error("session.get requires id parameter")
@@ -126,7 +144,10 @@ registerHandler("session.todo", async (p) => {
 registerHandler("session.diff", async (p) => {
   const id = p.id || p.sessionID || p.session_id
   if (!id) throw new Error("session.diff requires id parameter")
-  return sdkCall(() => sdk().session.diff({ sessionID: id }))
+  return sdkCall(() => sdk().session.diff({
+    sessionID: id as string,
+    ...(p.messageID || p.message ? { messageID: (p.messageID || p.message) as string } : {}),
+  }))
 })
 registerHandler("session.fork", async (p) => {
   const id = p.id || p.sessionID || p.session_id
@@ -139,65 +160,80 @@ registerHandler("session.fork", async (p) => {
 registerHandler("session.revert", async (p) => {
   const id = p.id || p.sessionID || p.session_id
   if (!id) throw new Error("session.revert requires id parameter")
-  return sdkCall(() => sdk().session.revert({ sessionID: id }))
+  return sdkCall(() => sdk().session.revert({
+    sessionID: id as string,
+    ...(p.messageID ? { messageID: p.messageID as string } : {}),
+    ...(p.partID ? { partID: p.partID as string } : {}),
+  }))
 })
 registerHandler("session.unrevert", async (p) => {
   const id = p.id || p.sessionID || p.session_id
   if (!id) throw new Error("session.unrevert requires id parameter")
   return sdkCall(() => sdk().session.unrevert({ sessionID: id }))
 })
+function sessionId(p: Record<string, unknown>): string {
+  return (p.sessionID || p.sessionId || "") as string
+}
+
 registerHandler("message.send", async (p) => {
-  if (!p.sessionId) throw new Error("message.send requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("message.send requires sessionID/sessionId parameter")
   return sdkCall(() => sdk().v2.session.prompt({
-    sessionID: p.sessionId,
-    prompt: { text: p.message || "" },
+    sessionID: sid,
+    prompt: { text: p.message || "" as string },
   }))
 })
 registerHandler("message.abort", async (p) => {
-  if (!p.sessionId) throw new Error("message.abort requires sessionId parameter")
-  return sdkCall(() => sdk().v2.session.interrupt({ sessionID: p.sessionId }))
+  const sid = sessionId(p)
+  if (!sid) throw new Error("message.abort requires sessionID/sessionId parameter")
+  return sdkCall(() => sdk().v2.session.interrupt({ sessionID: sid }))
 })
 registerHandler("message.shell", async (p) => {
-  if (!p.sessionId) throw new Error("message.shell requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("message.shell requires sessionID/sessionId parameter")
   return sdkCall(() => sdk().session.shell({
-    sessionID: p.sessionId,
-    ...(p.command ? { command: p.command } : {}),
+    sessionID: sid,
+    ...(p.command ? { command: p.command as string } : {}),
   }))
 })
 registerHandler("message.command", async (p) => {
-  if (!p.sessionId) throw new Error("message.command requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("message.command requires sessionID/sessionId parameter")
   return sdkCall(() => sdk().session.command({
-    sessionID: p.sessionId,
-    ...(p.command ? { command: p.command } : {}),
+    sessionID: sid,
+    ...(p.command ? { command: p.command as string } : {}),
   }))
 })
 
 registerHandler("permission.reply", async (p) => {
   if (!p.id) throw new Error("permission.reply requires id parameter")
-  if (!p.sessionId) throw new Error("permission.reply requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("permission.reply requires sessionID/sessionId parameter")
   const reply = p.reply || (p.approved ? "once" : "reject")
   return sdkCall(() => sdk().v2.session.permission.reply({
-    sessionID: p.sessionId,
-    requestID: p.id,
-    reply,
+    sessionID: sid,
+    requestID: p.id as string,
+    reply: reply as "once" | "always" | "reject",
   }))
 })
 
 registerHandler("question.reply", async (p) => {
   if (!p.id) throw new Error("question.reply requires id parameter")
-  if (!p.sessionId) throw new Error("question.reply requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("question.reply requires sessionID/sessionId parameter")
   return sdkCall(() => sdk().v2.session.question.reply({
-    sessionID: p.sessionId,
-    requestID: p.id,
-    questionV2Reply: { answers: [[p.answer]] },
+    sessionID: sid,
+    requestID: p.id as string,
+    questionV2Reply: { answers: p.answers as string[][] || [[p.answer as string]] },
   }))
 })
 registerHandler("question.reject", async (p) => {
   if (!p.id) throw new Error("question.reject requires id parameter")
-  if (!p.sessionId) throw new Error("question.reject requires sessionId parameter")
+  const sid = sessionId(p)
+  if (!sid) throw new Error("question.reject requires sessionID/sessionId parameter")
   return sdkCall(() => sdk().v2.session.question.reject({
-    sessionID: p.sessionId,
-    requestID: p.id,
+    sessionID: sid,
+    requestID: p.id as string,
   }))
 })
 

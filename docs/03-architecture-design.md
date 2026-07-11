@@ -154,7 +154,7 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 | 手机 WS 方法 | SDK 调用 | 命名空间 | 说明 |
 |-------------|---------|---------|------|
-| `session.create` | `v2.session.create({ agent?, model?, location? })` | `v2` | 注意：v2 不支持 `title` 参数。`location.directory` 由 Bridge 自动注入 |
+| `session.create` | `session.create({ agent?, model?, title? })` | 顶层（v1 compat） | model 为 `{ id, providerID, variant? }`；Bridge 接受字符串自动转换。v2 命名空间不支持 `title`，故使用顶层 SDK |
 | `session.list` | `v2.session.list({ directory, limit?, search? })` | `v2` | 返回分页结果 `{ data, cursor }` |
 | `session.get` | `v2.session.get({ sessionID })` | `v2` | |
 | `session.status` | `v2.session.active()` | `v2` | 返回**当前进程拥有的 foreground drain 列表**（≠ 会话 idle/busy 状态）。会话状态应通过 `session.status` 事件监听 |
@@ -162,6 +162,8 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 | `session.delete` | `session.delete({ sessionID })` | 顶层 | v2 命名空间无 DELETE 端点，使用顶层 SDK |
 | `session.update` | `session.update({ sessionID, title? })` | 顶层 | 用于重命名会话 |
 | `message.send` | `v2.session.prompt({ sessionID, prompt })` | `v2` | `prompt = { text, files?, agents? }`（**不是** `PartInput[]`），默认 `delivery: "steer"` |
+| `message.shell` | `session.shell({ sessionID, command })` | 顶层 | 直接 Shell 命令执行（Shell 模式时使用） |
+| `message.command` | `session.command({ sessionID, command })` | 顶层 | 斜杠命令执行 |
 | `message.abort` | `v2.session.interrupt({ sessionID })` | `v2` | |
 | `permission.reply` | `v2.session.permission.reply({ sessionID, requestID, reply, message? })` | `v2` | `reply: "once"\|"always"\|"reject"` |
 | `question.reply` | `v2.session.question.reply({ sessionID, requestID, questionV2Reply })` | `v2` | `questionV2Reply = { answers: [[string]] }` |
@@ -202,8 +204,9 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 注意：`message.part.updated` 事件包含**完整 Part 对象**（非增量），流式文本增量应使用 `session.next.text.delta`。
 
-以下方法由 `message.send` + text prompt 统一替代，不单独实现路由：
-- `message.shell` / `message.command`
+以下方法已通过 SDK 顶层命名空间单独实现路由，不由 `message.send` 替代：
+- `message.shell` → `session.shell()`（Shell 命令执行）
+- `message.command` → `session.command()`（斜杠命令）
 
 所有 SDK 方法均接受 `directory` 和 `workspace` 参数，**Bridge 通过 `createOpencodeClient({ directory })` 自动注入 `x-opencode-directory` 头**，手机端不需要传递。
 
@@ -334,7 +337,7 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
-| `session.create` | `{ agent?, model? }` | `v2.session.create({ agent, model, location })` | `v2` | 1 | ✅ 注意：v2 无 `title` 参数 |
+| `session.create` | `{ agent?, model? }` | `session.create({ agent, model, title? })` | 顶层（v1 compat） | 1 | ✅ model 接受 `string`（Bridge 自动转 `{id, providerID}）`或 `{id, providerID} 对象`。v2 无 title，故用 v1 compat |
 | `session.list` | `{ search?, limit? }` | `v2.session.list({ directory, search?, limit? })` | `v2` | 1 | ✅ 返回 `{ data, cursor }` |
 | `session.get` | `{ sessionID }` | `v2.session.get({ sessionID })` | `v2` | 1 | ✅ |
 | `session.status` | `{}` | `v2.session.active()` | `v2` | 1 | ✅ 返回 foreground drain 列表。会话 idle/busy 状态通过 `session.status` 事件获得 |
@@ -373,8 +376,8 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
 | `message.send` | `{ sessionID, message }` | `v2.session.prompt({ sessionID, prompt: { text } })` | `v2` | 1 | ✅ `prompt` 为 `PromptInput`（非 `PartInput[]`） |
-| `message.shell` | `{ sessionID, command }` | 由 `message.send` + text prompt 替代 | 2 | ❌ 降级 |
-| `message.command` | `{ sessionID, command }` | 由 `message.send` + text prompt 替代 | 2 | ❌ 降级 |
+| `message.shell` | `{ sessionID, command }` | `session.shell({ sessionID, command })` | 顶层 | 2 | ✅ Shell 模式 |
+| `message.command` | `{ sessionID, command }` | `session.command({ sessionID, command })` | 顶层 | 2 | ✅ 斜杠命令 |
 | `message.abort` | `{ sessionID }` | `v2.session.interrupt({ sessionID })` | `v2` | 1 | ✅ |
 
 **事件（均为 V2Event 格式）：**
@@ -587,15 +590,15 @@ async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
 
 | 手机 WS 方法 | 参数 | 实现 | Phase |
 |-------------|------|------|-------|
-| `project.switch` | `{ directory }` | Bridge 重建 client + SSE（非 SDK 方法） | 2 |
+| `project.switch` | `{ directory }` | Bridge 校验目录 → 重建 client + SSE | 2 |
 | `project.current` | `{}` | `project.current(...)` | 2 |
 | `project.list` | `{}` | `project.list(...)` | 3 |
 
 **`project.switch` 实现伪码：**
 
 ```
-1. 校验 directory 存在、可读
-2. if isSwitching → 返回 error "already switching"
+1. isSwitching → 返回 error "already switching"  
+2. 校验 directory 存在、可读（fs.accessSync）
 3. isSwitching = true
 4. 清理旧状态：
    a. sseAbort?.abort()
@@ -605,7 +608,7 @@ async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
 6. 建立新 SSE：
    sseAbort = new AbortController()
    sseLoop = startSSE(sdk, sseAbort.signal)
-7. 读取项目元信息（package.json / Cargo.toml）
+7. 读取项目元信息（目录名）
 8. isSwitching = false
 9. 返回 { directory, project }
 10. 广播 event: project.changed
@@ -621,7 +624,7 @@ async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
 
 | 场景 | 处理 |
 |------|------|
-| **切换中收到请求** | 返回 `{ error: "switching directory" }`，手机端自动重试 |
+| **切换中收到请求** | 返回 `{ error: "already switching" }`，手机端自动重试 |
 | **切换中收到第二次 `project.switch`** | 拒绝：`{ error: "already switching" }` |
 | **新目录无效** | 不销毁旧 client，返回 `{ error: "directory not found" }`，`isSwitching = false` |
 | **SDK 创建失败** | 旧 client 已丢弃 → 无目录状态。`activeDirectory = null, sdk = null`。返回错误，手机端重试 |
@@ -647,7 +650,7 @@ async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
 | `session.diff` | `{ sessionID, messageID? }` | `session.diff({ sessionID, messageID? })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
-| `session.revert` | `{ sessionID, messageID? }` | `session.revert({ sessionID, messageID? })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
+| `session.revert` | `{ sessionID, messageID?, partID? }` | `session.revert({ sessionID, messageID?, partID? })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
 | `session.unrevert` | `{ sessionID }` | `session.unrevert({ sessionID })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
 | `session.todo` | `{ sessionID }` | `session.todo({ sessionID })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
 

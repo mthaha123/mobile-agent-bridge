@@ -171,12 +171,12 @@ const s1Token = await login(s1.ws)
 // sender：执行 RPC 命令
 const s1Sender = await wsConnect(`${BASE}?token=${encodeURIComponent(s1Token)}`)
 
-// 1. project.setup（启动 SSE 循环）
+// 1. project.switch（启动 SSE 循环）
 const setup1 = await wsSend(s1Sender, {
-  type: "req", id: "10", method: "project.setup",
+  type: "req", id: "10", method: "project.switch",
   params: { directory: serverDir },
 })
-assert("project.setup 成功", setup1?.ok === true, JSON.stringify(setup1))
+assert("project.switch 成功", setup1?.ok === true, JSON.stringify(setup1))
 
 // 2. 创建 session
 const create1 = await wsSend(s1Sender, {

@@ -3,7 +3,7 @@
  *
  * 显示所有对话会话，支持创建、删除、刷新
  */
-import React, { useEffect, useCallback } from 'react'
+import React, { useEffect, useCallback, useState } from 'react'
 import {
   View,
   Text,
@@ -11,11 +11,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  TextInput,
+  Modal,
 } from 'react-native'
 import { useSessionStore } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
+import { useProjectStore } from '../stores/projectStore'
 
 export type SessionsScreenProps = {
   onNavigateToChat: (sessionId: string) => void
@@ -44,11 +46,29 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
   onNavigateToChat,
   onBack,
 }) => {
+  const [switchDirInput, setSwitchDirInput] = useState('')
+  const [showSwitchModal, setShowSwitchModal] = useState(false)
+
   const sessions = useSessionStore((s) => s.sessions)
   const loading = useSessionStore((s) => s.loading)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const createSession = useSessionStore((s) => s.createSession)
   const deleteSession = useSessionStore((s) => s.deleteSession)
+  const directory = useProjectStore((s) => s.directory)
+  const switching = useProjectStore((s) => s.switching)
+  const switchProject = useProjectStore((s) => s.switchProject)
+
+  const handleOpenSwitch = () => {
+    setSwitchDirInput(directory || '')
+    setShowSwitchModal(true)
+  }
+
+  const handleConfirmSwitch = async () => {
+    if (switchDirInput.trim()) {
+      setShowSwitchModal(false)
+      await switchProject(switchDirInput.trim())
+    }
+  }
 
   // 加载会话列表
   const loadSessions = useCallback(async () => {
@@ -152,6 +172,28 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </TouchableOpacity>
       </View>
 
+      {/* 项目信息 */}
+      <View style={styles.projectBar}>
+        <View style={styles.projectInfo}>
+          <Text style={styles.projectLabel}>Project</Text>
+          <Text style={styles.projectDir} numberOfLines={1}>
+            {directory || '(none)'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.switchBtn, switching && styles.switchBtnDisabled]}
+          onPress={handleOpenSwitch}
+          disabled={switching}
+          activeOpacity={0.7}
+        >
+          {switching ? (
+            <ActivityIndicator size="small" color="#4a9eff" />
+          ) : (
+            <Text style={styles.switchBtnText}>Switch</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       {/* 加载状态 */}
       {loading && sessions.length === 0 && (
         <View style={styles.loadingContainer}>
@@ -170,6 +212,43 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         onRefresh={loadSessions}
         refreshing={loading}
       />
+
+      {/* 切换项目弹窗 */}
+      <Modal
+        visible={showSwitchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSwitchModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Switch Project</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={switchDirInput}
+              onChangeText={setSwitchDirInput}
+              placeholder="/home/user/project"
+              placeholderTextColor="#555"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowSwitchModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmSwitch}
+              >
+                <Text style={styles.modalConfirmText}>Switch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -202,6 +281,49 @@ const styles = StyleSheet.create({
   headerActionText: {
     color: '#4a9eff',
     fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // ── 项目栏 ────────────────────────────────────────────
+  projectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#0f3460',
+    borderBottomWidth: 1,
+    borderBottomColor: '#16213e',
+  },
+  projectInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  projectLabel: {
+    color: '#888',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  projectDir: {
+    color: '#eee',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  switchBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#4a9eff',
+  },
+  switchBtnDisabled: {
+    opacity: 0.5,
+  },
+  switchBtnText: {
+    color: '#4a9eff',
+    fontSize: 13,
     fontWeight: '600',
   },
 
@@ -258,6 +380,62 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 22,
     marginLeft: 8,
+  },
+
+  // ── 切换弹窗 ──────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  modalContent: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    color: '#eee',
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  modalInput: {
+    backgroundColor: '#0f3460',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#eee',
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  modalCancelText: {
+    color: '#888',
+    fontSize: 15,
+  },
+  modalConfirmBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    backgroundColor: '#4a9eff',
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 
   // ── 空状态 ────────────────────────────────────────────

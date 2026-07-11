@@ -42,6 +42,23 @@
 - 测试脚本**必须有全局超时兜底**（`setTimeout(() => process.exit(1), 120000)`），不依赖 bash timeout 做安全网。
 - bash 的 timeout 设足够大（约 180s）。超时触发只会发生在脚本自身全局超时有 bug 的极端情况。
 
+## 接口对齐约束
+
+**每次新增或修改 WS 协议接口时，必须同时对齐客户端和服务端两侧：**
+- 服务端（`servers/bridge/`）：确保 `router.ts` 中注册的方法名、参数名与 SDK v2 一致
+- 客户端（`apps/mobile/`）：确保 `AppProvider.tsx` 中监听的通知事件名与 SDK v2 实际发出的事件名一致
+- 通知事件是透传的（SSE `ev.type` → WS `method`），**不能自行发明或猜测事件名**，必须对照 SDK v2 文档或 `e2e-sse.mjs` 的日志确认
+
+**每个接口变更必须有对应的测试用例保障：**
+- 服务端侧：在 `router.test.ts` 中验证 RPC 方法名/参数名的处理兼容性
+- 客户端侧：在 `AppProvider.test.tsx` 中验证通知事件名 handler 的行为
+- 服务端 SSE pass-through：在 `router.test.ts` 中验证 SDK 事件类型名作为 notify method 透传不变
+
+验证方式：
+- Bridge unit tests: `cd servers/bridge && npm test`
+- Mobile unit tests: `cd apps/mobile && npx jest`
+- Full E2E: `node servers/bridge/scripts/e2e.mjs`（需 `OPENCODE_URL`）
+
 ## SSE / fetch 阻塞（代码层约束）
 
 - **禁止在 tsx 环境下使用 SDK 的 `fetch` 通道**（`req.timeout = false` 在 tsx 下会导致 hang）。所有 OpenCode API 调用必须走 `opencodeFetch()`（基于 Node.js `http` 模块）。

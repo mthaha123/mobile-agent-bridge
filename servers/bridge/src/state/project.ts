@@ -1,3 +1,4 @@
+import fs from "fs"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { broadcastToAll } from "../server/ws.js"
 
@@ -19,8 +20,6 @@ async function startSSE(signal: AbortSignal): Promise<void> {
       } as any)
       for await (const event of result.stream) {
         if (signal.aborted) break
-        // V2Event 格式: { id, type, data, metadata?, durable?, location? }
-        // 注意：不是 GlobalEvent 格式 ({ directory, payload: { type, properties } })
         const ev = event as any
         const eventType: string = ev.type || "unknown"
         const eventData: unknown = ev.data || ev
@@ -32,7 +31,6 @@ async function startSSE(signal: AbortSignal): Promise<void> {
       }
     } catch (err: any) {
       if (signal.aborted) break
-      // 检查是否因为 OpenCode 服务端返回 HTML（不支持 event endpoint）
       const isHtmlResponse = err.message?.includes("text/html") || err.message?.includes("HTML")
       if (isHtmlResponse) {
         htmlResponseCount++
@@ -43,37 +41,40 @@ async function startSSE(signal: AbortSignal): Promise<void> {
       }
       console.error("[SSE] 错误:", err.message)
     }
-    // 断线后等待重试（指数退避已在 SDK 内部处理）
     await new Promise(r => setTimeout(r, 3000))
   }
 }
 
-export async function setupProject(directory: string): Promise<{ directory: string; project?: { name?: string } }> {
+export async function switchProject(directory: string): Promise<{ directory: string; project?: { name?: string } }> {
   if (isSwitching) throw new Error("already switching")
-  isSwitching = true
 
   try {
-    // 清理旧 SSE
+    fs.accessSync(directory, fs.constants.F_OK | fs.constants.R_OK)
+  } catch {
+    throw new Error(`directory not found or not readable: ${directory}`)
+  }
+
+  isSwitching = true
+  await Promise.resolve() // yield 点：让并发调用能在 isSwitching=true 时命中锁
+
+  try {
     sseAbort?.abort()
     sseAbort = null
     sseLoop = null
 
-    // 重建 SDK client（绑定新目录）
     const backend = getBackend()
     backend.createClient(directory)
     activeDirectory = directory
 
-    // 启动新 SSE
     const abort = new AbortController()
     sseAbort = abort
     sseLoop = startSSE(abort.signal)
 
-    // 读取项目元信息
-    currentProject = { name: directory.split("/").pop() || directory.split("\\").pop() || "unknown" }
+    const name = directory.split(/[/\\]/).filter(Boolean).pop() || "unknown"
+    currentProject = { name }
 
     isSwitching = false
 
-    // 广播 project.changed
     setTimeout(() => {
       broadcastToAll({
         type: "notify",
