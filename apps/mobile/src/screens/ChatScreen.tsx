@@ -1,9 +1,4 @@
-/**
- * ChatScreen — 主聊天界面
- *
- * 显示当前会话的消息列表、输入栏和消息发送
- */
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -18,6 +13,8 @@ import {
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
+import { ToolProgressCard } from '../components/ToolProgressCard'
+import { SessionInfoModal } from './SessionInfoModal'
 
 export type ChatScreenProps = {
   onNavigateToSessions: () => void
@@ -26,12 +23,12 @@ export type ChatScreenProps = {
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   onNavigateToSessions,
 }) => {
+  const [infoModalVisible, setInfoModalVisible] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
   const waiting = useChatStore((s) => s.waiting)
   const setInputText = useChatStore((s) => s.setInputText)
-  // sendMessage 在 handleSend 中通过 BridgeClient 直接发送
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
@@ -39,10 +36,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<TextInput>(null)
 
-  // 滚动到底部
   useEffect(() => {
     if (messages.length > 0) {
-      // 延迟一帧让 FlatList 渲染完
       const timer = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true })
       }, 100)
@@ -50,7 +45,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, [messages.length, waiting])
 
-  // 当前会话名称
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
 
@@ -58,12 +52,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const text = inputText.trim()
     if (!text || !activeSessionId) return
 
-    // 本地添加用户消息
     useChatStore.getState().addMessage({ role: 'user', content: text })
     setInputText('')
     useChatStore.getState().setWaiting(true)
 
-    // 通过 Bridge 发送给 OpenCode
     const client = useAuthStore.getState().client
     if (client) {
       try {
@@ -96,11 +88,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     await fetchSessions(client.call.bind(client))
   }
 
-  // 空状态 — 未选择会话
   if (!activeSessionId) {
     return (
       <View style={styles.container}>
-        {/* 头部 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onNavigateToSessions}>
             <Text style={styles.headerBackText}>{'< Sessions'}</Text>
@@ -152,12 +142,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   }
 
   const renderFooter = () => {
-    if (!waiting) return null
     return (
-      <View style={styles.waitingContainer}>
-        <ActivityIndicator size="small" color="#888" />
-        <Text style={styles.waitingText}>AI is thinking...</Text>
-      </View>
+      <>
+        {waiting && (
+          <View style={styles.waitingContainer}>
+            <ActivityIndicator size="small" color="#888" />
+            <Text style={styles.waitingText}>AI is thinking...</Text>
+          </View>
+        )}
+        <ToolProgressCard />
+      </>
     )
   }
 
@@ -167,7 +161,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      {/* 头部 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onNavigateToSessions}>
           <Text style={styles.headerBackText}>{'< Sessions'}</Text>
@@ -176,13 +169,18 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           {sessionName}
         </Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setInfoModalVisible(true)}
+            style={styles.infoButton}
+          >
+            <Text style={styles.headerBackText}>📋</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleRefreshSessions}>
             <Text style={styles.headerBackText}>↻</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 消息列表 */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -193,7 +191,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         style={styles.messageListContainer}
       />
 
-      {/* 输入栏 */}
       <View style={styles.inputContainer}>
         <TextInput
           ref={inputRef}
@@ -215,6 +212,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           <Text style={styles.sendButtonText}>➤</Text>
         </TouchableOpacity>
       </View>
+
+      <SessionInfoModal
+        visible={infoModalVisible}
+        sessionID={activeSessionId}
+        onClose={() => setInfoModalVisible(false)}
+      />
     </KeyboardAvoidingView>
   )
 }
@@ -224,8 +227,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1a1a2e',
   },
-
-  // ── 头部 ──────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,11 +248,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   headerRight: {
-    width: 40,
-    alignItems: 'flex-end',
+    width: 80,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
   },
-
-  // ── 空状态 ────────────────────────────────────────────
+  infoButton: {
+    padding: 2,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -280,8 +284,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-
-  // ── 消息列表 ──────────────────────────────────────────
   messageListContainer: {
     flex: 1,
   },
@@ -289,8 +291,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-
-  // ── 消息气泡 ──────────────────────────────────────────
   messageBubble: {
     maxWidth: '80%',
     borderRadius: 12,
@@ -323,8 +323,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
   },
-
-  // ── 等待指示器 ────────────────────────────────────────
   waitingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -339,8 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 8,
   },
-
-  // ── 输入栏 ────────────────────────────────────────────
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',

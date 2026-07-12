@@ -24,6 +24,8 @@ export interface AuthState {
   login: (password?: string) => Promise<void>
   logout: () => void
   clearError: () => void
+  refreshToken: () => Promise<void>
+  setToken: (token: string) => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -99,4 +101,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  refreshToken: async () => {
+    const { client } = get()
+    if (!client) {
+      set({ error: '未连接' })
+      return
+    }
+    try {
+      const result = (await client.call('auth.refresh', {})) as { token: string }
+      set({ token: result.token, error: null })
+    } catch (e: any) {
+      set({ error: e.message || '刷新 token 失败' })
+    }
+  },
+
+  setToken: (token: string) => set({ token }),
 }))

@@ -1,22 +1,17 @@
-/**
- * AppProvider — 全局 Provider
- *
- * 负责 BridgeClient 事件绑定、生命周期管理
- */
 import React, { useEffect, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useToolStore } from '../stores/toolStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useToolProgressStore } from '../stores/toolProgressStore'
+import { useDiffStore } from '../stores/diffStore'
+import { useTodoStore } from '../stores/todoStore'
+import { useQuestionStore } from '../stores/questionStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
+import { setQuestionReplyCall } from '../screens/QuestionSheet'
 
-/**
- * 注册 tool approval 的 replyCall
- * 当用户批准/拒绝工具调用时，通过 BridgeClient 发送 permission.reply RPC
- * 从 toolStore 待审批队列中查找对应请求的 sessionId（v2 API 需要）
- */
 function createReplyCall(client: BridgeClient): (id: string, approved: boolean) => Promise<void> {
   return async (id: string, approved: boolean) => {
     const { pendingApprovals } = useToolStore.getState()
@@ -35,7 +30,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const clientRef = useRef<BridgeClient | null>(null)
 
   useEffect(() => {
-    // 监听 auth store 的 client 变化
     const unsub = useAuthStore.subscribe((state, prev) => {
       if (state.client && state.client !== prev.client) {
         setupClient(state.client)
@@ -54,13 +48,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   function setupClient(client: BridgeClient) {
     clientRef.current = client
 
-    // 注册 tool approval replyCall
     setToolReplyCall(createReplyCall(client))
+    setQuestionReplyCall(async (id: string, answers: string[]) => {
+      const sessionID = useQuestionStore.getState().pending.find((q) => q.id === id)?.sessionID || ''
+      await client.call('question.v2.reply', { id, sessionID, answers })
+    })
 
     client.on('notification', (method: string, payload: any) => {
-      // 流式文本增量（SDK event: session.next.text.delta）
-      //   payload = { sessionID, assistantMessageID, textID, delta }
-      //   delta 是增量文本，每帧替换最后一条助理消息
+      // 流式文本增量
       if (method === 'session.next.text.delta') {
         const delta = payload?.delta || ''
         if (delta) {
@@ -68,8 +63,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
-      // 工具审批请求 v2（SDK event: permission.v2.asked）
-      //   payload = { id, sessionID, action: "read", resources: ["src/**"] }
+      // 文本段结束
+      if (method === 'session.next.text.ended') {
+        useChatStore.getState().setWaiting(false)
+      }
+
+      // 推理增量
+      if (method === 'session.next.reasoning.delta') {
+        const delta = payload?.delta || ''
+        if (delta) {
+          useChatStore.getState().updateLastAssistant(delta)
+        }
+      }
+
+      // 推理结束
+      if (method === 'session.next.reasoning.ended') {
+        useChatStore.getState().setWaiting(false)
+      }
+
+      // 工具被调用
+      if (method === 'session.next.tool.called') {
+        useToolProgressStore.getState().addCall({
+          callID: payload?.callID || '',
+          sessionID: payload?.sessionID || '',
+          tool: payload?.tool || '',
+          input: payload?.input || {},
+        })
+      }
+
+      // 工具执行进度
+      if (method === 'session.next.tool.progress') {
+        useToolProgressStore.getState().updateProgress(
+          payload?.callID || '',
+          { structured: payload?.structured, content: payload?.content },
+        )
+      }
+
+      // 工具成功
+      if (method === 'session.next.tool.success') {
+        useToolProgressStore.getState().markSuccess(
+          payload?.callID || '',
+          payload?.content,
+          payload?.result,
+          payload?.outputPaths,
+        )
+      }
+
+      // 工具失败
+      if (method === 'session.next.tool.failed') {
+        useToolProgressStore.getState().markFailed(
+          payload?.callID || '',
+          payload?.error,
+        )
+      }
+
+      // 步骤开始
+      if (method === 'session.next.step.started') {
+        useChatStore.getState().setWaiting(true)
+      }
+
+      // 步骤结束
+      if (method === 'session.next.step.ended') {
+        useChatStore.getState().setWaiting(false)
+      }
+
+      // 工具审批请求 v2
       if (method === 'permission.v2.asked') {
         useToolStore.getState().enqueue({
           id: payload?.id || 'unknown',
@@ -80,8 +138,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
-      // session 状态变更（SDK event: session.status）
-      //   payload = { sessionID, status: { type: "idle"|"busy"|"retry" } }
+      // session 状态变更
       if (method === 'session.status') {
         const statusType = payload?.status?.type
         if (statusType === 'idle') {
@@ -91,16 +148,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         const info = payload?.session || payload
         if (info?.id) {
-          useSessionStore.getState().updateSession(info.id, info)
+          useSessionStore.getState().patchSession(info.id, info)
         }
       }
 
-      // 回复完成（SDK event: session.idle）
+      // 回复完成
       if (method === 'session.idle') {
         useChatStore.getState().setWaiting(false)
       }
 
-      // 回复出错（SDK event: session.error）
+      // 回复出错
       if (method === 'session.error') {
         useChatStore.getState().setWaiting(false)
         const errorMsg = payload?.error || 'unknown error'
@@ -110,7 +167,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
-      // 项目切换（bridge-emitted event: project.changed）
+      // 文件变更
+      if (method === 'session.diff') {
+        const sid = payload?.sessionID || ''
+        const diffs = payload?.diff || []
+        if (sid) {
+          useDiffStore.getState().setDiffs(sid, diffs)
+        }
+      }
+
+      // 待办更新
+      if (method === 'todo.updated') {
+        const sid = payload?.sessionID || ''
+        const todos = payload?.todos || []
+        if (sid) {
+          useTodoStore.getState().setTodos(sid, todos)
+        }
+      }
+
+      // 问答请求
+      if (method === 'question.v2.asked') {
+        useQuestionStore.getState().addQuestion({
+          id: payload?.id || '',
+          sessionID: payload?.sessionID || '',
+          questions: payload?.questions || [],
+          tool: payload?.tool,
+        })
+      }
+
+      // 项目切换
       if (method === 'project.changed') {
         useProjectStore.getState().setProject({
           directory: payload?.directory || '',
@@ -119,7 +204,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     })
 
-    // token 过期
     client.on('auth_expired', () => {
       useAuthStore.getState().logout()
     })

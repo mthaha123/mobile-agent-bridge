@@ -11,6 +11,7 @@ import { ConnectScreen } from './src/screens/ConnectScreen'
 import { SessionsScreen } from './src/screens/SessionsScreen'
 import { ChatScreen } from './src/screens/ChatScreen'
 import { ToolApprovalSheet } from './src/screens/ToolApprovalSheet'
+import { QuestionSheet } from './src/screens/QuestionSheet'
 import { useAuthStore } from './src/stores/authStore'
 import { useChatStore } from './src/stores/chatStore'
 
@@ -60,6 +61,7 @@ const App: React.FC = () => {
         )}
 
         <ToolApprovalSheet />
+        <QuestionSheet />
       </SafeAreaView>
     </AppProvider>
   )

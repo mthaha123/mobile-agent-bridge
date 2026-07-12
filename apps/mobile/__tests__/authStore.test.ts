@@ -200,3 +200,56 @@ describe('logout', () => {
     expect(mockDestroy).toHaveBeenCalledTimes(1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// refreshToken
+// ---------------------------------------------------------------------------
+
+describe('refreshToken', () => {
+  it('refreshes token successfully using existing client', async () => {
+    const fakeClient = { call: jest.fn().mockResolvedValue({ token: 'new-token' }) }
+    useAuthStore.setState({ client: fakeClient as any })
+
+    await useAuthStore.getState().refreshToken()
+
+    const state = useAuthStore.getState()
+    expect(state.token).toBe('new-token')
+    expect(state.error).toBeNull()
+    expect(fakeClient.call).toHaveBeenCalledWith('auth.refresh', {})
+  })
+
+  it('sets error when client is null', async () => {
+    useAuthStore.setState({ client: null, error: null })
+
+    await useAuthStore.getState().refreshToken()
+
+    const state = useAuthStore.getState()
+    expect(state.error).toBe('未连接')
+    expect(state.token).toBeNull()
+  })
+
+  it('handles refresh failure gracefully', async () => {
+    const fakeClient = { call: jest.fn().mockRejectedValue(new Error('token expired')) }
+    useAuthStore.setState({ client: fakeClient as any, token: 'old-token' })
+
+    await useAuthStore.getState().refreshToken()
+
+    const state = useAuthStore.getState()
+    expect(state.error).toBe('token expired')
+    expect(state.token).toBe('old-token')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// setToken
+// ---------------------------------------------------------------------------
+
+describe('setToken', () => {
+  it('sets the token value', () => {
+    useAuthStore.setState({ token: null })
+
+    useAuthStore.getState().setToken('external-token')
+
+    expect(useAuthStore.getState().token).toBe('external-token')
+  })
+})

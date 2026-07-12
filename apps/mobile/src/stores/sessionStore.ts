@@ -21,13 +21,24 @@ export interface SessionState {
   setSessions: (sessions: Session[]) => void
   addSession: (session: Session) => void
   removeSession: (id: string) => void
-  updateSession: (id: string, updates: Partial<Session>) => void
+  patchSession: (id: string, updates: Partial<Session>) => void
   setLoading: (l: boolean) => void
   setError: (e: string | null) => void
   clearError: () => void
   fetchSessions: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   createSession: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
   deleteSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+
+  // Advanced session operations
+  getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
+  getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
+  updateSession: (id: string, title: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  renameSession: (id: string, name: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  getSessionTodo: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
+  getSessionDiff: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
+  forkSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
+  revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  unrevertSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -42,7 +53,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.filter((s) => s.id !== id),
     })),
-  updateSession: (id, updates) =>
+  patchSession: (id, updates) =>
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === id ? { ...s, ...updates } : s,
@@ -93,6 +104,107 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (e: any) {
       // v2 暂不支持 delete，静默忽略
       console.warn('session.delete not supported:', e.message)
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Advanced session operations
+  // ---------------------------------------------------------------------------
+
+  getSession: async (id, clientCall) => {
+    set({ error: null })
+    try {
+      const result = (await clientCall('session.get', { sessionID: id })) as
+        | { session: Session }
+        | Session
+      const session = (result as any).session ?? result
+      return (session as Session)?.id ? (session as Session) : null
+    } catch (e: any) {
+      set({ error: e.message || '获取会话失败' })
+      return null
+    }
+  },
+
+  getSessionMessages: async (id, clientCall) => {
+    set({ error: null })
+    try {
+      const result = (await clientCall('session.messages', { sessionID: id })) as
+        | { messages: any[] }
+        | any[]
+      return Array.isArray(result) ? result : (result as any).messages ?? []
+    } catch (e: any) {
+      set({ error: e.message || '获取会话消息失败' })
+      return []
+    }
+  },
+
+  updateSession: async (id, title, clientCall) => {
+    try {
+      await clientCall('session.update', { sessionID: id, title })
+    } catch (e: any) {
+      console.warn('session.update failed:', e.message)
+    }
+  },
+
+  renameSession: async (id, name, clientCall) => {
+    try {
+      await clientCall('session.rename', { sessionID: id, name })
+    } catch (e: any) {
+      console.warn('session.rename failed:', e.message)
+    }
+  },
+
+  getSessionTodo: async (id, clientCall) => {
+    try {
+      const result = (await clientCall('session.todo', { sessionID: id })) as
+        | { todos: any[] }
+        | any[]
+      return Array.isArray(result) ? result : (result as any).todos ?? []
+    } catch (e: any) {
+      console.warn('session.todo failed:', e.message)
+      return []
+    }
+  },
+
+  getSessionDiff: async (id, clientCall) => {
+    try {
+      const result = (await clientCall('session.diff', { sessionID: id })) as
+        | { diffs: any[] }
+        | any[]
+      return Array.isArray(result) ? result : (result as any).diffs ?? []
+    } catch (e: any) {
+      console.warn('session.diff failed:', e.message)
+      return []
+    }
+  },
+
+  forkSession: async (id, clientCall) => {
+    set({ error: null })
+    try {
+      const result = (await clientCall('session.fork', { sessionID: id })) as
+        | { sessionID: string }
+        | string
+      const newId = typeof result === 'string' ? result : (result as any).sessionID ?? null
+      return newId || null
+    } catch (e: any) {
+      set({ error: e.message || '复刻会话失败' })
+      return null
+    }
+  },
+
+  revertSession: async (id, messageID, partID, clientCall) => {
+    try {
+      await clientCall('session.revert', { sessionID: id, messageID, partID })
+    } catch (e: any) {
+      console.warn('session.revert failed:', e.message)
+    }
+  },
+
+  unrevertSession: async (id, clientCall) => {
+    try {
+      await clientCall('session.unrevert', { sessionID: id })
+    } catch (e: any) {
+      console.warn('session.unrevert failed:', e.message)
     }
   },
 }))

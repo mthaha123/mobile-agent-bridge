@@ -28,6 +28,9 @@ export interface ChatState {
   setInputText: (text: string) => void
   setWaiting: (w: boolean) => void
   clearMessages: () => void
+  abortMessage: (sessionId: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  shellCommand: (sessionId: string, command: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  writeCommand: (sessionId: string, command: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
 let msgCounter = 0
@@ -72,4 +75,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setWaiting: (w) => set({ waiting: w }),
 
   clearMessages: () => set({ messages: [], waiting: false }),
+
+  abortMessage: async (sessionId, clientCall) => {
+    try {
+      await clientCall('message.abort', { sessionId })
+    } finally {
+      set({ waiting: false })
+    }
+  },
+
+  shellCommand: async (sessionId, command, clientCall) => {
+    try {
+      await clientCall('message.shell', { sessionId, command })
+    } finally {
+      set({ waiting: false })
+    }
+  },
+
+  writeCommand: async (sessionId, command, clientCall) => {
+    try {
+      await clientCall('message.command', { sessionId, command })
+    } finally {
+      set({ waiting: false })
+    }
+  },
 }))
