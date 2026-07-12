@@ -2,30 +2,6 @@
  * AppProvider tests — project.changed event handler
  */
 
-jest.mock('react-native', () => {
-  const mockComponent = (name: string) => {
-    const Comp: React.FC<{ children?: React.ReactNode }> = (props) =>
-      props.children ?? null
-    Comp.displayName = name
-    return Comp
-  }
-
-  return {
-    View: mockComponent('View'),
-    Text: mockComponent('Text'),
-    TextInput: mockComponent('TextInput'),
-    TouchableOpacity: mockComponent('TouchableOpacity'),
-    StyleSheet: { create: (s: any) => s },
-    ActivityIndicator: mockComponent('ActivityIndicator'),
-    Modal: mockComponent('Modal'),
-    Alert: { alert: jest.fn() },
-    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
-    ScrollView: mockComponent('ScrollView'),
-    Platform: { OS: 'ios', select: () => {} },
-    Dimensions: { get: () => ({ width: 375, height: 812 }) },
-  }
-})
-
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { AppProvider } from '../src/components/AppProvider'

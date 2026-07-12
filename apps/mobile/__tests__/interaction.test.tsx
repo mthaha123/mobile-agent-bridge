@@ -3,29 +3,6 @@
  *
  * 模拟真实用户操作：点击按钮、输入文本，通过 TestRenderer 树查找元素并触发事件
  */
-jest.mock('react-native', () => {
-  const mockComponent = (name: string) => {
-    const Comp: React.FC<{ children?: React.ReactNode }> = (props) =>
-      props.children ?? null
-    Comp.displayName = name
-    return Comp
-  }
-  return {
-    View: mockComponent('View'),
-    Text: mockComponent('Text'),
-    TextInput: mockComponent('TextInput'),
-    TouchableOpacity: mockComponent('TouchableOpacity'),
-    StyleSheet: { create: (s: any) => s },
-    ActivityIndicator: mockComponent('ActivityIndicator'),
-    Modal: mockComponent('Modal'),
-    Alert: { alert: jest.fn() },
-    Platform: { OS: 'ios', select: () => {} },
-    ScrollView: mockComponent('ScrollView'),
-    FlatList: mockComponent('FlatList'),
-    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
-  }
-})
-
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { ConnectScreen } from '../src/screens/ConnectScreen'

@@ -1,25 +1,3 @@
-jest.mock('react-native', () => {
-  const mockComponent = (name: string) => {
-    const Comp: React.FC<{ children?: React.ReactNode }> = (props) =>
-      props.children ?? null
-    Comp.displayName = name
-    return Comp
-  }
-  return {
-    View: mockComponent('View'),
-    Text: mockComponent('Text'),
-    TextInput: mockComponent('TextInput'),
-    TouchableOpacity: mockComponent('TouchableOpacity'),
-    StyleSheet: { create: (s: any) => s },
-    ActivityIndicator: mockComponent('ActivityIndicator'),
-    FlatList: mockComponent('FlatList'),
-    Modal: mockComponent('Modal'),
-    ScrollView: mockComponent('ScrollView'),
-    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
-    Platform: { OS: 'ios', select: () => {} },
-  }
-})
-
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { ChatScreen } from '../src/screens/ChatScreen'
