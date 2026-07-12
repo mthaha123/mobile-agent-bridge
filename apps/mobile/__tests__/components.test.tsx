@@ -20,8 +20,6 @@ jest.mock('react-native', () => {
   }
 })
 
-jest.mock('../src/screens/ToolApprovalSheet', () => ({ setToolReplyCall: jest.fn() }))
-
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { ToolProgressCard } from '../src/components/ToolProgressCard'
