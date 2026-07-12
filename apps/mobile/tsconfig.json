@@ -3,12 +3,11 @@
   "compilerOptions": {
     "strict": true,
     "target": "esnext",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "jsx": "react-native",
     "lib": ["es2022"],
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "outDir": "./dist"
   },
   "include": ["src", "App.tsx", "index.js"],
   "exclude": ["node_modules"]

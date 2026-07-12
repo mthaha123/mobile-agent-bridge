@@ -9,14 +9,17 @@
  *
  * 遵循 SDD 03-architecture-design.md 中的 WS 协议定义
  */
-import { EventEmitter } from 'events'
+import EventEmitter from 'events'
 
 // ─── 类型定义 ───────────────────────────────────────────
+
+type WSMsgEvent = { data?: string }
 
 export interface BridgeWsFrame {
   type: 'req' | 'res' | 'notify'
   id?: string
   method?: string
+  params?: unknown
   ok?: boolean
   error?: string
   payload?: unknown
@@ -119,7 +122,7 @@ export class BridgeClient {
           resolve()
         }
 
-        this.ws.onmessage = (event: MessageEvent) => {
+        this.ws.onmessage = (event: WSMsgEvent) => {
           try {
             const frame: BridgeWsFrame = JSON.parse(event.data as string)
             this.handleFrame(frame)
