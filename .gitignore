@@ -4,9 +4,19 @@ dist/
 .env
 .turbo/
 apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/.cxx/
+apps/mobile/android/app/src/main/assets/
+apps/mobile/android/app/src/main/res/drawable-mdpi/
 apps/mobile/ios/
 apps/mobile/.metro-health-check*
 *.log
+
+# 测试产物
+scripts/test-screenshots/
+scripts/android-smoke-screenshot.png
+package-lock.json
 
 # Generated/temp
 .sisyphus/
