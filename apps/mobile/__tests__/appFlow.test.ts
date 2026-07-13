@@ -230,7 +230,7 @@ describe('Tool progress flow', () => {
   it('tracks full tool call lifecycle', () => {
     // session.next.tool.called
     useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionID: 's1', tool: 'read', input: { path: 'file.ts' },
+      callID: 'call-1', sessionId: 's1', tool: 'read', input: { path: 'file.ts' },
     })
     let state = useToolProgressStore.getState()
     expect(state.activeCalls).toHaveLength(1)
@@ -252,7 +252,7 @@ describe('Tool progress flow', () => {
 
   it('handles tool failure', () => {
     useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionID: 's1', tool: 'read', input: {},
+      callID: 'call-1', sessionId: 's1', tool: 'read', input: {},
     })
     useToolProgressStore.getState().markFailed('call-1', 'not found')
     const state = useToolProgressStore.getState()
@@ -267,7 +267,7 @@ describe('Question wizard flow', () => {
   it('adds and removes questions', () => {
     // question.v2.asked notification
     useQuestionStore.getState().addQuestion({
-      id: 'q-1', sessionID: 's1',
+      id: 'q-1', sessionId: 's1',
       questions: [{
         question: 'Allow file access?',
         header: 'Permission Required',
@@ -284,7 +284,7 @@ describe('Question wizard flow', () => {
 
   it('handles multiple questions from same notification (multi-question)', () => {
     useQuestionStore.getState().addQuestion({
-      id: 'q-1', sessionID: 's1',
+      id: 'q-1', sessionId: 's1',
       questions: [
         { question: 'Q1', header: '', options: [{ label: 'A', description: '' }] },
         { question: 'Q2', header: '', options: [{ label: 'B', description: '' }] },
@@ -295,11 +295,11 @@ describe('Question wizard flow', () => {
 
   it('clears all questions for a session', () => {
     useQuestionStore.getState().addQuestion({
-      id: 'q-1', sessionID: 's1',
+      id: 'q-1', sessionId: 's1',
       questions: [{ question: 'Q?', header: '', options: [] }],
     })
     useQuestionStore.getState().addQuestion({
-      id: 'q-2', sessionID: 's1',
+      id: 'q-2', sessionId: 's1',
       questions: [{ question: 'Q2?', header: '', options: [] }],
     })
     expect(useQuestionStore.getState().pending).toHaveLength(2)
@@ -372,7 +372,7 @@ describe('Full app flow simulation', () => {
 
     // Step 6: Tool progress arrives
     useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionID: 's2', tool: 'writeFile', input: { path: 'src/utils.ts' },
+      callID: 'call-1', sessionId: 's2', tool: 'writeFile', input: { path: 'src/utils.ts' },
     })
     expect(useToolProgressStore.getState().activeCalls).toHaveLength(1)
 

@@ -25,7 +25,7 @@ describe('ToolProgressCard', () => {
 
   it('renders running tool calls', () => {
     useToolProgressStore.getState().addCall({
-      callID: 'c1', sessionID: 's1', tool: 'read', input: { path: 'file.ts' },
+      callID: 'c1', sessionId: 's1', tool: 'read', input: { path: 'file.ts' },
     })
     const tree = TestRenderer.create(<ToolProgressCard />)
     expect(tree.toJSON()).not.toBeNull()
@@ -34,7 +34,7 @@ describe('ToolProgressCard', () => {
   it('does not render for completed calls', () => {
     useToolProgressStore.setState({
       activeCalls: [{
-        callID: 'c1', sessionID: 's1', tool: 'read', input: {},
+        callID: 'c1', sessionId: 's1', tool: 'read', input: {},
         status: 'success', startedAt: 100,
       }],
     })
@@ -48,7 +48,7 @@ describe('ToolProgressCard', () => {
 describe('SessionInfoModal', () => {
   it('renders when visible', () => {
     const tree = TestRenderer.create(
-      <SessionInfoModal visible sessionID="s1" onClose={jest.fn()} />,
+      <SessionInfoModal visible sessionId="s1" onClose={jest.fn()} />,
     )
     expect(tree.toJSON()).not.toBeNull()
   })
@@ -58,14 +58,14 @@ describe('SessionInfoModal', () => {
       { file: 'src/index.ts', additions: 5, deletions: 2, status: 'modified' },
     ])
     const tree = TestRenderer.create(
-      <SessionInfoModal visible sessionID="s1" onClose={jest.fn()} />,
+      <SessionInfoModal visible sessionId="s1" onClose={jest.fn()} />,
     )
     expect(tree.toJSON()).not.toBeNull()
   })
 
   it('renders empty state without crashing', () => {
     const tree = TestRenderer.create(
-      <SessionInfoModal visible sessionID="s1" onClose={jest.fn()} />,
+      <SessionInfoModal visible sessionId="s1" onClose={jest.fn()} />,
     )
     expect(tree.toJSON()).not.toBeNull()
   })
@@ -81,7 +81,7 @@ describe('QuestionSheet', () => {
 
   it('renders question when modal visible with pending', () => {
     useQuestionStore.getState().addQuestion({
-      id: 'q1', sessionID: 's1',
+      id: 'q1', sessionId: 's1',
       questions: [{
         question: 'Allow?', header: 'Permission',
         options: [{ label: 'Yes', description: 'Allow access' }],
@@ -94,7 +94,7 @@ describe('QuestionSheet', () => {
   it('resets selection state when question changes', () => {
     useQuestionStore.setState({
       pending: [{
-        id: 'q1', sessionID: 's1',
+        id: 'q1', sessionId: 's1',
         questions: [{
           question: 'Q1', header: '', options: [{ label: 'A', description: '' }],
         }],
@@ -105,7 +105,7 @@ describe('QuestionSheet', () => {
     TestRenderer.act(() => {
       useQuestionStore.setState({
         pending: [{
-          id: 'q2', sessionID: 's1',
+          id: 'q2', sessionId: 's1',
           questions: [{
             question: 'Q2', header: '', options: [{ label: 'B', description: '' }],
           }],

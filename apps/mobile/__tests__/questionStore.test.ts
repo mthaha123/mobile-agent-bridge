@@ -7,7 +7,7 @@ beforeEach(() => {
 describe('addQuestion', () => {
   it('appends a question and sets visible', () => {
     useQuestionStore.getState().addQuestion({
-      id: 'q1', sessionID: 's1',
+      id: 'q1', sessionId: 's1',
       questions: [{ question: 'Allow?', header: 'Permission', options: [{ label: 'Yes', description: 'Allow it' }] }],
     })
     expect(useQuestionStore.getState().pending).toHaveLength(1)
@@ -19,7 +19,7 @@ describe('addQuestion', () => {
 describe('removeQuestion', () => {
   it('removes by id', () => {
     useQuestionStore.setState({
-      pending: [{ id: 'q1', sessionID: 's1', questions: [] }],
+      pending: [{ id: 'q1', sessionId: 's1', questions: [] }],
       visible: true,
     })
     useQuestionStore.getState().removeQuestion('q1')
@@ -32,9 +32,9 @@ describe('clearSession', () => {
   it('removes all questions for a session', () => {
     useQuestionStore.setState({
       pending: [
-        { id: 'q1', sessionID: 's1', questions: [] },
-        { id: 'q2', sessionID: 's1', questions: [] },
-        { id: 'q3', sessionID: 's2', questions: [] },
+        { id: 'q1', sessionId: 's1', questions: [] },
+        { id: 'q2', sessionId: 's1', questions: [] },
+        { id: 'q3', sessionId: 's2', questions: [] },
       ],
       visible: true,
     })

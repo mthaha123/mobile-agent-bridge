@@ -326,30 +326,100 @@ for (const [method, params, timeout] of routeMethods) {
 //  参数兼容性
 // ═══════════════════════════════════════════════════════
 
-scenario('permission.reply 路由可达')
+scenario('permission.reply 路由可达 (approved fallback)')
 {
   const client = makeClient(token)
   await client.connect()
   try {
-    await client.call('permission.reply', { id: 'req_test', approved: true })
-    fail('permission.reply 应需要 sessionID')
+    await client.call('permission.reply', { id: 'req_test', sessionId: 'sess_test', approved: true })
+    fail('permission.reply 应需要有效 session')
   } catch (e: any) {
-    assert('permission.reply 路由正确（非 unknown method）',
+    assert('permission.reply approved fallback 路由正确（非 unknown method）',
       /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
   }
   client.destroy()
 }
 
-scenario('question.reply 路由可达')
+scenario('permission.reply 路由可达 (reply 字符串)')
+{
+  const client = makeClient(token)
+  await client.connect()
+  try {
+    await client.call('permission.reply', { id: 'req_test', sessionId: 'sess_test', reply: 'once' })
+    fail('permission.reply 应需要有效 session')
+  } catch (e: any) {
+    assert('permission.reply reply 字符串 路由正确（非 unknown method）',
+      /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
+  }
+  client.destroy()
+}
+
+scenario('permission.reply 缺少 sessionID 返回错误')
+{
+  const client = makeClient(token)
+  await client.connect()
+  try {
+    await client.call('permission.reply', { id: 'req_test', reply: 'once' })
+    fail('permission.reply 缺少 sessionID 应报错')
+  } catch (e: any) {
+    assert('permission.reply 缺少 sessionID 报错',
+      e.message.includes('sessionID') || e.message.includes('sessionId'), e.message.slice(0, 60))
+  }
+  client.destroy()
+}
+
+scenario('question.reply 路由可达 (answer 字符串)')
+{
+  const client = makeClient(token)
+  await client.connect()
+  try {
+    await client.call('question.reply', { id: 'q_test', sessionId: 'sess_test', answer: 'yes' })
+    fail('question.reply 应需要有效 session')
+  } catch (e: any) {
+    assert('question.reply 路由正确（非 unknown method）',
+      /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
+  }
+  client.destroy()
+}
+
+scenario('question.reply 路由可达 (answers 数组)')
+{
+  const client = makeClient(token)
+  await client.connect()
+  try {
+    await client.call('question.reply', { id: 'q_test', sessionId: 'sess_test', answers: [['yes', 'no']] })
+    fail('question.reply 应需要有效 session')
+  } catch (e: any) {
+    assert('question.reply answers 数组 路由正确（非 unknown method）',
+      /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
+  }
+  client.destroy()
+}
+
+scenario('question.reject 路由可达')
+{
+  const client = makeClient(token)
+  await client.connect()
+  try {
+    await client.call('question.reject', { id: 'q_test', sessionId: 'sess_test' })
+    fail('question.reject 应需要有效 session')
+  } catch (e: any) {
+    assert('question.reject 路由正确（非 unknown method）',
+      /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
+  }
+  client.destroy()
+}
+
+scenario('question.reply 缺少 sessionID 返回错误')
 {
   const client = makeClient(token)
   await client.connect()
   try {
     await client.call('question.reply', { id: 'q_test', answer: 'yes' })
-    fail('question.reply 应需要 sessionID')
+    fail('question.reply 缺少 sessionID 应报错')
   } catch (e: any) {
-    assert('question.reply 路由正确（非 unknown method）',
-      /unknown method/i.test(e.message) === false, e.message.slice(0, 60))
+    assert('question.reply 缺少 sessionID 报错',
+      e.message.includes('sessionID') || e.message.includes('sessionId'), e.message.slice(0, 60))
   }
   client.destroy()
 }

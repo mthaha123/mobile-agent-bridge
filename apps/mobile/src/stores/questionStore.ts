@@ -15,7 +15,7 @@ export interface SingleQuestion {
 
 export interface QuestionItem {
   id: string
-  sessionID: string
+  sessionId: string
   questions: SingleQuestion[]
   tool?: { messageID: string; callID: string }
 }
@@ -25,7 +25,7 @@ export interface QuestionState {
   visible: boolean
   addQuestion: (q: QuestionItem) => void
   removeQuestion: (id: string) => void
-  clearSession: (sessionID: string) => void
+  clearSession: (sessionId: string) => void
   setVisible: (v: boolean) => void
 }
 
@@ -45,9 +45,9 @@ export const useQuestionStore = create<QuestionState>((set) => ({
       return { pending: remaining, visible: remaining.length > 0 }
     }),
 
-  clearSession: (sessionID) =>
+  clearSession: (sessionId) =>
     set((s) => {
-      const remaining = s.pending.filter((x) => x.sessionID !== sessionID)
+      const remaining = s.pending.filter((x) => x.sessionId !== sessionId)
       return { pending: remaining, visible: remaining.length > 0 }
     }),
 

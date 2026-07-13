@@ -18,14 +18,14 @@ afterEach(() => {
 })
 
 describe('setDiffs', () => {
-  it('stores diffs keyed by sessionID', () => {
+  it('stores diffs keyed by sessionId', () => {
     useDiffStore.getState().setDiffs('sess-1', sampleDiffs)
 
     const diffs = useDiffStore.getState().diffs
     expect(diffs['sess-1']).toEqual(sampleDiffs)
   })
 
-  it('replaces existing diffs for the same sessionID', () => {
+  it('replaces existing diffs for the same sessionId', () => {
     useDiffStore.getState().setDiffs('sess-1', sampleDiffs)
 
     const replacement: FileDiff[] = [
@@ -46,7 +46,7 @@ describe('setDiffs', () => {
 })
 
 describe('clearSession', () => {
-  it('removes diffs for the given sessionID', () => {
+  it('removes diffs for the given sessionId', () => {
     useDiffStore.getState().setDiffs('sess-1', sampleDiffs)
     useDiffStore.getState().setDiffs('sess-2', [{ file: 'b.ts', additions: 2, deletions: 2 }])
 

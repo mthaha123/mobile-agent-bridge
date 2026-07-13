@@ -2,7 +2,7 @@ import { useToolProgressStore, ToolCallProgress } from '../src/stores/toolProgre
 
 const baseCall = {
   callID: 'call-1',
-  sessionID: 'sess-1',
+  sessionId: 'sess-1',
   tool: 'read',
   input: { filePath: 'src/index.ts' },
 }
@@ -26,7 +26,7 @@ describe('addCall', () => {
     const calls = useToolProgressStore.getState().activeCalls
     expect(calls).toHaveLength(1)
     expect(calls[0].callID).toBe('call-1')
-    expect(calls[0].sessionID).toBe('sess-1')
+    expect(calls[0].sessionId).toBe('sess-1')
     expect(calls[0].tool).toBe('read')
     expect(calls[0].input).toEqual({ filePath: 'src/index.ts' })
     expect(calls[0].status).toBe('called')
@@ -100,20 +100,20 @@ describe('markFailed', () => {
 })
 
 describe('clearSession', () => {
-  it('removes all calls for the given sessionID', () => {
+  it('removes all calls for the given sessionId', () => {
     useToolProgressStore.getState().addCall(baseCall)
-    useToolProgressStore.getState().addCall({ ...baseCall, callID: 'call-2', sessionID: 'sess-1' })
-    useToolProgressStore.getState().addCall({ ...baseCall, callID: 'call-3', sessionID: 'sess-2' })
+    useToolProgressStore.getState().addCall({ ...baseCall, callID: 'call-2', sessionId: 'sess-1' })
+    useToolProgressStore.getState().addCall({ ...baseCall, callID: 'call-3', sessionId: 'sess-2' })
 
     useToolProgressStore.getState().clearSession('sess-1')
 
     const calls = useToolProgressStore.getState().activeCalls
     expect(calls).toHaveLength(1)
     expect(calls[0].callID).toBe('call-3')
-    expect(calls[0].sessionID).toBe('sess-2')
+    expect(calls[0].sessionId).toBe('sess-2')
   })
 
-  it('does nothing when sessionID has no calls', () => {
+  it('does nothing when sessionId has no calls', () => {
     useToolProgressStore.getState().addCall(baseCall)
     useToolProgressStore.getState().clearSession('sess-unknown')
 

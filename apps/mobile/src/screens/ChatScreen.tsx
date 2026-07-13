@@ -215,7 +215,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       <SessionInfoModal
         visible={infoModalVisible}
-        sessionID={activeSessionId}
+        sessionId={activeSessionId}
         onClose={() => setInfoModalVisible(false)}
       />
     </KeyboardAvoidingView>

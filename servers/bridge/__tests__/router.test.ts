@@ -167,7 +167,7 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages.length).toBe(1)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionID/sessionId")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call v2.session.permission.reply with correct reply value", async () => {
@@ -214,6 +214,43 @@ describe("RPC Router", () => {
       requestID: "req_123",
       reply: "once",
     })
+  })
+
+  it("should fallback approved:false to reject", async () => {
+    const { mockV3Session: mockSession } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.reply",
+      params: { id: "req_456", sessionId: "sess_456", approved: false },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession.permission.reply).toHaveBeenCalledWith({
+      sessionID: "sess_456",
+      requestID: "req_456",
+      reply: "reject",
+    })
+  })
+
+  it("should reject permission.reply without sessionId", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.reply",
+      params: { id: "req_123", reply: "once" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+  })
+
+  it("should reject permission.reply without id", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.reply",
+      params: { sessionId: "sess_123", reply: "once" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call session.create with agent/model params (string model resolved to object)", async () => {
@@ -270,6 +307,43 @@ describe("RPC Router", () => {
     })
   })
 
+  it("should call question.reply with answers array format", async () => {
+    const { mockV3Session: mockSession } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "question.reply",
+      params: { id: "q_2", sessionId: "sess_456", answers: [["opt1", "opt2"]] },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession.question.reply).toHaveBeenCalledWith({
+      sessionID: "sess_456",
+      requestID: "q_2",
+      questionV2Reply: { answers: [["opt1", "opt2"]] },
+    })
+  })
+
+  it("should reject question.reply without sessionId", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "question.reply",
+      params: { id: "q_1", answer: "yes" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+  })
+
+  it("should reject question.reply without id", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "question.reply",
+      params: { sessionId: "sess_123", answer: "yes" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+  })
+
   it("should reject non-auth methods without valid payload", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, { type: "req", id: "1", method: "health.ping", params: {} }, null)
@@ -318,7 +392,7 @@ describe("RPC Router", () => {
       params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("id")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call session.update with title param", async () => {
@@ -340,7 +414,7 @@ describe("RPC Router", () => {
       params: { title: "no id" },
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("id")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call onTokenRefreshed when auth.login returns token", async () => {
@@ -396,7 +470,7 @@ describe("RPC Router", () => {
       params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("id")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call session.messages with sessionID", async () => {
@@ -418,7 +492,7 @@ describe("RPC Router", () => {
       params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("id")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call session.status", async () => {
@@ -463,7 +537,7 @@ describe("RPC Router", () => {
       params: { name: "new-name" },
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("id")
+    expect(messages[0].error).toContain("sessionId")
   })
 
   it("should call session.todo", async () => {

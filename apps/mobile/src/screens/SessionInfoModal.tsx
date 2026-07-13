@@ -15,13 +15,13 @@ type Tab = 'diff' | 'todo'
 
 export const SessionInfoModal: React.FC<{
   visible: boolean
-  sessionID: string | null
+  sessionId: string | null
   onClose: () => void
-}> = ({ visible, sessionID, onClose }) => {
+}> = ({ visible, sessionId, onClose }) => {
   const [tab, setTab] = useState<Tab>('diff')
 
-  const diffs = useDiffStore((s) => (sessionID ? s.diffs[sessionID] ?? [] : []))
-  const todos = useTodoStore((s) => (sessionID ? s.todos[sessionID] ?? [] : []))
+  const diffs = useDiffStore((s) => (sessionId ? s.diffs[sessionId] ?? [] : []))
+  const todos = useTodoStore((s) => (sessionId ? s.todos[sessionId] ?? [] : []))
 
   return (
     <Modal

@@ -11,23 +11,23 @@ export interface FileDiff {
 export interface DiffState {
   diffs: Record<string, FileDiff[]>
 
-  setDiffs: (sessionID: string, diffs: FileDiff[]) => void
-  clearSession: (sessionID: string) => void
+  setDiffs: (sessionId: string, diffs: FileDiff[]) => void
+  clearSession: (sessionId: string) => void
 }
 
 export const useDiffStore = create<DiffState>((set) => ({
   diffs: {},
 
-  setDiffs: (sessionID, diffs) => {
+  setDiffs: (sessionId, diffs) => {
     set((state) => ({
-      diffs: { ...state.diffs, [sessionID]: diffs },
+      diffs: { ...state.diffs, [sessionId]: diffs },
     }))
   },
 
-  clearSession: (sessionID) => {
+  clearSession: (sessionId) => {
     set((state) => {
       const remaining = { ...state.diffs }
-      delete remaining[sessionID]
+      delete remaining[sessionId]
       return { diffs: remaining }
     })
   },

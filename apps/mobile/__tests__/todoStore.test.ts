@@ -18,14 +18,14 @@ afterEach(() => {
 })
 
 describe('setTodos', () => {
-  it('stores todos keyed by sessionID', () => {
+  it('stores todos keyed by sessionId', () => {
     useTodoStore.getState().setTodos('sess-1', sampleTodos)
 
     const todos = useTodoStore.getState().todos
     expect(todos['sess-1']).toEqual(sampleTodos)
   })
 
-  it('replaces existing todos for the same sessionID', () => {
+  it('replaces existing todos for the same sessionId', () => {
     useTodoStore.getState().setTodos('sess-1', sampleTodos)
 
     const replacement: TodoItem[] = [
@@ -46,7 +46,7 @@ describe('setTodos', () => {
 })
 
 describe('clearSession', () => {
-  it('removes todos for the given sessionID', () => {
+  it('removes todos for the given sessionId', () => {
     useTodoStore.getState().setTodos('sess-1', sampleTodos)
     useTodoStore.getState().setTodos('sess-2', [{ content: 'Fix CI', status: 'pending', priority: 'critical' }])
 

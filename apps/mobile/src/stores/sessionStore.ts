@@ -99,7 +99,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   deleteSession: async (id, clientCall) => {
     set({ error: null })
     try {
-      await clientCall('session.delete', { sessionID: id })
+      await clientCall('session.delete', { sessionId: id })
       get().removeSession(id)
     } catch (e: any) {
       // v2 暂不支持 delete，静默忽略
@@ -114,7 +114,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   getSession: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.get', { sessionID: id })) as
+      const result = (await clientCall('session.get', { sessionId: id })) as
         | { session: Session }
         | Session
       const session = (result as any).session ?? result
@@ -128,7 +128,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   getSessionMessages: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.messages', { sessionID: id })) as
+      const result = (await clientCall('session.messages', { sessionId: id })) as
         | { messages: any[] }
         | any[]
       return Array.isArray(result) ? result : (result as any).messages ?? []
@@ -140,7 +140,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   updateSession: async (id, title, clientCall) => {
     try {
-      await clientCall('session.update', { sessionID: id, title })
+      await clientCall('session.update', { sessionId: id, title })
     } catch (e: any) {
       console.warn('session.update failed:', e.message)
     }
@@ -148,7 +148,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   renameSession: async (id, name, clientCall) => {
     try {
-      await clientCall('session.rename', { sessionID: id, name })
+      await clientCall('session.rename', { sessionId: id, name })
     } catch (e: any) {
       console.warn('session.rename failed:', e.message)
     }
@@ -156,7 +156,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   getSessionTodo: async (id, clientCall) => {
     try {
-      const result = (await clientCall('session.todo', { sessionID: id })) as
+      const result = (await clientCall('session.todo', { sessionId: id })) as
         | { todos: any[] }
         | any[]
       return Array.isArray(result) ? result : (result as any).todos ?? []
@@ -168,7 +168,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   getSessionDiff: async (id, clientCall) => {
     try {
-      const result = (await clientCall('session.diff', { sessionID: id })) as
+      const result = (await clientCall('session.diff', { sessionId: id })) as
         | { diffs: any[] }
         | any[]
       return Array.isArray(result) ? result : (result as any).diffs ?? []
@@ -181,10 +181,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   forkSession: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.fork', { sessionID: id })) as
-        | { sessionID: string }
+      const result = (await clientCall('session.fork', { sessionId: id })) as
+        | { sessionId: string }
         | string
-      const newId = typeof result === 'string' ? result : (result as any).sessionID ?? null
+      const newId = typeof result === 'string' ? result : (result as any).sessionId ?? (result as any).sessionID ?? null
       return newId || null
     } catch (e: any) {
       set({ error: e.message || '复刻会话失败' })
@@ -194,7 +194,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   revertSession: async (id, messageID, partID, clientCall) => {
     try {
-      await clientCall('session.revert', { sessionID: id, messageID, partID })
+      await clientCall('session.revert', { sessionId: id, messageID, partID })
     } catch (e: any) {
       console.warn('session.revert failed:', e.message)
     }
@@ -202,7 +202,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   unrevertSession: async (id, clientCall) => {
     try {
-      await clientCall('session.unrevert', { sessionID: id })
+      await clientCall('session.unrevert', { sessionId: id })
     } catch (e: any) {
       console.warn('session.unrevert failed:', e.message)
     }

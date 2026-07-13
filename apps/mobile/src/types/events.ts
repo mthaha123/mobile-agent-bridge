@@ -8,7 +8,7 @@
 
 /** 流式文本增量 */
 export interface SessionNextTextDelta {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   textID: string
   delta: string
@@ -16,7 +16,7 @@ export interface SessionNextTextDelta {
 
 /** 文本段结束 */
 export interface SessionNextTextEnded {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   textID: string
   text: string
@@ -24,7 +24,7 @@ export interface SessionNextTextEnded {
 
 /** 推理内容增量 */
 export interface SessionNextReasoningDelta {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   reasoningID: string
   delta: string
@@ -32,7 +32,7 @@ export interface SessionNextReasoningDelta {
 
 /** 推理结束 */
 export interface SessionNextReasoningEnded {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   reasoningID: string
   text: string
@@ -40,7 +40,7 @@ export interface SessionNextReasoningEnded {
 
 /** 工具被调用 */
 export interface SessionNextToolCalled {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   callID: string
   tool: string
@@ -49,7 +49,7 @@ export interface SessionNextToolCalled {
 
 /** 工具执行进度 */
 export interface SessionNextToolProgress {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   callID: string
   structured: Record<string, unknown>
@@ -58,7 +58,7 @@ export interface SessionNextToolProgress {
 
 /** 工具成功 */
 export interface SessionNextToolSuccess {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   callID: string
   content: unknown[]
@@ -68,7 +68,7 @@ export interface SessionNextToolSuccess {
 
 /** 工具失败 */
 export interface SessionNextToolFailed {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   callID: string
   error: unknown
@@ -76,7 +76,7 @@ export interface SessionNextToolFailed {
 
 /** 步骤开始 */
 export interface SessionNextStepStarted {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   agent: string
   model: { id: string; providerID: string }
@@ -85,7 +85,7 @@ export interface SessionNextStepStarted {
 
 /** 步骤结束 */
 export interface SessionNextStepEnded {
-  sessionID: string
+  sessionId: string
   assistantMessageID: string
   finish: string
   cost: number
@@ -96,18 +96,18 @@ export interface SessionNextStepEnded {
 
 /** 会话 idle */
 export interface SessionIdleEvent {
-  sessionID: string
+  sessionId: string
 }
 
 /** 会话错误 */
 export interface SessionErrorEvent {
-  sessionID?: string
+  sessionId?: string
   error?: unknown
 }
 
 /** 会话状态变更 */
 export interface SessionStatusEvent {
-  sessionID: string
+  sessionId: string
   status:
     | { type: "idle" }
     | { type: "busy" }
@@ -117,7 +117,7 @@ export interface SessionStatusEvent {
 /** 权限请求 (v2) */
 export interface PermissionV2AskedEvent {
   id: string
-  sessionID: string
+  sessionId: string
   action: string
   resources: string[]
   save?: string[]
@@ -127,7 +127,7 @@ export interface PermissionV2AskedEvent {
 
 /** 权限已处理 */
 export interface PermissionV2RepliedEvent {
-  sessionID: string
+  sessionId: string
   requestID: string
   reply: "once" | "always" | "reject"
 }
@@ -135,7 +135,7 @@ export interface PermissionV2RepliedEvent {
 /** 问答请求 */
 export interface QuestionV2AskedEvent {
   id: string
-  sessionID: string
+  sessionId: string
   questions: Array<{
     question: string
     header: string
@@ -148,7 +148,7 @@ export interface QuestionV2AskedEvent {
 
 /** Part 字段增量更新 */
 export interface MessagePartDeltaEvent {
-  sessionID: string
+  sessionId: string
   messageID: string
   partID: string
   field: string
@@ -157,7 +157,7 @@ export interface MessagePartDeltaEvent {
 
 /** 文件变更 */
 export interface SessionDiffEvent {
-  sessionID: string
+  sessionId: string
   diff: Array<{
     file?: string
     patch?: string
@@ -169,7 +169,7 @@ export interface SessionDiffEvent {
 
 /** 待办更新 */
 export interface TodoUpdatedEvent {
-  sessionID: string
+  sessionId: string
   todos: Array<{
     content: string
     status: string

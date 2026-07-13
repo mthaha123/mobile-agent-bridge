@@ -208,7 +208,7 @@ describe('Tool progress + notification integration', () => {
     const store = useToolProgressStore.getState()
 
     // called
-    store.addCall({ callID: 'c1', sessionID: 's1', tool: 'writeFile', input: {} })
+    store.addCall({ callID: 'c1', sessionId: 's1', tool: 'writeFile', input: {} })
     expect(useToolProgressStore.getState().activeCalls[0].status).toBe('called')
 
     // progress
@@ -234,7 +234,7 @@ describe('Tool progress + notification integration', () => {
 
     // 模拟 question.v2.asked 通知
     useQuestionStore.getState().addQuestion({
-      id: 'q1', sessionID: 's1',
+      id: 'q1', sessionId: 's1',
       questions: [{ question: 'Allow?', header: '', options: [] }],
     })
     expect(questionAddSpy).toHaveBeenCalled()

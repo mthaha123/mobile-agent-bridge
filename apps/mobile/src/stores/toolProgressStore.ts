@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export interface ToolCallProgress {
   callID: string
-  sessionID: string
+  sessionId: string
   tool: string
   input: Record<string, unknown>
   status: 'called' | 'progress' | 'success' | 'failed'
@@ -17,11 +17,11 @@ export interface ToolCallProgress {
 export interface ToolProgressState {
   activeCalls: ToolCallProgress[]
 
-  addCall: (call: { callID: string; sessionID: string; tool: string; input: Record<string, unknown> }) => void
+  addCall: (call: { callID: string; sessionId: string; tool: string; input: Record<string, unknown> }) => void
   updateProgress: (callID: string, data: Partial<ToolCallProgress>) => void
   markSuccess: (callID: string, content?: unknown[], result?: unknown, outputPaths?: string[]) => void
   markFailed: (callID: string, error: unknown) => void
-  clearSession: (sessionID: string) => void
+  clearSession: (sessionId: string) => void
 }
 
 export const useToolProgressStore = create<ToolProgressState>((set) => ({
@@ -62,9 +62,9 @@ export const useToolProgressStore = create<ToolProgressState>((set) => ({
     }))
   },
 
-  clearSession: (sessionID) => {
+  clearSession: (sessionId) => {
     set((state) => ({
-      activeCalls: state.activeCalls.filter((c) => c.sessionID !== sessionID),
+      activeCalls: state.activeCalls.filter((c) => c.sessionId !== sessionId),
     }))
   },
 }))

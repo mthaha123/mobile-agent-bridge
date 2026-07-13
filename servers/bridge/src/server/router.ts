@@ -65,6 +65,13 @@ async function sdkCall<T>(call: () => Promise<{ data?: T; error?: any }>): Promi
 
 // ===== Handler 注册 =====
 
+function resolveSessionId(p: Record<string, unknown>): string {
+  return (p.sessionId || p.sessionID || p.session_id || "") as string
+}
+function resolveSessionIdOrId(p: Record<string, unknown>): string {
+  return (p.sessionId || p.sessionID || p.id || p.session_id || "") as string
+}
+
 registerHandler("auth.login", (params) => handleLogin(params))
 registerHandler("auth.refresh", () => handleRefresh())
 registerHandler("auth.logout", () => handleLogout())
@@ -103,63 +110,64 @@ registerHandler("session.list", async (p) => {
   if (p.cursor) params.cursor = p.cursor
   return sdkCall(() => sdk().v2.session.list(params))
 })
+
 registerHandler("session.get", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.get requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.get requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.get({ sessionID: id }))
 })
 registerHandler("session.messages", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.messages requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.messages requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.messages({ sessionID: id }))
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.delete", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.delete requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.delete requires sessionId parameter")
   return sdkCall(() => sdk().session.delete({ sessionID: id }))
 })
 registerHandler("session.update", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.update requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.update requires sessionId parameter")
   return sdkCall(() => sdk().session.update({
     sessionID: id,
     ...(p.title ? { title: p.title } : {}),
   }))
 })
 registerHandler("session.rename", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.rename requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.rename requires sessionId parameter")
   return sdkCall(() => sdk().session.update({
     sessionID: id,
     ...(p.name || p.title ? { title: p.name || p.title } : {}),
   }))
 })
 registerHandler("session.todo", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.todo requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.todo requires sessionId parameter")
   return sdkCall(() => sdk().session.todo({ sessionID: id }))
 })
 registerHandler("session.diff", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.diff requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.diff requires sessionId parameter")
   return sdkCall(() => sdk().session.diff({
     sessionID: id as string,
     ...(p.messageID || p.message ? { messageID: (p.messageID || p.message) as string } : {}),
   }))
 })
 registerHandler("session.fork", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.fork requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.fork requires sessionId parameter")
   return sdkCall(() => sdk().session.fork({
     sessionID: id,
     ...(p.messageID || p.message ? { messageID: p.messageID || p.message } : {}),
   }))
 })
 registerHandler("session.revert", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.revert requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.revert requires sessionId parameter")
   return sdkCall(() => sdk().session.revert({
     sessionID: id as string,
     ...(p.messageID ? { messageID: p.messageID as string } : {}),
@@ -167,38 +175,35 @@ registerHandler("session.revert", async (p) => {
   }))
 })
 registerHandler("session.unrevert", async (p) => {
-  const id = p.id || p.sessionID || p.session_id
-  if (!id) throw new Error("session.unrevert requires id parameter")
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.unrevert requires sessionId parameter")
   return sdkCall(() => sdk().session.unrevert({ sessionID: id }))
 })
-function sessionId(p: Record<string, unknown>): string {
-  return (p.sessionID || p.sessionId || "") as string
-}
 
 registerHandler("message.send", async (p) => {
-  const sid = sessionId(p)
-  if (!sid) throw new Error("message.send requires sessionID/sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("message.send requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.prompt({
     sessionID: sid,
     prompt: { text: p.message || "" as string },
   }))
 })
 registerHandler("message.abort", async (p) => {
-  const sid = sessionId(p)
-  if (!sid) throw new Error("message.abort requires sessionID/sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("message.abort requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.interrupt({ sessionID: sid }))
 })
 registerHandler("message.shell", async (p) => {
-  const sid = sessionId(p)
-  if (!sid) throw new Error("message.shell requires sessionID/sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("message.shell requires sessionId parameter")
   return sdkCall(() => sdk().session.shell({
     sessionID: sid,
     ...(p.command ? { command: p.command as string } : {}),
   }))
 })
 registerHandler("message.command", async (p) => {
-  const sid = sessionId(p)
-  if (!sid) throw new Error("message.command requires sessionID/sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("message.command requires sessionId parameter")
   return sdkCall(() => sdk().session.command({
     sessionID: sid,
     ...(p.command ? { command: p.command as string } : {}),
@@ -206,9 +211,9 @@ registerHandler("message.command", async (p) => {
 })
 
 registerHandler("permission.reply", async (p) => {
-  if (!p.id) throw new Error("permission.reply requires id parameter")
-  const sid = sessionId(p)
-  if (!sid) throw new Error("permission.reply requires sessionID/sessionId parameter")
+  if (!p.id) throw new Error("permission.reply requires sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("permission.reply requires sessionId parameter")
   const reply = p.reply || (p.approved ? "once" : "reject")
   return sdkCall(() => sdk().v2.session.permission.reply({
     sessionID: sid,
@@ -218,9 +223,9 @@ registerHandler("permission.reply", async (p) => {
 })
 
 registerHandler("question.reply", async (p) => {
-  if (!p.id) throw new Error("question.reply requires id parameter")
-  const sid = sessionId(p)
-  if (!sid) throw new Error("question.reply requires sessionID/sessionId parameter")
+  if (!p.id) throw new Error("question.reply requires sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("question.reply requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.question.reply({
     sessionID: sid,
     requestID: p.id as string,
@@ -228,9 +233,9 @@ registerHandler("question.reply", async (p) => {
   }))
 })
 registerHandler("question.reject", async (p) => {
-  if (!p.id) throw new Error("question.reject requires id parameter")
-  const sid = sessionId(p)
-  if (!sid) throw new Error("question.reject requires sessionID/sessionId parameter")
+  if (!p.id) throw new Error("question.reject requires sessionId parameter")
+  const sid = resolveSessionId(p)
+  if (!sid) throw new Error("question.reject requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.question.reject({
     sessionID: sid,
     requestID: p.id as string,

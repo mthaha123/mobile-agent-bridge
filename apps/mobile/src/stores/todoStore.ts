@@ -9,23 +9,23 @@ export interface TodoItem {
 export interface TodoState {
   todos: Record<string, TodoItem[]>
 
-  setTodos: (sessionID: string, todos: TodoItem[]) => void
-  clearSession: (sessionID: string) => void
+  setTodos: (sessionId: string, todos: TodoItem[]) => void
+  clearSession: (sessionId: string) => void
 }
 
 export const useTodoStore = create<TodoState>((set) => ({
   todos: {},
 
-  setTodos: (sessionID, todos) => {
+  setTodos: (sessionId, todos) => {
     set((state) => ({
-      todos: { ...state.todos, [sessionID]: todos },
+      todos: { ...state.todos, [sessionId]: todos },
     }))
   },
 
-  clearSession: (sessionID) => {
+  clearSession: (sessionId) => {
     set((state) => {
       const remaining = { ...state.todos }
-      delete remaining[sessionID]
+      delete remaining[sessionId]
       return { todos: remaining }
     })
   },

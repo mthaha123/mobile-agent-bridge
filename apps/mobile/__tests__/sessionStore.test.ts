@@ -188,7 +188,7 @@ describe('deleteSession', () => {
 
     await useSessionStore.getState().deleteSession('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.delete', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.delete', { sessionId: 'sess-1' })
     expect(useSessionStore.getState().sessions).toEqual([])
   })
 
@@ -217,7 +217,7 @@ describe('getSession', () => {
 
     const result = await useSessionStore.getState().getSession('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.get', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.get', { sessionId: 'sess-1' })
     expect(result).toEqual(mockSession)
   })
 
@@ -257,7 +257,7 @@ describe('getSessionMessages', () => {
 
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionId: 'sess-1' })
     expect(result).toEqual(messages)
   })
 
@@ -293,7 +293,7 @@ describe('updateSession (RPC)', () => {
     await useSessionStore.getState().updateSession('sess-1', 'New Title', clientCall)
 
     expect(clientCall).toHaveBeenCalledWith('session.update', {
-      sessionID: 'sess-1',
+      sessionId: 'sess-1',
       title: 'New Title',
     })
   })
@@ -322,7 +322,7 @@ describe('renameSession', () => {
     await useSessionStore.getState().renameSession('sess-1', 'Renamed', clientCall)
 
     expect(clientCall).toHaveBeenCalledWith('session.rename', {
-      sessionID: 'sess-1',
+      sessionId: 'sess-1',
       name: 'Renamed',
     })
   })
@@ -352,7 +352,7 @@ describe('getSessionTodo', () => {
 
     const result = await useSessionStore.getState().getSessionTodo('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.todo', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.todo', { sessionId: 'sess-1' })
     expect(result).toEqual(todos)
   })
 
@@ -391,7 +391,7 @@ describe('getSessionDiff', () => {
 
     const result = await useSessionStore.getState().getSessionDiff('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.diff', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.diff', { sessionId: 'sess-1' })
     expect(result).toEqual(diffs)
   })
 
@@ -428,11 +428,11 @@ describe('forkSession', () => {
 
     const newId = await useSessionStore.getState().forkSession('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.fork', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.fork', { sessionId: 'sess-1' })
     expect(newId).toBe('sess-forked')
   })
 
-  it('handles v1 { sessionID } response', async () => {
+  it('handles v1 { sessionId } response', async () => {
     const clientCall = mockClientCall()
     clientCall.mockResolvedValue({ sessionID: 'sess-forked' })
 
@@ -464,7 +464,7 @@ describe('revertSession', () => {
     await useSessionStore.getState().revertSession('sess-1', 'msg-1', 'part-2', clientCall)
 
     expect(clientCall).toHaveBeenCalledWith('session.revert', {
-      sessionID: 'sess-1',
+      sessionId: 'sess-1',
       messageID: 'msg-1',
       partID: 'part-2',
     })
@@ -493,7 +493,7 @@ describe('unrevertSession', () => {
 
     await useSessionStore.getState().unrevertSession('sess-1', clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('session.unrevert', { sessionID: 'sess-1' })
+    expect(clientCall).toHaveBeenCalledWith('session.unrevert', { sessionId: 'sess-1' })
   })
 
   it('warns on error', async () => {

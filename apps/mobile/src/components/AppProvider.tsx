@@ -19,7 +19,7 @@ function createReplyCall(client: BridgeClient): (id: string, approved: boolean) 
     await client.call('permission.reply', {
       sessionId: item?.sessionId || '',
       id,
-      approved,
+      reply: approved ? 'once' : 'reject',
     })
   }
 }
@@ -50,8 +50,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setToolReplyCall(createReplyCall(client))
     setQuestionReplyCall(async (id: string, answers: string[]) => {
-      const sessionID = useQuestionStore.getState().pending.find((q) => q.id === id)?.sessionID || ''
-      await client.call('question.v2.reply', { id, sessionID, answers })
+      const sessionId = useQuestionStore.getState().pending.find((q) => q.id === id)?.sessionId || ''
+      await client.call('question.reply', { id, sessionId, answers })
     })
 
     client.on('notification', (method: string, payload: any) => {
@@ -85,7 +85,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (method === 'session.next.tool.called') {
         useToolProgressStore.getState().addCall({
           callID: payload?.callID || '',
-          sessionID: payload?.sessionID || '',
+          sessionId: payload?.sessionID || '',
           tool: payload?.tool || '',
           input: payload?.input || {},
         })
@@ -146,9 +146,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         } else if (statusType === 'busy') {
           useChatStore.getState().setWaiting(true)
         }
-        const info = payload?.session || payload
-        if (info?.id) {
-          useSessionStore.getState().patchSession(info.id, info)
+        const sid = payload?.sessionID || ''
+        if (sid) {
+          const info = payload?.session || payload
+          useSessionStore.getState().patchSession(sid, info)
         }
       }
 
@@ -189,7 +190,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (method === 'question.v2.asked') {
         useQuestionStore.getState().addQuestion({
           id: payload?.id || '',
-          sessionID: payload?.sessionID || '',
+          sessionId: payload?.sessionID || '',
           questions: payload?.questions || [],
           tool: payload?.tool,
         })
