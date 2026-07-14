@@ -141,74 +141,52 @@ Bridge 收到 `req` 帧后，按 `method` 前缀路由：
 
 ### 1.6 SDK 映射
 
-SDK `@opencode-ai/sdk` v2 (`0.0.0-dev-202606301614`) 提供了两个命名空间，本 Bridge 根据端点可用性选择：
+当前服务端版本 `0.0.0-dev-202607070257` 仅支持 `/api/` 路径，**顶层命名空间（`client.*`）不可用**（返回 HTML）。所有 RPC 必须走 `client.v2.*` 或 `client.global.*`。
 
 ```
-SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
-  client.v2.*          → 路径 /api/...      → v2 核心接口（session CRUD、event、prompt、permission、fs、agent、provider、command）
-  client.* (顶层)      → 路径 /...          → 补充接口（session delete/update、config.providers、vcs、file、project、全局配置）
-  client.global.*      → 路径 /global/...   → 全局配置/事件/dispose
+SDK `@opencode-ai/sdk` v2 (`0.0.0-dev-202606301614`) OpencodeClient 结构（仅可用部分）：
+  client.v2.*          → 路径 /api/...      → v2 核心接口（session、event、prompt、permission、agent、provider、command）
+  client.global.*      → 路径 /global/...   → 全局配置、事件、dispose
 ```
 
-**路由原则：会话 CRUD、消息发送、权限审批、问答等核心路径走 `v2` 命名空间。`session.delete`/`update`、`config.providers`、`vcs.get` 等 v2 未覆盖的方法走顶层 SDK。**
+**不可用的命名空间：** `client.*`（顶层）中 `session.delete/update/shell/command`、`config.providers`、`vcs.*` 等所有非 `/api/` 路径的端点均返回 HTML，服务端不支持。这些方法不在 Phase 1 中提供。
 
 | 手机 WS 方法 | SDK 调用 | 命名空间 | 说明 |
 |-------------|---------|---------|------|
-| `session.create` | `session.create({ agent?, model?, title? })` | 顶层（v1 compat） | model 为 `{ id, providerID, variant? }`；Bridge 接受字符串自动转换。v2 命名空间不支持 `title`，故使用顶层 SDK |
-| `session.list` | `v2.session.list({ directory, limit?, search? })` | `v2` | 返回分页结果 `{ data, cursor }` |
+| `session.create` | `v2.session.create({})` | `v2` | v2 不支持 `title` 参数。Bridge 不传 agent/model，由服务端默认 |
+| `session.list` | `v2.session.list({})` | `v2` | 返回 Session 数组（Bridge 通过 `sdkCall` 已解包 `data`） |
 | `session.get` | `v2.session.get({ sessionID })` | `v2` | |
-| `session.status` | `v2.session.active()` | `v2` | 返回**当前进程拥有的 foreground drain 列表**（≠ 会话 idle/busy 状态）。会话状态应通过 `session.status` 事件监听 |
-| `session.messages` | `v2.session.messages({ sessionID, limit?, order?, cursor? })` | `v2` | 返回分页结果 `{ data, cursor }` |
-| `session.delete` | `session.delete({ sessionID })` | 顶层 | v2 命名空间无 DELETE 端点，使用顶层 SDK |
-| `session.update` | `session.update({ sessionID, title? })` | 顶层 | 用于重命名会话 |
-| `message.send` | `v2.session.prompt({ sessionID, prompt })` | `v2` | `prompt = { text, files?, agents? }`（**不是** `PartInput[]`），默认 `delivery: "steer"` |
-| `message.shell` | `session.shell({ sessionID, command })` | 顶层 | 直接 Shell 命令执行（Shell 模式时使用） |
-| `message.command` | `session.command({ sessionID, command })` | 顶层 | 斜杠命令执行 |
+| `session.status` | `v2.session.active()` | `v2` | 返回当前进程的 foreground drain 列表。会话 idle/busy 状态通过 `session.idle` 等事件获得 |
+| `session.active` | `v2.session.active()` | `v2` | `session.status` 的显式别名 |
+| `session.messages` | `v2.session.messages({ sessionID })` | `v2` | |
+| `message.send` | `v2.session.prompt({ sessionID, prompt })` | `v2` | `prompt = { text }`（`PromptInput`，非 `PartInput[]`） |
 | `message.abort` | `v2.session.interrupt({ sessionID })` | `v2` | |
-| `permission.reply` | `v2.session.permission.reply({ sessionID, requestID, reply, message? })` | `v2` | `reply: "once"\|"always"\|"reject"` |
+| `permission.reply` | `v2.session.permission.reply({ sessionID, requestID, reply })` | `v2` | 手机发 `{ sessionId, id, approved }`，Bridge 转为 `{ sessionID, requestID, reply: "once"\|"reject" }` |
 | `question.reply` | `v2.session.question.reply({ sessionID, requestID, questionV2Reply })` | `v2` | `questionV2Reply = { answers: [[string]] }` |
 | `question.reject` | `v2.session.question.reject({ sessionID, requestID })` | `v2` | |
 | `config.get` | `global.config.get()` | `global` | 全局配置 |
-| `config.providers` | `config.providers({ directory })` | 顶层 | 可用（非 v2） |
-| `config.agents` | `v2.agent.list({ location })` | `v2` | |
-| `provider.list` | `v2.provider.list({ location })` | `v2` | |
-| `command.list` | `v2.command.list({ location })` | `v2` | |
-| `vcs.get` | `vcs.get({ directory })` | 顶层 | 可用（非 v2） |
+| `config.agents` | `v2.agent.list({})` | `v2` | |
+| `provider.list` | `v2.provider.list({})` | `v2` | |
+| `command.list` | `v2.command.list({})` | `v2` | |
 
-**事件订阅：** Bridge 调用 `v2.event.subscribe()`（路径 `/api/event`），获取 `V2Event` 格式的 SSE 流，实时转为 WS `notify` 帧推送手机端。
+**已移除（服务端不支持）：** `session.delete`、`session.rename`（`session.update`）、`message.shell`、`message.command`、`config.providers`、`vcs.get`、`session.todo/diff/fork/revert/unrevert`
 
-**SSE 事件解析（V2Event 格式，关键）：**
+**事件订阅：** Bridge 调用 `v2.event.subscribe()`（`GET /api/event`）。SSE 事件当前解析为 `{ payload: { type, properties } }` 格式（服务端透传），转为 WS `notify` 帧推送手机端。
 
-每个事件的结构为：
-```
-{ id, type: string, data: { ... }, metadata?, durable?, location? }
-```
+**推断的 V2Event 映射（待实际验证）：**
 
-| V2Event type | data 字段 | 用途 |
+| notify method | payload 字段 | 用途 |
 |---|---|---|
-| `session.next.text.delta` | `{ sessionID, assistantMessageID, textID, delta }` | 流式文本增量（每个 token） |
+| `session.next.text.delta` | `{ sessionID, assistantMessageID, textID, delta }` | 流式文本增量 |
 | `session.next.text.ended` | `{ sessionID, assistantMessageID, textID, text }` | 文本段结束 |
-| `session.next.tool.called` | `{ sessionID, assistantMessageID, callID, tool, input }` | 工具开始执行 |
-| `session.next.tool.success` | `{ sessionID, assistantMessageID, callID, content, result? }` | 工具执行成功 |
-| `session.next.tool.failed` | `{ sessionID, assistantMessageID, callID, error }` | 工具执行失败 |
-| `session.next.reasoning.delta` | `{ sessionID, assistantMessageID, reasoningID, delta }` | 推理内容增量 |
-| `session.idle` | `{ sessionID }` | 会话回复完成 |
+| `session.next.tool.called` | `{ sessionID, assistantMessageID, callID, tool, input }` | 工具被调用 |
+| `session.next.tool.success` | `{ sessionID, assistantMessageID, callID, content }` | 工具成功 |
+| `session.next.tool.failed` | `{ sessionID, assistantMessageID, callID, error }` | 工具失败 |
+| `session.idle` | `{ sessionID }` | 回复完成 |
 | `session.error` | `{ sessionID?, error? }` | 出错 |
-| `session.status` | `{ sessionID, status }` | 会话状态变更 |
 | `permission.v2.asked` | `{ id, sessionID, action, resources, save?, source? }` | 工具权限请求 |
-| `permission.v2.replied` | `{ sessionID, requestID, reply }` | 权限已处理 |
-| `message.part.delta` | `{ sessionID, messageID, partID, field, delta }` | Part 字段增量更新 |
-| `question.v2.asked` | `{ id, sessionID, questions, tool? }` | 问答请求 |
-| `todo.updated` | `{ sessionID, todos }` | 待办更新 |
-| `session.diff` | `{ sessionID, diff }` | 文件变更 |
 
-注意：`message.part.updated` 事件包含**完整 Part 对象**（非增量），流式文本增量应使用 `session.next.text.delta`。
-
-以下方法已通过 SDK 顶层命名空间单独实现路由，不由 `message.send` 替代：
-- `message.shell` → `session.shell()`（Shell 命令执行）
-- `message.command` → `session.command()`（斜杠命令）
-
-所有 SDK 方法均接受 `directory` 和 `workspace` 参数，**Bridge 通过 `createOpencodeClient({ directory })` 自动注入 `x-opencode-directory` 头**，手机端不需要传递。
+**注意：** 服务端 SSE 事件的实际格式（`payload.type` + `payload.properties`）与 SDK 文档的 `{ type, data }` 不同。当前 Bridge 透传 `payload.properties` 作为 notify payload，未做重映射。
 
 ### 1.7 多 Agent 适配器
 
@@ -337,14 +315,12 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
-| `session.create` | `{ agent?, model? }` | `session.create({ agent, model, title? })` | 顶层（v1 compat） | 1 | ✅ model 接受 `string`（Bridge 自动转 `{id, providerID}）`或 `{id, providerID} 对象`。v2 无 title，故用 v1 compat |
-| `session.list` | `{ search?, limit? }` | `v2.session.list({ directory, search?, limit? })` | `v2` | 1 | ✅ 返回 `{ data, cursor }` |
+| `session.create` | `{}` | `v2.session.create({})` | `v2` | 1 | ✅ 服务端默认 agent/model |
+| `session.list` | `{}` | `v2.session.list({})` | `v2` | 1 | ✅ 返回 Session[]（`sdkCall` 已解包 `data`） |
 | `session.get` | `{ sessionID }` | `v2.session.get({ sessionID })` | `v2` | 1 | ✅ |
-| `session.status` | `{}` | `v2.session.active()` | `v2` | 1 | ✅ 返回 foreground drain 列表。会话 idle/busy 状态通过 `session.status` 事件获得 |
-| `session.delete` | `{ sessionID }` | `session.delete({ sessionID })` | 顶层 | 1 | ✅ 顶层 SDK 可用 |
-| `session.update` | `{ sessionID, title? }` | `session.update({ sessionID, title? })` | 顶层 | 1 | ✅ 用于重命名等 |
-| `session.messages` | `{ sessionID, limit? }` | `v2.session.messages({ sessionID, limit? })` | `v2` | 1 | ✅ 返回 `{ data, cursor }` |
-| `session.fork` | `{ sessionID, messageID? }` | `session.fork({ sessionID, messageID? })` | 顶层 | 3 | ✅ 顶层 SDK 可用 |
+| `session.status` | `{}` | `v2.session.active()` | `v2` | 1 | ✅ 返回 foreground drain 列表 |
+| `session.active` | `{}` | `v2.session.active()` | `v2` | 1 | ✅ `session.status` 别名 |
+| `session.messages` | `{ sessionID }` | `v2.session.messages({ sessionID })` | `v2` | 1 | ✅ |
 
 **事件：** 无。结果通过 `res` 帧返回。
 
@@ -375,14 +351,12 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
-| `message.send` | `{ sessionID, message }` | `v2.session.prompt({ sessionID, prompt: { text } })` | `v2` | 1 | ✅ `prompt` 为 `PromptInput`（非 `PartInput[]`） |
-| `message.shell` | `{ sessionID, command }` | `session.shell({ sessionID, command })` | 顶层 | 2 | ✅ Shell 模式 |
-| `message.command` | `{ sessionID, command }` | `session.command({ sessionID, command })` | 顶层 | 2 | ✅ 斜杠命令 |
-| `message.abort` | `{ sessionID }` | `v2.session.interrupt({ sessionID })` | `v2` | 1 | ✅ |
+| `message.send` | `{ sessionId, message }` | `v2.session.prompt({ sessionID, prompt: { text } })` | `v2` | 1 | ✅ `prompt = { text }`（`PromptInput`） |
+| `message.abort` | `{ sessionId }` | `v2.session.interrupt({ sessionID })` | `v2` | 1 | ✅ |
 
-**事件（均为 V2Event 格式）：**
+**事件（V2Event 格式 `{ id, type, properties }`）：**
 
-| notify method | data 字段 | 说明 |
+| notify method | properties 字段 | 说明 |
 |---|---|---|
 | `session.next.text.delta` | `{ sessionID, assistantMessageID, textID, delta }` | 流式文本增量（每个 token） |
 | `session.next.text.ended` | `{ sessionID, assistantMessageID, textID, text }` | 文本段完成 |
@@ -419,11 +393,11 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
-| `permission.reply` | `{ requestID, sessionID, reply, message? }` | `v2.session.permission.reply({ sessionID, requestID, reply, message })` | `v2` | 1 | ✅ session 作用域。`reply: "once"\|"always"\|"reject"` |
+| `permission.reply` | 手机发 `{ sessionId, id, approved }` | `v2.session.permission.reply({ sessionID, requestID, reply })` | `v2` | 1 | ✅ Bridge 转换：`approved=true → reply="once"`，`false → "reject"` |
 
-**事件（V2Event 格式）：**
+**事件（V2Event `{ id, type, properties }` 格式）：**
 
-| notify method | data 字段 | 说明 |
+| notify method | properties 字段 | 说明 |
 |---|---|---|
 | `permission.v2.asked` | `{ id, sessionID, action, resources[], save?, source? }` | 权限请求。`action` 为工具名（如 `"bash"`），`resources` 为参数数组 |
 | `permission.v2.replied` | `{ sessionID, requestID, reply }` | 已处理 |
@@ -459,9 +433,9 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 | `question.reply` | `{ requestID, sessionID, answers }` | `v2.session.question.reply({ sessionID, requestID, questionV2Reply: { answers } })` | `v2` | 2 | ✅ `answers` 为 `[[string]]`（外层数组对应问题，内层数组为选中选项） |
 | `question.reject` | `{ requestID, sessionID }` | `v2.session.question.reject({ sessionID, requestID })` | `v2` | 2 | ✅ |
 
-**事件（V2Event 格式）：**
+**事件（V2Event `{ id, type, properties }` 格式）：**
 
-| notify method | data 字段 | 说明 |
+| notify method | properties 字段 | 说明 |
 |---|---|---|
 | `question.v2.asked` | `{ id, sessionID, questions: [{ question, header, options, multiple?, custom? }], tool? }` | 需回答 |
 
@@ -510,11 +484,11 @@ SDK 版本 0.0.0-dev-202606301614 的 OpencodeClient 结构：
 | 手机 WS 方法 | 参数 | SDK 调用 | 命名空间 | Phase | 状态 |
 |-------------|------|---------|---------|-------|:----:|
 | `config.get` | `{}` | `global.config.get()` | `global` | 1 | ✅ |
-| `config.providers` | `{}` | `config.providers({ directory })` | 顶层 | 1 | ✅ |
-| `config.agents` | `{}` | `v2.agent.list({ location })` | `v2` | 1 | ✅ |
-| `provider.list` | `{}` | `v2.provider.list({ location })` | `v2` | 1 | ✅ |
-| `vcs.get` | `{}` | `vcs.get({ directory })` | 顶层 | 1 | ✅ |
-| `command.list` | `{}` | `v2.command.list({ location })` | `v2` | 1 | ✅ |
+| `config.agents` | `{}` | `v2.agent.list({})` | `v2` | 1 | ✅ |
+| `provider.list` | `{}` | `v2.provider.list({})` | `v2` | 1 | ✅ |
+| `command.list` | `{}` | `v2.command.list({})` | `v2` | 1 | ✅ |
+
+注意：`config.providers` 和 `vcs.get` 因服务端不支持顶层端点，暂不提供。
 
 **事件：** 无。
 
@@ -547,15 +521,25 @@ Bridge 内部状态（§1.1 三层架构中 Bridge 的运行时数据）：
 SSE 是唯一 Active 的网络连接。使用 `AbortController` 管理：
 
 ```typescript
-async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
+async function startSSE(signal: AbortSignal): Promise<void> {
+  const backend = getBackend()
   while (true) {
     if (signal.aborted) break
-    const events = await sdk.v2.event.subscribe({ signal, sseMaxRetryAttempts: 0 })
-    for await (const event of events.stream) {
+    try {
+      const result = await backend.sdk!.v2.event.subscribe({ signal, sseMaxRetryAttempts: 0 } as any)
+      for await (const event of result.stream) {
+        if (signal.aborted) break
+        // V2Event: { id, type, properties }
+        const ev = event as any
+        const eventType = ev.type || "unknown"
+        const eventData = ev.properties || ev
+        broadcastToAll({ type: "notify", method: eventType, payload: eventData })
+      }
+    } catch (err: any) {
       if (signal.aborted) break
-      broadcastToMobile(event)
+      if (err.message?.includes("text/html") || err.message?.includes("HTML")) break
     }
-    await sleep(3000)  // 外层重试
+    await new Promise(r => setTimeout(r, 3000))
   }
 }
 ```
@@ -654,9 +638,9 @@ async function startSSE(sdk: OpencodeClient, signal: AbortSignal) {
 | `session.unrevert` | `{ sessionID }` | `session.unrevert({ sessionID })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
 | `session.todo` | `{ sessionID }` | `session.todo({ sessionID })` | 顶层 | 2 | ✅ 顶层 SDK 可用 |
 
-**事件（V2Event 格式）：**
+**事件（V2Event `{ id, type, properties }` 格式）：**
 
-| notify method | data 字段 | 说明 |
+| notify method | properties 字段 | 说明 |
 |---|---|---|
 | `session.diff` | `{ sessionID, diff: [{ file?, patch?, additions, deletions, status? }] }` | 文件变更 |
 | `todo.updated` | `{ sessionID, todos: [{ content, status, priority }] }` | 待办更新 |
