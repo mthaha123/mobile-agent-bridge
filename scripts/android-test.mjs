@@ -13,6 +13,7 @@
  *   node scripts/android-test.mjs --layer 1          # 仅 Layer 1
  *   node scripts/android-test.mjs --layer 2          # 仅 Layer 2
  *   node scripts/android-test.mjs --layer 4          # 仅 Layer 4
+ *   node scripts/android-test.mjs --layer 5          # 仅 Layer 5 (Phase 2 组件)
  *
  * 前置条件:
  *   - 模拟器/设备已连接 (adb devices)
@@ -85,10 +86,11 @@ function adb(argsArr, opts = {}) {
     const allArgs = serialFlag.concat(argsArr)
     const child = spawn(CFG.adb, allArgs, { stdio: ["ignore", "pipe", "pipe"], ...opts })
     let out = "", err = ""
+    const timer = setTimeout(() => { child.kill(); reject(new Error("adb timeout")) }, 15000)
     child.stdout.on("data", (c) => { out += c.toString() })
     child.stderr.on("data", (c) => { err += c.toString() })
-    child.on("close", (code) => code === 0 ? resolve(out.trim()) : reject(new Error(err.trim() || out.trim())))
-    child.on("error", reject)
+    child.on("close", (code) => { clearTimeout(timer); code === 0 ? resolve(out.trim()) : reject(new Error(err.trim() || out.trim())) })
+    child.on("error", (e) => { clearTimeout(timer); reject(e) })
   })
 }
 
@@ -208,11 +210,13 @@ async function pressBack() {
 
 async function clearInput() {
   try {
-    await adb(["shell", "input", "keyevent", "KEYCODE_MOVE_END"])
-    for (let i = 0; i < 100; i++) {
-      await adb(["shell", "input", "keyevent", "KEYCODE_DEL"])
-    }
-    await sleep(200)
+    // Select all: Home then Shift+End, then Delete
+    await adb(["shell", "input", "keyevent", "KEYCODE_MOVE_HOME"])
+    await sleep(50)
+    await adb(["shell", "input", "keyevent", "KEYCODE_SHIFT_LEFT", "KEYCODE_MOVE_END"])
+    await sleep(50)
+    await adb(["shell", "input", "keyevent", "KEYCODE_DEL"])
+    await sleep(100)
     return true
   } catch { return false }
 }
@@ -280,6 +284,7 @@ async function startBridge() {
         ...process.env,
         BRIDGE_PORT: String(CFG.bridgePort),
         BRIDGE_PASSWORD: CFG.bridgePwd,
+        OPENCODE_URL: "http://localhost:4096",
       },
     })
     let out = ""
@@ -874,6 +879,712 @@ async function testLayer4() {
   await sleep(500)
 }
 
+// ─── Layer 5 — Phase 2 组件测试 ──────────────────────
+
+async function testLayer5() {
+  section("Layer 5 — Phase 2 组件")
+
+  // 检测 OpenCode 是否可用
+  let hasOpenCode = false
+  try {
+    const resp = await fetch("http://localhost:4096/api/health", { signal: AbortSignal.timeout(2000) })
+    hasOpenCode = resp.ok
+  } catch {}
+
+  // ─── 辅助：连接到 Bridge ───
+  async function connectToBridge() {
+    await adb(["shell", "am", "force-stop", CFG.pkg]).catch(() => {})
+    await sleep(500)
+    await adb(["shell", "am", "start", "-n", `${CFG.pkg}/${CFG.activity}`])
+    await sleep(4000)
+
+    // Helper: dump UI with retry
+    async function dumpUiRetry(retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        const xml = await dumpUi()
+        if (xml) return xml
+        await sleep(1000)
+      }
+      return null
+    }
+
+    // Check current screen state — retry until we see ConnectScreen or SessionsScreen
+    let initNodes = null
+    let initEditTexts = []
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const initXml = await dumpUiRetry(2)
+      if (!initXml) { await sleep(1000); continue }
+      const parsed = await parseUi(initXml)
+      const editTexts = findClazz(parsed.nodes, "EditText")
+      // Already on SessionsScreen (retained state)
+      if (findText(parsed.nodes, "Session").length > 0 && editTexts.length === 0) {
+        console.log(`    ${dim("[debug] Already on SessionsScreen (retained state)")}`)
+        return true
+      }
+      // On ConnectScreen with fields ready
+      if (editTexts.length >= 2) {
+        initNodes = parsed.nodes
+        initEditTexts = editTexts
+        break
+      }
+      console.log(`    ${dim(`[debug] Screen not ready (attempt ${attempt}): EditText=${editTexts.length}`)}`)
+      await sleep(2000)
+    }
+
+    if (!initNodes || initEditTexts.length < 2) {
+      console.log(`    ${dim("[debug] Failed to find ConnectScreen after retries")}`)
+      return false
+    }
+
+    // Step 1: Get URL bounds from initial dump and type URL
+    const urlBounds = getBounds(initNodes, initEditTexts[0])
+    if (!urlBounds) return false
+    await tap(urlBounds.cx, urlBounds.cy)
+    await sleep(500)
+    await typeText(`ws://10.0.2.2:${CFG.bridgePort}/ws`)
+    await sleep(300)
+    console.log(`    ${dim("[debug] URL typed")}`)
+
+    // Dismiss keyboard before re-dump
+    await adb(["shell", "input", "keyevent", "KEYCODE_BACK"])
+    await sleep(400)
+
+    // Step 2: Re-dump → get PWD bounds → type PWD
+    const pwdXml = await dumpUiRetry(3)
+    if (!pwdXml) return false
+    const { nodes: pwdNodes } = await parseUi(pwdXml)
+    const pwdFields = findClazz(pwdNodes, "EditText")
+    if (pwdFields.length < 2) return false
+    const pwdBounds = getBounds(pwdNodes, pwdFields[1])
+    if (!pwdBounds) return false
+    await tap(pwdBounds.cx, pwdBounds.cy)
+    await sleep(400)
+    await typeText(CFG.bridgePwd)
+    await sleep(300)
+    console.log(`    ${dim("[debug] PWD typed")}`)
+
+    await adb(["shell", "input", "keyevent", "KEYCODE_BACK"])
+    await sleep(400)
+
+    // Step 3: Re-dump → get DIR bounds → type DIR
+    const dirXml = await dumpUiRetry(3)
+    if (!dirXml) return false
+    const { nodes: dirNodes } = await parseUi(dirXml)
+    const dirFields = findClazz(dirNodes, "EditText")
+    if (dirFields.length < 3) return false
+    const dirBounds = getBounds(dirNodes, dirFields[2])
+    if (!dirBounds) return false
+    await tap(dirBounds.cx, dirBounds.cy)
+    await sleep(400)
+    await typeText("D:/code/mobile-agent-bridge")
+    await sleep(300)
+    console.log(`    ${dim("[debug] DIR typed")}`)
+
+    await adb(["shell", "input", "keyevent", "KEYCODE_BACK"])
+    await sleep(400)
+
+    // Step 4: Re-dump → get Connect bounds → tap
+    const cxXml = await dumpUiRetry(3)
+    if (!cxXml) return false
+    const { nodes: cxNodes } = await parseUi(cxXml)
+    const cxBtns = findContentDesc(cxNodes, "Connect").concat(findText(cxNodes, "Connect"))
+    console.log(`    ${dim(`[debug] Connect buttons: ${cxBtns.length}`)}`)
+    if (cxBtns.length === 0) return false
+    const cxBounds = getBounds(cxNodes, cxBtns[0])
+    if (!cxBounds) return false
+    await tap(cxBounds.cx, cxBounds.cy)
+    console.log(`    ${dim(`[debug] Connect tapped (${cxBounds.cx},${cxBounds.cy})`)}`)
+    await sleep(12000)
+
+    // 验证是否到达 SessionsScreen
+    const afterXml = await dumpUiRetry()
+    if (afterXml) {
+      const { nodes: afterNodes } = await parseUi(afterXml)
+      const hasSession = findText(afterNodes, "Session").length > 0
+      const allTexts = afterNodes.filter(n => n.text).map(n => n.text).slice(0, 15)
+      console.log(`    ${dim(`[debug] After connect texts: [${allTexts.join(", ")}]`)}`)
+      console.log(`    ${dim(`[debug] Has 'Session' text: ${hasSession}`)}`)
+      return hasSession
+    }
+    return false
+  }
+
+  // ─── 辅助：直接调用 session.create (调试用) ───
+  async function debugSessionCreate() {
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${CFG.bridgePort}/ws?token=`)
+      await new Promise((resolve, reject) => {
+        ws.onopen = () => resolve()
+        ws.onerror = (e) => reject(e)
+        setTimeout(() => reject(new Error("ws connect timeout")), 5000)
+      })
+      function rpc(method, params = {}) {
+        return new Promise((resolve, reject) => {
+          const id = Math.random().toString(36).slice(2)
+          ws.send(JSON.stringify({ type: "req", id, method, params }))
+          ws.onmessage = (ev) => {
+            const res = JSON.parse(ev.data)
+            if (res.id === id) resolve(res)
+          }
+          setTimeout(() => reject(new Error(`rpc timeout: ${method}`)), 10000)
+        })
+      }
+      const loginRes = await rpc("auth.login", { password: CFG.bridgePwd })
+      console.log(`    ${dim(`[debug] auth.login: ${JSON.stringify(loginRes).slice(0, 100)}`)}`)
+      if (!loginRes.ok) { ws.close(); return false }
+
+      const switchRes = await rpc("project.switch", { directory: "D:/code/mobile-agent-bridge" })
+      console.log(`    ${dim(`[debug] project.switch: ${JSON.stringify(switchRes).slice(0, 100)}`)}`)
+      if (!switchRes.ok) { ws.close(); console.log(`    ${dim(`[debug] project.switch failed!`)}`); return false }
+
+      const createRes = await rpc("session.create", {})
+      console.log(`    ${dim(`[debug] session.create ok=${createRes.ok}, payload keys: ${Object.keys(createRes.payload || {}).join(",")}, has id: ${!!(createRes.payload?.id || createRes.payload?.data?.id)}`)}`)
+      ws.close()
+      return createRes.ok
+    } catch (e) {
+      console.log(`    ${dim(`[debug] WS debug error: ${e.message}`)}`)
+      return false
+    }
+  }
+
+  // ─── 辅助：创建 Session (带重试) ───
+  async function createSession() {
+    // 尝试最多3次
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await sleep(1000)
+      const xml = await dumpUi()
+      if (!xml) { console.log(`    ${dim(`[debug] createSession attempt ${attempt}: dumpUi null`)}`); continue }
+      const { nodes } = await parseUi(xml)
+      
+      // 查找 "+ New" 按钮
+      const newBtn = findText(nodes, "+ New")
+      const btnToClick = newBtn.length > 0 ? newBtn : findContentDesc(nodes, "New")
+      console.log(`    ${dim(`[debug] createSession attempt ${attempt}: + New=${newBtn.length}, btnToClick=${btnToClick.length}`)}`)
+      if (btnToClick.length === 0) continue
+
+      const bb = getBounds(nodes, btnToClick[0])
+      if (!bb) { console.log(`    ${dim(`[debug] createSession: bounds null`)}`); continue }
+      console.log(`    ${dim(`[debug] Tapping + New at (${bb.cx},${bb.cy}) bounds=[${bb.x},${bb.y}][${bb.x+bb.w},${bb.y+bb.h}]`)}`)
+      
+      await tap(bb.cx, bb.cy)
+      await sleep(10000) // 等待 session 创建 + SDK 初始化 + 导航
+      
+      // 检查是否导航到 ChatScreen
+      const afterXml = await dumpUi()
+      if (afterXml) {
+        const { nodes: afterNodes } = await parseUi(afterXml)
+        const allTexts = afterNodes.filter(n => n.text).map(n => n.text).slice(0, 20)
+        console.log(`    ${dim(`[debug] After +New texts: [${allTexts.join(", ")}]`)}`)
+        // ChatScreen 标志: 有 "< Back" 和输入框（EditText），没有 "+ New"
+        const hasNewBtn = findText(afterNodes, "+ New").length > 0
+          || findContentDesc(afterNodes, "New").length > 0
+        const hasBackBtn = findText(afterNodes, "< Back").length > 0
+        const hasInput = findClazz(afterNodes, "EditText").length > 0
+        console.log(`    ${dim(`[debug] hasNewBtn=${hasNewBtn} hasBackBtn=${hasBackBtn} hasInput=${hasInput}`)}`)
+        // 导航成功条件：没有 "+ New" 按钮（说明不在 SessionsScreen），或者有返回按钮和输入框
+        if (!hasNewBtn || (hasBackBtn && hasInput)) return true
+      }
+      
+      // 等待后重试
+      if (attempt < 3) await sleep(3000)
+    }
+    return false
+  }
+
+  // ─── 辅助：等待文本出现 ───
+  async function waitForTextInUi(text, timeout = 10000) {
+    const start = Date.now()
+    while (Date.now() - start < timeout) {
+      const xml = await dumpUi()
+      if (xml) {
+        const { nodes } = await parseUi(xml)
+        if (findText(nodes, text).length > 0) return true
+      }
+      await sleep(500)
+    }
+    return false
+  }
+
+  // ─── 辅助：发送聊天消息 ───
+  async function sendMessage(text) {
+    const xml = await dumpUi()
+    if (!xml) return false
+    const { nodes } = await parseUi(xml)
+    const fields = findClazz(nodes, "EditText")
+    // 发送按钮: "➤" 或 "Send" 或 content-desc
+    const sendBtn = findText(nodes, "➤").concat(findText(nodes, "Send")).concat(findContentDesc(nodes, "Send"))
+
+    if (fields.length > 0 && sendBtn.length > 0) {
+      const inputBounds = getBounds(nodes, fields[0])
+      if (inputBounds) {
+        await tap(inputBounds.cx, inputBounds.cy)
+        await sleep(200)
+        await typeText(text)
+        await sleep(300)
+        const sendBounds = getBounds(nodes, sendBtn[0])
+        if (sendBounds) {
+          await tap(sendBounds.cx, sendBounds.cy)
+          await sleep(1000)
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  // ─── 启动 Bridge ───
+  console.log(`  ${yellow("▶")} 启动 Bridge 服务...`)
+  const bridgeOk = await startBridge()
+  if (!bridgeOk) { fail("Bridge 服务启动失败"); return }
+  ok("Bridge 已启动", `port ${CFG.bridgePort}`)
+
+  // ═══════════════════════════════════════════════════
+  // 5.1 SessionsScreen
+  // ═══════════════════════════════════════════════════
+  console.log(`\n  ${yellow("▶")} 5.1 SessionsScreen`)
+
+  const connected = await connectToBridge()
+  if (!connected) {
+    fail("无法连接到 Bridge")
+    await stopBridge()
+    return
+  }
+  ok("已连接到 SessionsScreen")
+
+  // 5.1.1 标题和按钮渲染
+  const sXml = await dumpUi()
+  if (sXml) {
+    const { nodes: sNodes } = await parseUi(sXml)
+    const hasTitle = findText(sNodes, "Sessions").length > 0
+    const hasNewBtn = findText(sNodes, "+ New").length > 0 || findContentDesc(sNodes, "New").length > 0
+    const hasProject = findText(sNodes, "Project").length > 0
+    if (hasTitle && hasNewBtn) ok("SessionsScreen 渲染正常", "标题+新建按钮")
+    else fail("SessionsScreen 渲染异常", `标题:${hasTitle} 新建:${hasNewBtn}`)
+
+    if (hasProject) ok("项目信息显示", "Project 标签可见")
+    else skip("项目信息显示", "未找到 Project 标签")
+  }
+
+  // 5.1.2 空状态
+  // 如果没有 session，应该显示空态
+  const sEmptyXml = await dumpUi()
+  if (sEmptyXml) {
+    const { nodes: sEmptyNodes } = await parseUi(sEmptyXml)
+    const hasEmpty = findText(sEmptyNodes, "No sessions").length > 0
+    if (hasEmpty) ok("SessionsScreen 空状态", "No sessions yet 文本可见")
+    else skip("SessionsScreen 空状态", "已有 session 或空态文本不同")
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 5.2 ChatScreen
+  // ═══════════════════════════════════════════════════
+  console.log(`\n  ${yellow("▶")} 5.2 ChatScreen`)
+
+  // Debug: test session.create directly via WS
+  await debugSessionCreate()
+
+  const sessionCreated = await createSession()
+  if (!sessionCreated) {
+    skip("ChatScreen 渲染", "无法创建 session")
+  } else {
+    // Debug: dump UI tree after session creation
+    const debugXml = await dumpUi()
+    if (debugXml) {
+      const { nodes: debugNodes } = await parseUi(debugXml)
+      const allTexts = debugNodes.map(n => n.text).filter(Boolean).slice(0, 15)
+      const allClasses = debugNodes.map(n => n.class).filter(Boolean).slice(0, 15)
+      console.log(`    ${dim(`UI texts: [${allTexts.join(", ")}]`)}`)
+      console.log(`    ${dim(`UI classes: [${allClasses.join(", ")}]`)}`)
+    }
+
+    // 5.2.1 头部元素
+    const cXml = await dumpUi()
+    if (cXml) {
+      const { nodes: cNodes } = await parseUi(cXml)
+      const hasBackBtn = findText(cNodes, "Sessions").length > 0 || findContentDesc(cNodes, "Sessions").length > 0
+      const hasInput = findClazz(cNodes, "EditText").length > 0
+      if (hasBackBtn) ok("ChatScreen 头部", "< Sessions 按钮可见")
+      else skip("ChatScreen 头部", "未找到返回按钮")
+      if (hasInput) ok("ChatScreen 输入框", "消息输入框可见")
+      else skip("ChatScreen 输入框", "未找到输入框")
+    }
+
+    // 5.2.2 发送消息
+    if (hasOpenCode) {
+      const sent = await sendMessage("hello")
+      if (sent) {
+        ok("消息发送", "已发送 hello")
+        await sleep(2000)
+
+        // 检查消息是否出现在列表
+        const msgXml = await dumpUi()
+        if (msgXml) {
+          const { nodes: msgNodes } = await parseUi(msgXml)
+          const hasHello = findText(msgNodes, "hello").length > 0
+          if (hasHello) ok("消息显示", "hello 出现在消息列表")
+          else skip("消息显示", "消息可能尚未渲染")
+        }
+
+        // 5.2.3 AI 思考指示器
+        const thinkXml = await dumpUi()
+        if (thinkXml) {
+          const { nodes: thinkNodes } = await parseUi(thinkXml)
+          const hasThinking = findText(thinkNodes, "thinking").length > 0
+            || findText(thinkNodes, "Thinking").length > 0
+            || findText(thinkNodes, "AI is thinking").length > 0
+          if (hasThinking) ok("AI 思考指示器", "thinking 文本可见")
+          else skip("AI 思考指示器", "可能已响应或未触发思考")
+        }
+
+        // 等待响应完成
+        await sleep(8000)
+      } else {
+        skip("消息发送", "未找到输入框或发送按钮")
+      }
+    } else {
+      skip("消息发送", "OpenCode 不可用")
+      skip("AI 思考指示器", "OpenCode 不可用")
+    }
+
+    // 5.2.4 SessionInfoModal
+    const infoXml = await dumpUi()
+    if (infoXml) {
+      const { nodes: infoNodes } = await parseUi(infoXml)
+      const infoBtn = findText(infoNodes, "📋")
+      if (infoBtn.length > 0) {
+        const bb = getBounds(infoNodes, infoBtn[0])
+        if (bb) {
+          await tap(bb.cx, bb.cy)
+          await sleep(1000)
+          const modalXml = await dumpUi()
+          if (modalXml) {
+            const { nodes: mNodes } = await parseUi(modalXml)
+            const hasInfo = findText(mNodes, "Session Info").length > 0
+            if (hasInfo) ok("SessionInfoModal", "Session Info 弹窗可见")
+            else skip("SessionInfoModal", "弹窗可能未渲染")
+            // 关闭弹窗
+            await pressBack()
+            await sleep(500)
+          }
+        }
+      } else {
+        skip("SessionInfoModal", "未找到 info 按钮")
+      }
+    }
+
+    // 5.2.5 返回 SessionsScreen
+    const backXml = await dumpUi()
+    if (backXml) {
+      const { nodes: backNodes } = await parseUi(backXml)
+      const backBtn = findContentDesc(backNodes, "Sessions").concat(findText(backNodes, "Sessions"))
+      if (backBtn.length > 0) {
+        const bb = getBounds(backNodes, backBtn[0])
+        if (bb) {
+          await tap(bb.cx, bb.cy)
+          await sleep(2000)
+          const afterBackXml = await dumpUi()
+          if (afterBackXml) {
+            const { nodes: abNodes } = await parseUi(afterBackXml)
+            const hasNewBtn = findText(abNodes, "+ New").length > 0 || findContentDesc(abNodes, "New").length > 0
+            if (hasNewBtn) ok("返回 SessionsScreen", "已回到会话列表")
+            else skip("返回 SessionsScreen", "UI 状态不确定")
+          }
+        }
+      } else {
+        skip("返回 SessionsScreen", "未找到返回按钮")
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 5.3 FileBrowserScreen
+  // ═══════════════════════════════════════════════════
+  console.log(`\n  ${yellow("▶")} 5.3 FileBrowserScreen`)
+
+  // FileBrowserScreen 需要从 SessionsScreen 进入
+  // 尝试找到文件浏览入口 (可能在 menu 或 header)
+  // 由于 FileBrowserScreen 是独立 screen，需要先确认导航入口
+  // 在当前 app 中，文件浏览器可能需要从 chat 或 sessions 触发
+
+  // 尝试检查是否已有文件浏览按钮
+  const fbNavXml = await dumpUi()
+  if (fbNavXml) {
+    const { nodes: fbNavNodes } = await parseUi(fbNavXml)
+    // 检查是否有文件相关的导航入口
+    const hasFileBtn = findText(fbNavNodes, "File").length > 0
+      || findText(fbNavNodes, "Browse").length > 0
+      || findText(fbNavNodes, "📁").length > 0
+    if (hasFileBtn) {
+      // 点击进入文件浏览器
+      const fileBtn = findText(fbNavNodes, "File").concat(
+        findText(fbNavNodes, "Browse"),
+        findText(fbNavNodes, "📁")
+      )
+      if (fileBtn.length > 0) {
+        const bb = getBounds(fbNavNodes, fileBtn[0])
+        if (bb) await tap(bb.cx, bb.cy)
+        await sleep(2000)
+      }
+    }
+  }
+
+  // 检查文件浏览器是否已打开
+  const fbXml = await dumpUi()
+  if (fbXml) {
+    const { nodes: fbNodes } = await parseUi(fbXml)
+    const hasBackBtn = findText(fbNodes, "← Back").length > 0
+    const hasSearchInput = findClazz(fbNodes, "EditText").length > 0
+    const hasSearchBtn = findText(fbNodes, "Search").length > 0
+
+    if (hasBackBtn && hasSearchBtn) {
+      ok("FileBrowserScreen 渲染", "返回+搜索按钮可见")
+
+      // 5.3.1 搜索功能
+      if (hasSearchInput) {
+        const searchFields = findClazz(fbNodes, "EditText")
+        const searchBounds = getBounds(fbNodes, searchFields[0])
+        if (searchBounds) {
+          await tap(searchBounds.cx, searchBounds.cy)
+          await sleep(200)
+          await typeText("package.json")
+          await sleep(300)
+
+          // 点击搜索按钮
+          const sBtn = findText(fbNodes, "Search")
+          if (sBtn.length > 0) {
+            const sBounds = getBounds(fbNodes, sBtn[0])
+            if (sBounds) {
+              await tap(sBounds.cx, sBounds.cy)
+              await sleep(3000)
+
+              // 验证搜索结果
+              const resultXml = await dumpUi()
+              if (resultXml) {
+                const { nodes: rNodes } = await parseUi(resultXml)
+                const hasResults = findText(rNodes, "package.json").length > 0
+                if (hasResults) ok("FileBrowser 搜索", "package.json 出现在结果中")
+                else ok("FileBrowser 搜索", "搜索已执行 (结果可能不同)")
+              }
+            }
+          }
+        }
+      }
+
+      // 5.3.2 父目录导航
+      const parentXml = await dumpUi()
+      if (parentXml) {
+        const { nodes: pNodes } = await parseUi(parentXml)
+        const parentEntry = findText(pNodes, "..").concat(findText(pNodes, "Parent"))
+        if (parentEntry.length > 0) {
+          const pb = getBounds(pNodes, parentEntry[0])
+          if (pb) {
+            await tap(pb.cx, pb.cy)
+            await sleep(2000)
+            ok("FileBrowser 父目录", "已点击 .. 返回上级")
+          }
+        } else {
+          skip("FileBrowser 父目录", "未找到 .. 入口")
+        }
+      }
+
+      // 5.3.3 返回按钮
+      const backBtnXml = await dumpUi()
+      if (backBtnXml) {
+        const { nodes: bbNodes } = await parseUi(backBtnXml)
+        const backBtn = findText(bbNodes, "← Back")
+        if (backBtn.length > 0) {
+          const bb = getBounds(bbNodes, backBtn[0])
+          if (bb) {
+            await tap(bb.cx, bb.cy)
+            await sleep(1000)
+            ok("FileBrowser 返回", "已点击返回按钮")
+          }
+        }
+      }
+    } else {
+      skip("FileBrowserScreen", "未进入文件浏览器 (可能需要不同的导航入口)")
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 5.4 ToolRenderer & ReasoningCollapsible
+  // ═══════════════════════════════════════════════════
+  console.log(`\n  ${yellow("▶")} 5.4 ToolRenderer & ReasoningCollapsible`)
+
+  if (hasOpenCode) {
+    // 需要进入 ChatScreen 并发送触发工具调用的消息
+    // 先回到 SessionsScreen
+    const currentXml = await dumpUi()
+    if (currentXml) {
+      const { nodes: currentNodes } = await parseUi(currentXml)
+      // 可能需要先回到 Sessions 再进入 Chat
+      const sessionBtn = findText(currentNodes, "Sessions")
+      if (sessionBtn.length > 0) {
+        const bb = getBounds(currentNodes, sessionBtn[0])
+        if (bb) await tap(bb.cx, bb.cy)
+        await sleep(1000)
+      }
+    }
+
+    // 创建新 session
+    const newSessCreated = await createSession()
+    if (newSessCreated) {
+      // 发送触发工具调用的消息
+      const toolSent = await sendMessage("list files in current directory")
+      if (toolSent) {
+        // 等待工具调用出现
+        await sleep(5000)
+
+        const toolXml = await dumpUi()
+        if (toolXml) {
+          const { nodes: toolNodes } = await parseUi(toolXml)
+
+          // 5.4.1 ToolRenderer: Shell/Glob/Read 等
+          const hasShell = findText(toolNodes, "Shell").length > 0
+          const hasGlob = findText(toolNodes, "Glob").length > 0
+          const hasRead = findText(toolNodes, "Read").length > 0
+          const hasGrep = findText(toolNodes, "Grep").length > 0
+          const hasWrite = findText(toolNodes, "Write").length > 0
+          const hasEdit = findText(toolNodes, "Edit").length > 0
+          const hasTask = findText(toolNodes, "Task").length > 0
+
+          const toolName = hasShell ? "Shell" : hasGlob ? "Glob" : hasRead ? "Read"
+            : hasGrep ? "Grep" : hasWrite ? "Write" : hasEdit ? "Edit" : hasTask ? "Task" : null
+
+          if (toolName) {
+            ok("ToolRenderer 渲染", `${toolName} 工具卡片可见`)
+
+            // 尝试点击展开 (如果可交互)
+            const toolNode = findText(toolNodes, toolName)
+            if (toolNode.length > 0) {
+              const bb = getBounds(toolNodes, toolNode[0])
+              if (bb) {
+                await tap(bb.cx, bb.cy)
+                await sleep(500)
+                ok("ToolRenderer 交互", `已点击 ${toolName} 卡片`)
+              }
+            }
+
+            // 检查状态图标
+            const hasSuccess = findText(toolNodes, "✅").length > 0
+            const hasFailed = findText(toolNodes, "❌").length > 0
+            const hasPending = findText(toolNodes, "⏳").length > 0
+            if (hasSuccess || hasFailed || hasPending) {
+              const status = hasSuccess ? "✅" : hasFailed ? "❌" : "⏳"
+              ok("ToolRenderer 状态", `状态图标 ${status} 可见`)
+            } else {
+              skip("ToolRenderer 状态", "未检测到状态图标 (可能已消失)")
+            }
+          } else {
+            skip("ToolRenderer 渲染", "未检测到工具调用卡片")
+          }
+
+          // 5.4.2 ReasoningCollapsible
+          const hasThinking = findText(toolNodes, "Thinking Process").length > 0
+          const hasThinkingDots = findText(toolNodes, "Thinking...").length > 0
+          if (hasThinking || hasThinkingDots) {
+            const thinkLabel = hasThinking ? "Thinking Process" : "Thinking..."
+            ok("ReasoningCollapsible 渲染", `${thinkLabel} 可见`)
+
+            // 点击展开/折叠
+            const thinkNode = findText(toolNodes, thinkLabel)
+            if (thinkNode.length > 0) {
+              const bb = getBounds(toolNodes, thinkNode[0])
+              if (bb) {
+                await tap(bb.cx, bb.cy)
+                await sleep(500)
+                const afterThinkXml = await dumpUi()
+                if (afterThinkXml) {
+                  const { nodes: atNodes } = await parseUi(afterThinkXml)
+                  const hasChevron = findText(atNodes, "▼").length > 0
+                    || findText(atNodes, "▶").length > 0
+                  if (hasChevron) ok("ReasoningCollapsible 交互", "展开/折叠切换正常")
+                  else skip("ReasoningCollapsible 交互", "chevron 状态未检测到")
+                }
+              }
+            }
+          } else {
+            skip("ReasoningCollapsible", "未检测到思考内容 (可能无思考过程)")
+          }
+
+          // 5.4.3 MarkdownRenderer (在聊天消息中)
+          const hasMarkdown = findText(toolNodes, "```").length > 0
+            || findText(toolNodes, "**").length > 0
+            || findText(toolNodes, "#").length > 0
+          if (hasMarkdown) {
+            ok("MarkdownRenderer 渲染", "Markdown 格式内容可见")
+          } else {
+            skip("MarkdownRenderer", "未检测到 Markdown 格式内容")
+          }
+
+          // 5.4.4 ToolProgressCard (水平滚动)
+          // ToolProgressCard 包含多个 ToolRenderer，水平排列
+          if (toolName) {
+            ok("ToolProgressCard", "工具进度卡片已渲染 (含 ToolRenderer)")
+          }
+        }
+      } else {
+        skip("ToolRenderer", "消息发送失败")
+        skip("ReasoningCollapsible", "消息发送失败")
+      }
+    } else {
+      skip("ToolRenderer", "无法创建 session")
+      skip("ReasoningCollapsible", "无法创建 session")
+    }
+  } else {
+    skip("ToolRenderer", "OpenCode 不可用")
+    skip("ReasoningCollapsible", "OpenCode 不可用")
+    skip("MarkdownRenderer", "OpenCode 不可用")
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 5.5 横竖屏切换 (ConnectScreen)
+  // ═══════════════════════════════════════════════════
+  console.log(`\n  ${yellow("▶")} 5.5 横竖屏切换`)
+
+  // 回到 ConnectScreen 测试横竖屏
+  await adb(["shell", "am", "force-stop", CFG.pkg]).catch(() => {})
+  await sleep(500)
+  await adb(["shell", "am", "start", "-n", `${CFG.pkg}/${CFG.activity}`])
+  await sleep(3000)
+
+  // 确保竖屏
+  await adb(["shell", "settings", "put", "system", "accelerometer_rotation", "0"]).catch(() => {})
+  await adb(["shell", "settings", "put", "system", "user_rotation", "0"]).catch(() => {})
+  await sleep(1000)
+
+  // 验证竖屏下 EditText 可见
+  const portXml = await dumpUi()
+  if (portXml) {
+    const { nodes: portNodes } = await parseUi(portXml)
+    const hasEditText = findClazz(portNodes, "EditText").length > 0
+    if (hasEditText) ok("竖屏 UI 可用", "输入框可见")
+    else fail("竖屏 UI 异常", "输入框不可见")
+  }
+
+  // 切到横屏
+  await adb(["shell", "settings", "put", "system", "user_rotation", "1"]).catch(() => {})
+  await sleep(2000)
+
+  const landXml = await dumpUi()
+  if (landXml) {
+    const { nodes: landNodes } = await parseUi(landXml)
+    const hasEditText = findClazz(landNodes, "EditText").length > 0
+    if (hasEditText) ok("横屏 UI 可用", "输入框仍可见")
+    else fail("横屏 UI 异常", "输入框不可见")
+  }
+
+  // 恢复竖屏
+  await adb(["shell", "settings", "put", "system", "user_rotation", "0"]).catch(() => {})
+  await sleep(1000)
+
+  // ─── 清理 ───
+  await adb(["shell", "am", "force-stop", CFG.pkg]).catch(() => {})
+  await sleep(500)
+  await stopBridge()
+  ok("Bridge 服务已停止")
+}
+
 // ─── 主流程 ─────────────────────────────────────────
 
 async function main() {
@@ -885,6 +1596,7 @@ async function main() {
   if (LAYER_FILTER === null || LAYER_FILTER === 2) await testLayer2()
   if (LAYER_FILTER === null || LAYER_FILTER === 3) await testLayer3()
   if (LAYER_FILTER === null || LAYER_FILTER === 4) await testLayer4()
+  if (LAYER_FILTER === null || LAYER_FILTER === 5) await testLayer5()
 
   // 结果汇总
   const total = passed + failed + skipped

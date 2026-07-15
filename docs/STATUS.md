@@ -2,15 +2,16 @@
 
 ## 已完成
 
-### Bridge 服务器 (Phase 1 ✅)
+### Bridge 服务器 (Phase 1 ✅ + Phase 2 ✅)
 
 | 模块 | 文件 | 状态 | 说明 |
 |------|------|:----:|------|
 | WS 服务器 | `src/server/ws.ts` | ✅ | 连接管理、JWT 验证、broadcastToAll |
 | JWT 认证 | `src/server/auth.ts` | ✅ | sign/verify/refresh/logout |
-| RPC 路由 | `src/server/router.ts` | ✅ | 30+ 方法注册、参数翻译、SSE→WS 透传 |
+| RPC 路由 | `src/server/router.ts` | ✅ | 35+ 方法注册、参数翻译、SSE→WS 透传 |
 | OpenCode 适配器 | `src/adapters/OpenCodeAdapter.ts` | ✅ | SDK client 生命周期、自定义 Node.js fetch |
 | 项目状态管理 | `src/state/project.ts` | ✅ | project.switch/current、SSE 生命周期、并发锁 |
+| 文件操作 | `src/server/fileHandler.ts` | ✅ | file.list/read/search/info |
 | 入口 | `src/index.ts` | ✅ | 服务器启动 |
 
 **Bridge 已实现的 RPC 方法：**
@@ -27,9 +28,10 @@
 | `question.reply/reject` | ✅ | SDK 代理 |
 | `config.get/providers/agents` | ✅ | SDK 代理 |
 | `provider.list/command.list/vcs.get` | ✅ | SDK 代理 |
+| `file.list/read/search/info` | ✅ | 文件系统操作 |
 | SSE 事件透传 | ✅ | session.next.text.delta, permission.v2.asked 等 20+ 事件 |
 
-### 手机客户端 (Phase 1 ✅)
+### 手机客户端 (Phase 1 ✅ + Phase 2 ✅)
 
 | 模块 | 文件 | 状态 | 说明 |
 |------|------|:----:|------|
@@ -42,6 +44,11 @@
 | QuestionSheet | `src/screens/QuestionSheet.tsx` | ✅ | 问答向导 |
 | SessionInfoModal | `src/screens/SessionInfoModal.tsx` | ✅ | 会话详情 |
 | ToolProgressCard | `src/components/ToolProgressCard.tsx` | ✅ | 工具进度卡片 |
+| ToolRenderer | `src/components/ToolRenderer.tsx` | ✅ | 14 种工具专用渲染器 |
+| FileBrowserScreen | `src/screens/FileBrowserScreen.tsx` | ✅ | 文件浏览器 (目录树+查看) |
+| ProjectSwitcher | `src/components/ProjectSwitcher.tsx` | ✅ | 项目目录切换 UI |
+| MarkdownRenderer | `src/components/MarkdownRenderer.tsx` | ✅ | Markdown 渲染 (标题/代码/表格/列表) |
+| ReasoningCollapsible | `src/components/ReasoningCollapsible.tsx` | ✅ | 思考/推理折叠组件 |
 
 **Zustand Stores：**
 
@@ -57,13 +64,14 @@
 | `questionStore` | ✅ | 问答队列 |
 | `diffStore` | ✅ | 文件差异 |
 | `todoStore` | ✅ | 待办列表 |
+| `fileStore` | ✅ | 文件浏览器状态 |
 
 ### 测试
 
 | 类型 | 文件 | 数量 | 状态 |
 |------|------|:----:|:----:|
-| Bridge 单元测试 | `servers/bridge/__tests__/*.test.ts` | 71 | ✅ 全通过 |
-| Mobile 单元测试 | `apps/mobile/__tests__/*.test.*` | 183 | ✅ 全通过 |
+| Bridge 单元测试 | `servers/bridge/__tests__/*.test.ts` | 99 | ✅ 全通过 |
+| Mobile 单元测试 | `apps/mobile/__tests__/*.test.*` | 254 | ✅ 全通过 |
 | E2E (Bridge) | `servers/bridge/scripts/e2e.mjs` | ~51 场景 | ✅ |
 | E2E (SSE) | `servers/bridge/scripts/e2e-sse.mjs` | 2 场景 | ✅ |
 | E2E (Android) | `scripts/android-test.mjs` | 24 场景 | ✅ 19/22 通过, 3 跳过 |
@@ -87,19 +95,19 @@
 
 ## 未完成
 
-### Phase 2 — 增强功能
+### Phase 2 — 增强功能 ✅
 
 | 功能 | Bridge | 客户端 | 优先级 |
 |------|:------:|:------:|:------:|
-| 文件浏览器 (file.list/read/search) | ❌ | ❌ | P1 |
-| 文件查看器 (语法高亮) | — | ❌ | P1 |
-| 14 种工具专用渲染器 | — | ❌ | P1 |
-| Shell 模式 (! 开头) | ✅ | ❌ | P1 |
-| 斜杠命令 (/model, /agent) | ✅ | ❌ | P1 |
-| Markdown 渲染 | — | ❌ | P1 |
+| 文件浏览器 (file.list/read/search) | ✅ | ✅ | P1 |
+| 文件查看器 (语法高亮) | — | ✅ (plain text) | P1 |
+| 14 种工具专用渲染器 | — | ✅ | P1 |
+| Shell 模式 (! 开头) | ✅ | ✅ | P1 |
+| 斜杠命令 (/model, /agent) | ✅ | ✅ | P1 |
+| Markdown 渲染 | — | ✅ | P1 |
 | Question 多步向导 | ✅ | ✅ | P1 |
-| 项目目录切换 UI | ✅ | ❌ | P1 |
-| 思考/推理折叠 | — | ❌ | P2 |
+| 项目目录切换 UI | ✅ | ✅ | P1 |
+| 思考/推理折叠 | — | ✅ | P2 |
 
 ### Phase 3 — 生产就绪
 
@@ -125,8 +133,8 @@
 |------|------|------|
 | 聊天消息收发 (E2E) | 需要 OpenCode 运行 | 已在 e2e-sse.mjs 覆盖 |
 | 权限审批 (E2E) | 需要 OpenCode 触发工具调用 | 人工验证 |
-| 文件浏览器 | Phase 2 功能 | 开发后补充 |
-| Markdown 渲染 | Phase 2 功能 | 开发后补充 |
+| 文件浏览器 (E2E) | Phase 2 完成，可补充集成测试 | 可选 |
+| Markdown 渲染 (E2E) | Phase 2 完成，已覆盖单元测试 | 可选 |
 | 断线重连 (Android) | 需要 Bridge 运行时测试 | 已在 Layer 4 标记 |
 | 并发多客户端 | 未覆盖 | 可选 |
 | 长时间运行稳定性 | 未覆盖 | 可选 |

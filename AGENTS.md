@@ -35,12 +35,25 @@
 
 ## 运行测试
 
-- 测试脚本必须自己 `spawn` 子进程、自己等就绪、自己清理。bash 只做：
+- 短测试（Bridge/Mobile unit tests < 30s）可直接执行，bash 只做：
   ```
-  node scripts/e2e.mjs   # 测试脚本内部管理 bridge 子进程
+  node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --detectOpenHandles
   ```
+- **Android 模拟器测试（> 30s）必须用 `Start-Job` 后台执行**，绝不阻塞 tool call：
+  ```powershell
+  $null = Start-Job -Name "test-layer" -ScriptBlock {
+    Set-Location D:\code\mobile-agent-bridge
+    node scripts/android-test.mjs --layer 5 2>&1 | Out-File test-layer5.log
+  }
+  ```
+  之后定期检查 job 状态和日志文件：
+  ```powershell
+  Get-Job -Name "test-layer" | Select-Object State   # 跨 session 不可见，改查文件
+  Get-Content test-layer5.log                          # 取结果
+  ```
+  ⚠️ `Start-Job` 的 job 对象跨 tool call 不可见（每个 bash 是新 PowerShell 进程），只能通过输出文件检查。
 - 测试脚本**必须有全局超时兜底**（`setTimeout(() => process.exit(1), 120000)`），不依赖 bash timeout 做安全网。
-- bash 的 timeout 设足够大（约 180s）。超时触发只会发生在脚本自身全局超时有 bug 的极端情况。
+- bash 的 timeout 设足够大（约 180s），仅作为极端情况兜底。
 
 ## 接口对齐约束
 
@@ -58,6 +71,22 @@
 - Bridge unit tests: `cd servers/bridge && npm test`
 - Mobile unit tests: `cd apps/mobile && npx jest`
 - Full E2E: `node servers/bridge/scripts/e2e.mjs`（需 `OPENCODE_URL`）
+
+## 构建 Android APK
+
+- **必须用 `Start-Job` 后台执行**，绝不阻塞当前进程：
+  ```powershell
+  # 清理残留 daemon + 并发构建
+  $null = Start-Job -Name "apk-build" -ScriptBlock {
+    Set-Location D:\code\mobile-agent-bridge\apps\mobile\android
+    taskkill /f /im java.exe 2>$null
+    $env:GRADLE_OPTS = "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
+    .\gradlew assembleRelease --no-daemon --offline 2>&1 | Out-File build.log
+  }
+  ```
+- 构建完成后（`Get-Job -Name "apk-build" | Where-Object State -eq "Completed"`），检查 APK 是否存在：`Test-Path "apps/mobile/android/app/build/outputs/apk/release/app-release.apk"`
+- 禁止直接运行 `./gradlew` 或 `npx react-native build-android`（阻塞 > 2s 违反核心原则）。
+- 如果构建脚本需要 timeout 兜底，在 `-ScriptBlock` 内部用 `Start-Process -Wait -TimeoutSeconds 180`，而不是外部等待。
 
 ## SSE / fetch 阻塞（代码层约束）
 
