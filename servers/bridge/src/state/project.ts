@@ -24,7 +24,10 @@ async function startSSE(signal: AbortSignal): Promise<void> {
         // 兼容 V2Event（{ id, type, properties }）和 GlobalEvent（{ payload: { type, properties } }）两种格式
         const src = ev.payload || ev
         const eventType: string = src.type || "unknown"
-        const eventData: unknown = src.properties || src
+        let eventData: unknown = src.properties || src
+        if (src.id !== undefined && typeof eventData === "object" && eventData !== null) {
+          ;(eventData as Record<string, unknown>).eventId = src.id
+        }
         broadcastToAll({
           type: "notify",
           method: eventType,
