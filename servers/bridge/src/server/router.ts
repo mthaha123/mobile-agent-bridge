@@ -3,6 +3,7 @@ import type { TokenPayload } from "./auth.js"
 import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
+import { fileList, fileRead, fileSearch, getFileInfo } from "./fileHandler.js"
 
 type Handler = (params: any, payload: TokenPayload | null) => Promise<any> | any
 
@@ -96,12 +97,16 @@ function resolveModel(model: unknown): { id: string; providerID: string; variant
 }
 
 registerHandler("session.create", async (p) => {
+  const { directory } = getCurrentProject()
   const params: Record<string, unknown> = {}
   if (p.agent) params.agent = p.agent
   const model = resolveModel(p.model)
   if (model) params.model = model
   if (p.title) params.title = p.title
-  return sdkCall(() => sdk().session.create(params))
+  if (directory) params.location = { directory }
+  const result = await sdkCall(() => sdk().v2.session.create(params))
+  // SDK v3 返回 { data: { ... } } 双层 data 包裹
+  return result?.data ?? result
 })
 registerHandler("session.list", async (p) => {
   const params: Record<string, unknown> = {}
@@ -248,3 +253,32 @@ registerHandler("config.providers", async () => sdkCall(() => sdk().config.provi
 registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))
 registerHandler("command.list", async () => sdkCall(() => sdk().v2.command.list({})))
 registerHandler("vcs.get", async () => sdkCall(() => sdk().vcs.get({})))
+
+// ===== 文件操作（直接实现，不经过 SDK）=====
+
+registerHandler("file.list", async (p) => {
+  const dirPath = p.path || p.directory || "."
+  return fileList(dirPath)
+})
+
+registerHandler("file.read", async (p) => {
+  const filePath = p.path || p.file
+  if (!filePath) throw new Error("file.read requires path parameter")
+  return fileRead(filePath, p.encoding)
+})
+
+registerHandler("file.search", async (p) => {
+  const query = p.query || p.search || p.pattern
+  if (!query) throw new Error("file.search requires query parameter")
+  return fileSearch(query, {
+    pattern: p.pattern,
+    dirs: p.dirs || p.directories,
+    limit: p.limit,
+  })
+})
+
+registerHandler("file.info", async (p) => {
+  const filePath = p.path || p.file
+  if (!filePath) throw new Error("file.info requires path parameter")
+  return getFileInfo(filePath)
+})

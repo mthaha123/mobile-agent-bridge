@@ -32,6 +32,7 @@ function createMockSdk() {
       reply: jest.fn<any>().mockResolvedValue({ data: {} }),
       reject: jest.fn<any>().mockResolvedValue({ data: {} }),
     },
+    create: jest.fn<any>().mockResolvedValue({ data: { id: "sess_new", agent: "build" } }),
   }
   const mockSession2 = {
     create: jest.fn<any>().mockResolvedValue({ data: { id: "sess_new", agent: "build" } }),
@@ -254,7 +255,7 @@ describe("RPC Router", () => {
   })
 
   it("should call session.create with agent/model params (string model resolved to object)", async () => {
-    const { mockSession2 } = createMockSdk()
+    const { mockV3Session } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.create",
@@ -262,34 +263,34 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages.length).toBe(1)
     expect(messages[0].ok).toBe(true)
-    expect(mockSession2.create).toHaveBeenCalledWith({
+    expect(mockV3Session.create).toHaveBeenCalledWith({
       agent: "build",
       model: { id: "claude-sonnet-4", providerID: "claude-sonnet-4" },
     })
   })
 
   it("should accept model as object and pass through directly", async () => {
-    const { mockSession2 } = createMockSdk()
+    const { mockV3Session } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.create",
       params: { model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" } },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockSession2.create).toHaveBeenCalledWith({
+    expect(mockV3Session.create).toHaveBeenCalledWith({
       model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" },
     })
   })
 
   it("should call session.create with empty params when none provided", async () => {
-    const { mockSession2 } = createMockSdk()
+    const { mockV3Session } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.create",
       params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockSession2.create).toHaveBeenCalledWith({})
+    expect(mockV3Session.create).toHaveBeenCalledWith({})
   })
 
   it("should call v2.session.question.reply with questionV2Reply format", async () => {
@@ -1003,11 +1004,11 @@ describe("RPC Router", () => {
     const listenerId = "sse-event-test"
     conns.set(listenerId, listener)
 
-    // SSE stream 产出三种 SDK 事件
+    // SSE stream 产出三种 SDK 事件 (V2Event 格式: { id, type, properties })
     async function* eventStream() {
-      yield { type: "session.next.text.delta", data: { sessionID: "s1", delta: "hi" } }
-      yield { type: "permission.v2.asked", data: { id: "p1", action: "read", resources: ["."] } }
-      yield { type: "session.idle", data: { sessionID: "s1" } }
+      yield { type: "session.next.text.delta", properties: { sessionID: "s1", delta: "hi" } }
+      yield { type: "permission.v2.asked", properties: { id: "p1", action: "read", resources: ["."] } }
+      yield { type: "session.idle", properties: { sessionID: "s1" } }
     }
     const subscribeMock = jest.fn<any>().mockResolvedValue({ stream: eventStream() })
 
@@ -1065,6 +1066,91 @@ describe("RPC Router", () => {
     expect(messages[0].ok).toBe(false)
     // old SDK must still be intact
     expect(backend.sdk).toBe(oldSdk)
+  })
+
+  // ===== File handlers =====
+
+  it("should handle file.list", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.list",
+      params: { path: "." },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(Array.isArray(messages[0].payload)).toBe(true)
+  })
+
+  it("should handle file.list with default path", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.list",
+      params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(Array.isArray(messages[0].payload)).toBe(true)
+  })
+
+  it("should handle file.read", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.read",
+      params: { path: "package.json" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toHaveProperty("content")
+    expect(messages[0].payload).toHaveProperty("encoding")
+  })
+
+  it("should reject file.read without path", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.read",
+      params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("path")
+  })
+
+  it("should handle file.search", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.search",
+      params: { query: "import" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(Array.isArray(messages[0].payload)).toBe(true)
+  })
+
+  it("should reject file.search without query", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.search",
+      params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("query")
+  })
+
+  it("should handle file.info", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.info",
+      params: { path: "package.json" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toHaveProperty("name")
+    expect(messages[0].payload).toHaveProperty("type")
+    expect(messages[0].payload).toHaveProperty("size")
+  })
+
+  it("should reject file.info without path", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.info",
+      params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("path")
   })
 
 })
