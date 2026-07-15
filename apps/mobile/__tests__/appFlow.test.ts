@@ -146,8 +146,8 @@ describe('Chat + Notification flow', () => {
     expect(useChatStore.getState().messages[1].role).toBe('assistant')
     expect(useChatStore.getState().messages[1].content).toBe('Hello!')
 
-    // 模拟增量更新
-    updateLastAssistant('Hello! How can I help?')
+    // 模拟增量追加（updateLastAssistant 现在是追加而非替换）
+    updateLastAssistant(' How can I help?')
     expect(useChatStore.getState().messages[1].content).toBe('Hello! How can I help?')
   })
 
@@ -403,5 +403,78 @@ describe('Full app flow simulation', () => {
     })
     expect(useChatStore.getState().messages).toHaveLength(2)
     expect(useChatStore.getState().waiting).toBe(false)
+  })
+})
+
+// ─── 8. Delta 重组（stream reassembly） ───────────────────
+
+describe('Delta stream reassembly', () => {
+  beforeEach(() => {
+    useChatStore.getState().clearMessages()
+    useChatStore.getState().setActiveSession('s1')
+  })
+
+  it('appends in-order deltas sequentially', () => {
+    const { appendAssistantDelta } = useChatStore.getState()
+    appendAssistantDelta('m1', 'Hello', 1)
+    appendAssistantDelta('m1', ' world', 2)
+    appendAssistantDelta('m1', '!', 3)
+    expect(useChatStore.getState().messages[0].content).toBe('Hello world!')
+  })
+
+  it('buffers out-of-order deltas and flushes when gap fills', () => {
+    const { appendAssistantDelta } = useChatStore.getState()
+    // id=1 arrives first (SSE 单连接保序)
+    appendAssistantDelta('m1', 'Hello', 1)
+    expect(useChatStore.getState().messages[0].content).toBe('Hello')
+    // id=3 arrives before id=2 → buffered
+    appendAssistantDelta('m1', '!', 3)
+    expect(useChatStore.getState().messages[0].content).toBe('Hello')
+    // id=2 arrives → applied, flush sees id=3 next → apply
+    appendAssistantDelta('m1', ' world', 2)
+    expect(useChatStore.getState().messages[0].content).toBe('Hello world!')
+  })
+
+  it('discards duplicate eventId', () => {
+    const { appendAssistantDelta } = useChatStore.getState()
+    appendAssistantDelta('m1', 'Hello', 1)
+    appendAssistantDelta('m1', 'X', 1) // duplicate, id=1 already applied
+    expect(useChatStore.getState().messages[0].content).toBe('Hello')
+  })
+
+  it('finalizeAssistantContent overrides accumulated content', () => {
+    const { appendAssistantDelta, finalizeAssistantContent } = useChatStore.getState()
+    appendAssistantDelta('m1', 'Hello', 1)
+    appendAssistantDelta('m1', ' world', 2)
+    finalizeAssistantContent('m1', 'Hello world!')
+    expect(useChatStore.getState().messages[0].content).toBe('Hello world!')
+    // stream state cleaned up
+    expect(useChatStore.getState().streamStates['m1']).toBeUndefined()
+  })
+
+  it('finalizeAssistantContent creates message if none exists', () => {
+    const { finalizeAssistantContent } = useChatStore.getState()
+    finalizeAssistantContent('m1', 'Hello world!')
+    expect(useChatStore.getState().messages[0].content).toBe('Hello world!')
+  })
+
+  it('advanceStreamId bridges gap between reasoning and text deltas', () => {
+    const { appendAssistantDelta, advanceStreamId } = useChatStore.getState()
+    // 模拟 reasoning: id=1,2,3
+    appendAssistantDelta('m1', 'think', 1)
+    appendAssistantDelta('m1', ' hard', 2)
+    advanceStreamId('m1', 3) // reasoning.ended
+    // 模拟 text: id=4,5,6
+    appendAssistantDelta('m1', 'Answer', 4)
+    appendAssistantDelta('m1', ' is 42', 5)
+    expect(useChatStore.getState().messages[0].content).toBe('think hardAnswer is 42')
+  })
+
+  it('advanceStreamId flushes buffered deltas', () => {
+    const { appendAssistantDelta, advanceStreamId } = useChatStore.getState()
+    appendAssistantDelta('m1', 'Hello', 1)
+    appendAssistantDelta('m1', '!', 3)   // id=3 入 buffer
+    advanceStreamId('m1', 2)             // advance → flush id=3
+    expect(useChatStore.getState().messages[0].content).toBe('Hello!')
   })
 })

@@ -55,29 +55,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     })
 
     client.on('notification', (method: string, payload: any) => {
-      // 流式文本增量
+      // 流式文本增量（带 eventId 排序重组）
       if (method === 'session.next.text.delta') {
         const delta = payload?.delta || ''
-        if (delta) {
+        const msgId = payload?.assistantMessageID || ''
+        const eventId = payload?.eventId
+        if (delta && msgId && typeof eventId === 'number') {
+          useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
+        } else if (delta) {
           useChatStore.getState().updateLastAssistant(delta)
         }
       }
 
-      // 文本段结束
+      // 文本段结束（用完整文本修正乱序/重复）
       if (method === 'session.next.text.ended') {
+        const text = payload?.text || ''
+        const msgId = payload?.assistantMessageID || ''
+        if (text && msgId) {
+          useChatStore.getState().finalizeAssistantContent(msgId, text)
+        }
         useChatStore.getState().setWaiting(false)
       }
 
-      // 推理增量
+      // 推理增量（带 eventId 排序重组）
       if (method === 'session.next.reasoning.delta') {
         const delta = payload?.delta || ''
-        if (delta) {
+        const msgId = payload?.assistantMessageID || ''
+        const eventId = payload?.eventId
+        if (delta && msgId && typeof eventId === 'number') {
+          useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
+        } else if (delta) {
           useChatStore.getState().updateLastAssistant(delta)
         }
       }
 
-      // 推理结束
+      // 推理段结束（推进 stream 计数器，无权威文本可 finalize）
       if (method === 'session.next.reasoning.ended') {
+        const msgId = payload?.assistantMessageID || ''
+        const eventId = payload?.eventId
+        if (msgId && typeof eventId === 'number') {
+          useChatStore.getState().advanceStreamId(msgId, eventId)
+        }
         useChatStore.getState().setWaiting(false)
       }
 
