@@ -13,16 +13,11 @@ import {
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
+import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 
-export type ChatScreenProps = {
-  onNavigateToSessions: () => void
-}
-
-export const ChatScreen: React.FC<ChatScreenProps> = ({
-  onNavigateToSessions,
-}) => {
+export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
@@ -32,6 +27,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
+  const setScreen = useUiStore((s) => s.setScreen)
 
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<TextInput>(null)
@@ -88,11 +84,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     await fetchSessions(client.call.bind(client))
   }
 
+  const handleBack = () => {
+    setScreen('sessions')
+  }
+
   if (!activeSessionId) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onNavigateToSessions}>
+          <TouchableOpacity onPress={handleBack}>
             <Text style={styles.headerBackText}>{'< Sessions'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
@@ -162,7 +162,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onNavigateToSessions}>
+        <TouchableOpacity onPress={handleBack}>
           <Text style={styles.headerBackText}>{'< Sessions'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>

@@ -1,8 +1,3 @@
-/**
- * SessionsScreen — 会话列表管理界面
- *
- * 显示所有对话会话，支持创建、删除、刷新
- */
 import React, { useEffect, useCallback, useState } from 'react'
 import {
   Alert,
@@ -19,13 +14,8 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useUiStore } from '../stores/uiStore'
 
-export type SessionsScreenProps = {
-  onNavigateToChat: (sessionId: string) => void
-  onBack: () => void
-}
-
-/** 格式化相对时间 */
 function formatRelativeTime(isoDate: string): string {
   const now = Date.now()
   const date = new Date(isoDate).getTime()
@@ -43,10 +33,7 @@ function formatRelativeTime(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString()
 }
 
-export const SessionsScreen: React.FC<SessionsScreenProps> = ({
-  onNavigateToChat,
-  onBack,
-}) => {
+export const SessionsScreen: React.FC = () => {
   const [switchDirInput, setSwitchDirInput] = useState('')
   const [showSwitchModal, setShowSwitchModal] = useState(false)
 
@@ -58,6 +45,7 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const switchProject = useProjectStore((s) => s.switchProject)
+  const setScreen = useUiStore((s) => s.setScreen)
 
   const handleOpenSwitch = () => {
     setSwitchDirInput(directory || '')
@@ -71,7 +59,6 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   }
 
-  // 加载会话列表
   const loadSessions = useCallback(async () => {
     const client = useAuthStore.getState().client
     if (!client) return
@@ -82,24 +69,21 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
     loadSessions()
   }, [loadSessions])
 
-  // 创建新会话
   const handleCreateSession = async () => {
     const client = useAuthStore.getState().client
     if (!client) return
     const id = await createSession(client.call.bind(client))
     if (id) {
       useChatStore.getState().setActiveSession(id)
-      onNavigateToChat(id)
+      setScreen('chat')
     }
   }
 
-  // 选择会话
   const handleSelectSession = (sessionId: string) => {
     useChatStore.getState().setActiveSession(sessionId)
-    onNavigateToChat(sessionId)
+    setScreen('chat')
   }
 
-  // 长按删除
   const handleDeleteSession = (sessionId: string, sessionName: string) => {
     Alert.alert(
       'Delete Session',
@@ -117,6 +101,15 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         },
       ],
     )
+  }
+
+  const handleBack = () => {
+    useAuthStore.getState().logout()
+    setScreen('connect')
+  }
+
+  const handleOpenFiles = () => {
+    setScreen('filebrowser')
   }
 
   const renderSession = ({ item }: { item: import('../stores/sessionStore').Session }) => {
@@ -162,18 +155,21 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 头部 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
+        <TouchableOpacity onPress={handleBack}>
           <Text style={styles.headerBackText}>{'< Back'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sessions</Text>
-        <TouchableOpacity onPress={handleCreateSession}>
-          <Text style={styles.headerActionText}>+ New</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={handleOpenFiles} style={styles.headerIconBtn}>
+            <Text style={styles.headerActionText}>📁</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleCreateSession}>
+            <Text style={styles.headerActionText}>+ New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* 项目信息 */}
       <View style={styles.projectBar}>
         <View style={styles.projectInfo}>
           <Text style={styles.projectLabel}>Project</Text>
@@ -195,7 +191,6 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* 加载状态 */}
       {loading && sessions.length === 0 && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4a9eff" />
@@ -203,7 +198,6 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
       )}
 
-      {/* 会话列表 */}
       <FlatList
         data={sessions}
         keyExtractor={(item) => item.id}
@@ -214,7 +208,6 @@ export const SessionsScreen: React.FC<SessionsScreenProps> = ({
         refreshing={loading}
       />
 
-      {/* 切换项目弹窗 */}
       <Modal
         visible={showSwitchModal}
         transparent
@@ -259,8 +252,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1a1a2e',
   },
-
-  // ── 头部 ──────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -279,13 +270,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    paddingHorizontal: 4,
+  },
   headerActionText: {
     color: '#4a9eff',
     fontSize: 15,
     fontWeight: '600',
   },
-
-  // ── 项目栏 ────────────────────────────────────────────
   projectBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -327,8 +324,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-
-  // ── 加载 ──────────────────────────────────────────────
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -339,14 +334,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 12,
   },
-
-  // ── 列表 ──────────────────────────────────────────────
   listContent: {
     padding: 16,
     flexGrow: 1,
   },
-
-  // ── 会话卡片 ──────────────────────────────────────────
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -382,8 +373,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginLeft: 8,
   },
-
-  // ── 切换弹窗 ──────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -438,8 +427,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-
-  // ── 空状态 ────────────────────────────────────────────
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -290,3 +290,132 @@ describe('token getter', () => {
     c.destroy()
   })
 })
+
+describe('file operations', () => {
+  afterEach(async () => {
+    client?.destroy()
+  })
+
+  it('listFiles calls file.list RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const files = [
+      { name: 'test.txt', type: 'file', size: 100, modified: '', permissions: '' },
+      { name: 'src', type: 'directory', size: 0, modified: '', permissions: '' },
+    ]
+
+    const callPromise = c.listFiles('/home')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.list')
+    expect(sentFrame.params).toEqual({ path: '/home' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: files })
+    await expect(callPromise).resolves.toEqual(files)
+  })
+
+  it('readFile calls file.read RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const fileContent = {
+      content: 'Hello World',
+      encoding: 'utf-8',
+      size: 11,
+      path: '/test.txt',
+    }
+
+    const callPromise = c.readFile('/test.txt')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.read')
+    expect(sentFrame.params).toEqual({ path: '/test.txt' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: fileContent })
+    await expect(callPromise).resolves.toEqual(fileContent)
+  })
+
+  it('readFile with encoding calls file.read RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const fileContent = {
+      content: 'Hello World',
+      encoding: 'base64',
+      size: 11,
+      path: '/test.txt',
+    }
+
+    const callPromise = c.readFile('/test.txt', 'base64')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.params).toEqual({ path: '/test.txt', encoding: 'base64' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: fileContent })
+    await expect(callPromise).resolves.toEqual(fileContent)
+  })
+
+  it('searchFiles calls file.search RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const results = [
+      { file: '/test.txt', line: 1, content: 'Hello', match: 'Hello' },
+    ]
+
+    const callPromise = c.searchFiles('Hello')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.search')
+    expect(sentFrame.params).toEqual({ query: 'Hello' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: results })
+    await expect(callPromise).resolves.toEqual(results)
+  })
+
+  it('searchFiles with options calls file.search RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const results = [
+      { file: '/test.txt', line: 1, content: 'Hello', match: 'Hello' },
+    ]
+
+    const callPromise = c.searchFiles('Hello', { dirs: ['/home'], limit: 10 })
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.params).toEqual({ query: 'Hello', dirs: ['/home'], limit: 10 })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: results })
+    await expect(callPromise).resolves.toEqual(results)
+  })
+
+  it('getFileInfo calls file.info RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const fileInfo = {
+      name: 'test.txt',
+      type: 'file',
+      size: 100,
+      modified: '2024-01-01T00:00:00.000Z',
+      permissions: '644',
+    }
+
+    const callPromise = c.getFileInfo('/test.txt')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.info')
+    expect(sentFrame.params).toEqual({ path: '/test.txt' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: fileInfo })
+    await expect(callPromise).resolves.toEqual(fileInfo)
+  })
+})

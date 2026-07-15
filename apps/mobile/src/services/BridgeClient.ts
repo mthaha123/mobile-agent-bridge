@@ -249,4 +249,47 @@ export class BridgeClient {
     }
     this.pending.clear()
   }
+
+  // ─── 文件操作 ─────────────────────────────────────────
+
+  async listFiles(path: string): Promise<Array<{
+    name: string
+    type: 'file' | 'directory' | 'symlink'
+    size: number
+    modified: string
+    permissions: string
+  }>> {
+    return this.call('file.list', { path }) as any
+  }
+
+  async readFile(path: string, encoding?: string): Promise<{
+    content: string
+    encoding: string
+    size: number
+    path: string
+  }> {
+    return this.call('file.read', { path, encoding }) as any
+  }
+
+  async searchFiles(
+    query: string,
+    options?: { pattern?: string; dirs?: string[]; limit?: number }
+  ): Promise<Array<{
+    file: string
+    line: number
+    content: string
+    match?: string
+  }>> {
+    return this.call('file.search', { query, ...options }) as any
+  }
+
+  async getFileInfo(path: string): Promise<{
+    name: string
+    type: 'file' | 'directory' | 'symlink'
+    size: number
+    modified: string
+    permissions: string
+  }> {
+    return this.call('file.info', { path }) as any
+  }
 }
