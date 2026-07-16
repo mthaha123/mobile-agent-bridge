@@ -1,29 +1,28 @@
 import { create } from 'zustand'
 
-export type Screen = 'connect' | 'sessions' | 'chat' | 'filebrowser'
+export type Tab = 'chat' | 'files' | 'settings'
+export type ChatSub = 'sessions' | 'chat'
 
 export interface UiState {
-  screen: Screen
-  previousScreen: Screen | null
-  setScreen: (screen: Screen) => void
-  goBack: () => void
+  screen: 'connect' | 'main'
+  activeTab: Tab
+  chatSubScreen: ChatSub
+  setScreen: (s: 'connect' | 'main') => void
+  setActiveTab: (t: Tab) => void
+  pushChat: () => void
+  popChat: () => void
 }
 
-export const useUiStore = create<UiState>((set, get) => ({
+export const useUiStore = create<UiState>((set) => ({
   screen: 'connect',
-  previousScreen: null,
+  activeTab: 'chat',
+  chatSubScreen: 'sessions',
 
-  setScreen: (screen) => {
-    const prev = get().screen
-    if (prev !== screen) {
-      set({ screen, previousScreen: prev })
-    }
-  },
+  setScreen: (screen) => set({ screen, activeTab: 'chat', chatSubScreen: 'sessions' }),
 
-  goBack: () => {
-    const prev = get().previousScreen
-    if (prev) {
-      set({ screen: prev, previousScreen: null })
-    }
-  },
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  pushChat: () => set({ chatSubScreen: 'chat' }),
+
+  popChat: () => set({ chatSubScreen: 'sessions' }),
 }))

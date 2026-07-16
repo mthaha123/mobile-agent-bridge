@@ -27,7 +27,8 @@ export const ChatScreen: React.FC = () => {
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
-  const setScreen = useUiStore((s) => s.setScreen)
+  const popChat = useUiStore((s) => s.popChat)
+  const chatSubScreen = useUiStore((s) => s.chatSubScreen)
 
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<TextInput>(null)
@@ -40,6 +41,12 @@ export const ChatScreen: React.FC = () => {
       return () => clearTimeout(timer)
     }
   }, [messages.length, waiting])
+
+  useEffect(() => {
+    if (chatSubScreen === 'chat' && !activeSessionId) {
+      popChat()
+    }
+  }, [chatSubScreen, activeSessionId])
 
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
@@ -85,7 +92,7 @@ export const ChatScreen: React.FC = () => {
   }
 
   const handleBack = () => {
-    setScreen('sessions')
+    popChat()
   }
 
   if (!activeSessionId) {

@@ -45,7 +45,7 @@ export const SessionsScreen: React.FC = () => {
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const switchProject = useProjectStore((s) => s.switchProject)
-  const setScreen = useUiStore((s) => s.setScreen)
+  const pushChat = useUiStore((s) => s.pushChat)
 
   const handleOpenSwitch = () => {
     setSwitchDirInput(directory || '')
@@ -69,19 +69,23 @@ export const SessionsScreen: React.FC = () => {
     loadSessions()
   }, [loadSessions])
 
+  useEffect(() => {
+    if (directory) loadSessions()
+  }, [directory])
+
   const handleCreateSession = async () => {
     const client = useAuthStore.getState().client
     if (!client) return
     const id = await createSession(client.call.bind(client))
     if (id) {
       useChatStore.getState().setActiveSession(id)
-      setScreen('chat')
+      pushChat()
     }
   }
 
   const handleSelectSession = (sessionId: string) => {
     useChatStore.getState().setActiveSession(sessionId)
-    setScreen('chat')
+    pushChat()
   }
 
   const handleDeleteSession = (sessionId: string, sessionName: string) => {
@@ -103,14 +107,7 @@ export const SessionsScreen: React.FC = () => {
     )
   }
 
-  const handleBack = () => {
-    useAuthStore.getState().logout()
-    setScreen('connect')
-  }
 
-  const handleOpenFiles = () => {
-    setScreen('filebrowser')
-  }
 
   const renderSession = ({ item }: { item: import('../stores/sessionStore').Session }) => {
     const displayName = item.name || `Session ${item.id.slice(0, 8)}`
@@ -156,18 +153,10 @@ export const SessionsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.headerBackText}>{'< Back'}</Text>
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Sessions</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleOpenFiles} style={styles.headerIconBtn}>
-            <Text style={styles.headerActionText}>📁</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleCreateSession}>
-            <Text style={styles.headerActionText}>+ New</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={handleCreateSession} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+          <Text style={styles.headerActionText}>+ New</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.projectBar}>
@@ -182,6 +171,7 @@ export const SessionsScreen: React.FC = () => {
           onPress={handleOpenSwitch}
           disabled={switching}
           activeOpacity={0.7}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           {switching ? (
             <ActivityIndicator size="small" color="#4a9eff" />

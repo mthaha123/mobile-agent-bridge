@@ -1,10 +1,8 @@
 import React, { useEffect } from 'react'
 import { SafeAreaView, StatusBar, StyleSheet } from 'react-native'
 import { AppProvider } from './src/components/AppProvider'
+import { MainLayout } from './src/components/MainLayout'
 import { ConnectScreen } from './src/screens/ConnectScreen'
-import { SessionsScreen } from './src/screens/SessionsScreen'
-import { ChatScreen } from './src/screens/ChatScreen'
-import { FileBrowserScreen } from './src/screens/FileBrowserScreen'
 import { ToolApprovalSheet } from './src/screens/ToolApprovalSheet'
 import { QuestionSheet } from './src/screens/QuestionSheet'
 import { useAuthStore } from './src/stores/authStore'
@@ -17,7 +15,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (authenticated && screen === 'connect') {
-      setScreen('sessions')
+      setScreen('main')
     }
   }, [authenticated, screen, setScreen])
 
@@ -27,9 +25,7 @@ const App: React.FC = () => {
         <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
 
         {screen === 'connect' && <ConnectScreen />}
-        {screen === 'sessions' && <SessionsScreen />}
-        {screen === 'chat' && <ChatScreen />}
-        {screen === 'filebrowser' && <FileBrowserScreen />}
+        {screen === 'main' && <MainLayout />}
 
         <ToolApprovalSheet />
         <QuestionSheet />

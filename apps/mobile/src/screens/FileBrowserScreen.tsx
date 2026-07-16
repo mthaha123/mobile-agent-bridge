@@ -13,7 +13,6 @@ import {
 import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
-import { useUiStore } from '../stores/uiStore'
 
 export const FileBrowserScreen: React.FC = () => {
   const {
@@ -37,7 +36,6 @@ export const FileBrowserScreen: React.FC = () => {
 
   const client = useAuthStore((s) => s.client)
   const projectDir = useProjectStore((s) => s.directory)
-  const setScreen = useUiStore((s) => s.setScreen)
 
   const loadDirectory = useCallback(async (path: string) => {
     if (!client) return
@@ -102,10 +100,6 @@ export const FileBrowserScreen: React.FC = () => {
     }
   }
 
-  const handleBack = () => {
-    setScreen('sessions')
-  }
-
   const renderFileItem = ({ item }: { item: FileInfo }) => (
     <TouchableOpacity
       style={styles.fileItem}
@@ -143,9 +137,6 @@ export const FileBrowserScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>
           {currentPath}
         </Text>
