@@ -292,4 +292,24 @@ describe('ProjectSwitcher', () => {
     )
     expect(() => act(() => { browseBtns[0].props.onPress() })).not.toThrow()
   })
+
+  it('calls onDismiss after successful switch', async () => {
+    const onDismiss = jest.fn()
+    act(() => {
+      useProjectStore.setState({ directory: '/old', switching: false })
+    })
+    const tree = TestRenderer.create(
+      <ProjectSwitcher visible={true} onDismiss={onDismiss} />,
+    )
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.props?.onPress === 'function',
+    )
+    const switchBtn = pressables.find(
+      (n: any) => n.props?.children?.props?.children === 'Switch Project',
+    )
+    expect(switchBtn).toBeDefined()
+
+    await act(async () => { await switchBtn!.props.onPress() })
+    expect(onDismiss).toHaveBeenCalled()
+  })
 })

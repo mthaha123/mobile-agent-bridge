@@ -16,8 +16,9 @@ function createReplyCall(client: BridgeClient): (id: string, approved: boolean) 
   return async (id: string, approved: boolean) => {
     const { pendingApprovals } = useToolStore.getState()
     const item = pendingApprovals.find((a) => a.id === id)
+    if (!item) return
     await client.call('permission.reply', {
-      sessionId: item?.sessionId || '',
+      sessionId: item.sessionId,
       id,
       reply: approved ? 'once' : 'reject',
     })
@@ -50,8 +51,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setToolReplyCall(createReplyCall(client))
     setQuestionReplyCall(async (id: string, answers: string[]) => {
-      const sessionId = useQuestionStore.getState().pending.find((q) => q.id === id)?.sessionId || ''
-      await client.call('question.reply', { id, sessionId, answers })
+      const found = useQuestionStore.getState().pending.find((q) => q.id === id)
+      if (!found) return
+      await client.call('question.reply', { id, sessionId: found.sessionId, answers })
     })
 
     client.on('notification', (method: string, payload: any) => {

@@ -221,6 +221,20 @@ describe('SessionsScreen — interactions', () => {
     expect(client.call).toHaveBeenCalledWith('session.list', expect.anything())
   })
 
+  it('shows Alert when creating session without client', async () => {
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    const pressables = findAllPressable(tree)
+    const newBtn = pressables.find((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t.includes('+ New')
+    })
+    expect(newBtn).toBeDefined()
+    act(() => { newBtn!.props.onPress() })
+    expect(Alert.alert).toHaveBeenCalledWith('Error', '未连接到服务器')
+  })
+
   it('Alert.alert is mocked for session delete confirmation', () => {
     expect(Alert.alert).toBeDefined()
     Alert.alert('Delete Session', 'Are you sure?', [

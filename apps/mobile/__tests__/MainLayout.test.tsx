@@ -166,6 +166,17 @@ describe('MainLayout', () => {
   })
 })
 
+// ─── Unknown activeTab ────────────────────────────────────
+
+describe('MainLayout — unknown activeTab', () => {
+  it('renders sessions screen as default for unknown tab', () => {
+    setup({ activeTab: 'unknown-tab' as any, chatSubScreen: 'chat' })
+    useChatStore.setState({ activeSessionId: null })
+    const tree = TestRenderer.create(<MainLayout />)
+    expect(textOf(tree)).toContain('Sessions')
+  })
+})
+
 // ─── Task 8: client.on events are tracked ─────────────────
 
 describe('MainLayout — client.on event tracking', () => {

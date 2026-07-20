@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
@@ -69,7 +70,7 @@ export const ChatScreen: React.FC = () => {
       } catch (e: any) {
         useChatStore.getState().addMessage({
           role: 'system',
-          content: `发送失败: ${e.message}`,
+          content: `发送失败: ${e?.message || String(e) || '未知错误'}`,
         })
         useChatStore.getState().setWaiting(false)
       }
@@ -80,7 +81,7 @@ export const ChatScreen: React.FC = () => {
 
   const handleNewSession = async () => {
     const client = useAuthStore.getState().client
-    if (!client) return
+    if (!client) { Alert.alert('Error', '未连接到服务器'); return }
     const id = await createSession(client.call.bind(client))
     if (id) {
       useChatStore.getState().setActiveSession(id)

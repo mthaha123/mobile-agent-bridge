@@ -1,5 +1,6 @@
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
+import { Alert } from 'react-native'
 import { ChatScreen } from '../src/screens/ChatScreen'
 import { useChatStore } from '../src/stores/chatStore'
 import { useAuthStore } from '../src/stores/authStore'
@@ -240,6 +241,28 @@ describe('ChatScreen', () => {
     expect(mockCall).not.toHaveBeenCalled()
   })
 
+  it('non-Error throw does not produce "undefined" in error message', async () => {
+    const mockCall = jest.fn().mockRejectedValue('raw string error')
+    const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1', inputText: 'Hello' })
+
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const sendBtn = tree.root.find(
+      (n: any) => typeof n.props?.onPress === 'function' && n.props?.disabled !== undefined,
+    )
+
+    await act(async () => { await sendBtn.props.onPress() })
+
+    const msgs = useChatStore.getState().messages
+    const errorMsg = msgs.find((m: any) => m.role === 'system' && m.content.includes('发送失败'))
+    expect(errorMsg).toBeDefined()
+    expect(errorMsg!.content).not.toContain('undefined')
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+
   it('null activeSessionId shows empty state with new session button', () => {
     useChatStore.setState({ activeSessionId: null })
     const tree = TestRenderer.create(
@@ -450,5 +473,21 @@ describe('ChatScreen', () => {
     useChatStore.setState({ activeSessionId: 's1', inputText: 'hello' })
     useAuthStore.setState({ client: null as any })
     act(() => { useChatStore.getState().setInputText('hello') })
+  })
+
+  it('shows Alert when new session without client', () => {
+    useChatStore.setState({ activeSessionId: null })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.props?.onPress === 'function',
+    )
+    const newBtn = pressables.find(
+      (n: any) => n.props?.children?.props?.children === '+ New Session',
+    )
+    expect(newBtn).toBeDefined()
+    act(() => { newBtn!.props.onPress() })
+    expect(Alert.alert).toHaveBeenCalledWith('Error', '未连接到服务器')
   })
 })

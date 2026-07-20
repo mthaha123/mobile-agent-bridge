@@ -80,7 +80,7 @@ export const SessionsScreen: React.FC = () => {
 
   const handleCreateSession = async () => {
     const client = useAuthStore.getState().client
-    if (!client) return
+    if (!client) { Alert.alert('Error', '未连接到服务器'); return }
     const id = await createSession(client.call.bind(client))
     if (id) {
       useChatStore.getState().setActiveSession(id)

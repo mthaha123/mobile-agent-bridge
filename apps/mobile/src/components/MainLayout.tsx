@@ -40,6 +40,8 @@ export const MainLayout: React.FC = () => {
         return <FileBrowserScreen />
       case 'settings':
         return <SettingsScreen />
+      default:
+        return <SessionsScreen />
     }
   }
 

@@ -171,7 +171,7 @@ describe('ToolApprovalSheet', () => {
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 
-  it('overlay tap calls handleDismiss', () => {
+  it('overlay tap calls handleDismiss — items remain queued', () => {
     act(() => {
       useToolStore.getState().enqueue({
         id: 'a1',
@@ -183,6 +183,7 @@ describe('ToolApprovalSheet', () => {
     })
 
     const tree = TestRenderer.create(<ToolApprovalSheet />)
+    expect(useToolStore.getState().pendingApprovals).toHaveLength(1)
 
     const touchables = tree.root.findAll(
       (n: any) => typeof n.props?.onPress === 'function' && n.props?.activeOpacity === 1,
@@ -190,6 +191,8 @@ describe('ToolApprovalSheet', () => {
     if (touchables.length > 0) {
       act(() => { touchables[0].props.onPress() })
     }
+
+    expect(useToolStore.getState().pendingApprovals).toHaveLength(1)
   })
 
   it('renders with null args without crashing', () => {

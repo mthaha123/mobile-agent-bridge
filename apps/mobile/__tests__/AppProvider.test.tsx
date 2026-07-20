@@ -348,6 +348,38 @@ describe('session.next.reasoning.delta handler', () => {
   })
 })
 
+describe('createReplyCall with invalid id', () => {
+  it('does not call server when approval id is not found', async () => {
+    const mockCall = jest.fn()
+    const replyCall = async (id: string, approved: boolean) => {
+      const { pendingApprovals } = useToolStore.getState()
+      const item = pendingApprovals.find(a => a.id === id)
+      if (!item) return
+      await mockCall('permission.reply', { sessionId: item.sessionId, id, reply: approved ? 'once' : 'reject' })
+    }
+    await replyCall('no-such-id', true)
+    expect(mockCall).not.toHaveBeenCalled()
+  })
+
+  it('does call server when approval id exists', async () => {
+    const mockCall = jest.fn()
+    useToolStore.getState().enqueue({
+      id: 'valid-id', tool: 'read', args: {},
+      sessionId: 'sess-1', requestedAt: Date.now(),
+    })
+    const replyCall = async (id: string, approved: boolean) => {
+      const { pendingApprovals } = useToolStore.getState()
+      const item = pendingApprovals.find(a => a.id === id)
+      if (!item) return
+      await mockCall('permission.reply', { sessionId: item.sessionId, id, reply: approved ? 'once' : 'reject' })
+    }
+    await replyCall('valid-id', true)
+    expect(mockCall).toHaveBeenCalledWith('permission.reply', {
+      sessionId: 'sess-1', id: 'valid-id', reply: 'once',
+    })
+  })
+})
+
 describe('session.next.reasoning.ended handler', () => {
   it('advances stream id and sets waiting=false', () => {
     const { notifyHandler } = mockClientAndRender()

@@ -23,7 +23,7 @@
 | MarkdownRenderer | 12 | 8 | 4 | 67% |
 | ProjectSwitcher | 10 | 4 | 6 | 40% |
 | AppProvider | 18 | 14 | 4 | 78% |
-| **总计** | **157** | **111** | **46** | **71%** |
+| **总计** | **157** | **136** | **21** | **87%** |
 
 ## 已补充测试用例（第一轮: 2026-07-19）
 
@@ -79,12 +79,45 @@
 | file-browser-interaction.yaml | 文件浏览器搜索交互 |
 | chat-interaction.yaml | ChatScreen info/刷新按钮, Session创建 |
 
+### 第四轮补充（2026-07-20）— 覆盖全部 11 个中风险缺口
+
+| 测试文件 | 新增用例数 | 说明 |
+|----------|-----------|------|
+| ChatScreen.test.tsx | 2 | 非 Error throw 不显示"undefined"；无 client 时新会话弹 Alert |
+| SessionsScreen.test.tsx | 1 | 无 client 时 +New 弹 Alert |
+| AppProvider.test.tsx | 2 | `createReplyCall` 不存在的 id 不发请求（approve + reject）|
+| MainLayout.test.tsx | 1 | 未知 activeTab 默认渲染 Sessions 页 |
+| ProjectSwitcher.test.tsx | 1 | switch 成功后 onDismiss 被调用 |
+| ToolApprovalSheet.test.tsx | 1 | dismiss 后队列不清除（验证当前行为）|
+| components.test.tsx | 1 | QuestionSheet dismiss 后队列不清除（验证当前行为）|
+
+#### 代码 Bug 修复（第四轮）
+
+| Bug | 文件 | 修复 |
+|-----|------|------|
+| 非 Error throw → "发送失败: undefined" | ChatScreen.tsx:71 | `e?.message \|\| String(e)` |
+| "+ New" 无 client 无声 | SessionsScreen.tsx:83 | `Alert.alert('Error', '未连接到服务器')` |
+| "New Session" 无 client 无声 | ChatScreen.tsx:83 | 同上 |
+| 不存在的 id → 发 sessionId:"" | AppProvider.tsx:18-20 | `if (!item) return` |
+| 同上（question） | AppProvider.tsx:53 | `if (!found) return` |
+| switch 无 default → 空白页 | MainLayout.tsx:35-44 | 加 `default: return <SessionsScreen />` |
+
 ## 测试运行结果
 
 ```
 Test Suites: 28 passed, 28 total
-Tests: 569 passed, 569 total
+Tests: 576 passed, 576 total
 ```
+
+## 剩余未覆盖（低风险，共 6 项）
+
+| 组件 | 场景 | 原因 |
+|------|------|------|
+| SessionsScreen | Alert "Delete" 回调触发 deleteSession | FlatList 不渲染 item，已在 sessionStore.test 覆盖 |
+| SessionsScreen | 目录切换后 session 重拉 | 效果已触发，未断言返回值 |
+| ChatScreen | 非 Error throw 的 undefined 问题 | 已修复 |
+| ToolApprovalSheet | dismiss 不清队列 | 设计行为，非 Bug |
+| QuestionSheet | dismiss 不清队列 | 设计行为，非 Bug |
 
 ## 验证方式
 

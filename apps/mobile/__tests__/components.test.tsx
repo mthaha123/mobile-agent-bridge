@@ -855,7 +855,7 @@ describe('QuestionSheet', () => {
     expect(useQuestionStore.getState().pending[0].id).toBe('q2')
   })
 
-  it('dismisses when visible is set to false', () => {
+  it('dismisses when visible is set to false — items remain queued', () => {
     act(() => {
       useQuestionStore.getState().addQuestion({
         id: 'q1', sessionId: 's1',
@@ -863,9 +863,11 @@ describe('QuestionSheet', () => {
       })
     })
     expect(useQuestionStore.getState().visible).toBe(true)
+    expect(useQuestionStore.getState().pending).toHaveLength(1)
 
     act(() => { useQuestionStore.setState({ visible: false }) })
     expect(useQuestionStore.getState().visible).toBe(false)
+    expect(useQuestionStore.getState().pending).toHaveLength(1)
   })
 
   it('handles multiple questions in queue before any submit', () => {
