@@ -1,5 +1,5 @@
 /**
- * AppProvider tests — project.changed event handler
+ * AppProvider tests — notification handler coverage
  */
 
 import React from 'react'
@@ -13,31 +13,23 @@ import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useQuestionStore } from '../src/stores/questionStore'
+import { useSessionStore } from '../src/stores/sessionStore'
+import { mockClient, resetAllStores } from './test-utils'
 
 function mockClientAndRender(): { notifyHandler: (method: string, payload: any) => void } {
   let notifyHandler: ((method: string, payload: any) => void) | null = null
-  const mockClient = {
-    on: jest.fn().mockImplementation((event: string, handler: any) => {
-      if (event === 'notification') { notifyHandler = handler }
-    }),
-    call: jest.fn(), connect: jest.fn(), disconnect: jest.fn(),
-    destroy: jest.fn(), connected: true, token: 'mock-token',
-  }
+  const client = mockClient()
+  client.on = jest.fn().mockImplementation((event: string, handler: any) => {
+    if (event === 'notification') { notifyHandler = handler }
+    return jest.fn()
+  })
   TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
-  TestRenderer.act(() => { useAuthStore.setState({ client: mockClient as any }) })
+  TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
   return { notifyHandler: notifyHandler! }
 }
 
 function resetStores() {
-  useAuthStore.setState({
-    bridgeUrl: '', token: null, authenticated: false,
-    loading: false, error: null, client: null,
-  })
-  useProjectStore.setState({ directory: '', project: null, switching: false })
-  useToolProgressStore.setState({ activeCalls: [] })
-  useDiffStore.setState({ diffs: {} })
-  useTodoStore.setState({ todos: {} })
-  useQuestionStore.setState({ pending: [] })
+  resetAllStores()
 }
 
 beforeEach(() => {
@@ -315,5 +307,245 @@ describe('createReplyCall sends correct WS frames', () => {
     const pending = useQuestionStore.getState().pending
     expect(pending).toHaveLength(1)
     expect(pending[0].id).toBe('q-1')
+  })
+})
+
+// ─── Missing handler tests ──────────────────────────────────
+
+describe('session.next.text.ended handler', () => {
+  it('finalizes assistant content and sets waiting=false', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.text.ended', {
+        assistantMessageID: 'msg-1',
+        text: 'Final answer',
+      })
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+    const msgs = useChatStore.getState().messages
+    expect(msgs.some(m => m.content === 'Final answer')).toBe(true)
+  })
+})
+
+describe('session.next.reasoning.delta handler', () => {
+  it('appends reasoning delta to chat store', () => {
+    const { notifyHandler } = mockClientAndRender()
+    const spy = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.reasoning.delta', {
+        assistantMessageID: 'msg-1',
+        delta: 'Thinking...',
+        eventId: 1,
+      })
+    })
+
+    expect(spy).toHaveBeenCalledWith('msg-1', 'Thinking...', 1)
+    spy.mockRestore()
+  })
+})
+
+describe('session.next.reasoning.ended handler', () => {
+  it('advances stream id and sets waiting=false', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+    const spy = jest.spyOn(useChatStore.getState(), 'advanceStreamId')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.reasoning.ended', {
+        assistantMessageID: 'msg-1',
+        eventId: 3,
+      })
+    })
+
+    expect(spy).toHaveBeenCalledWith('msg-1', 3)
+    expect(useChatStore.getState().waiting).toBe(false)
+    spy.mockRestore()
+  })
+})
+
+describe('session.error handler', () => {
+  it('adds system error message and sets waiting=false', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.error', {
+        error: 'Connection lost',
+      })
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+    const msgs = useChatStore.getState().messages
+    expect(msgs.some(m => m.role === 'system' && m.content.includes('Connection lost'))).toBe(true)
+  })
+})
+
+describe('session.idle handler', () => {
+  it('sets waiting=false', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.idle', {})
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+})
+
+describe('session.next.step.started handler', () => {
+  it('sets waiting=true', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: false })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.step.started', {})
+    })
+
+    expect(useChatStore.getState().waiting).toBe(true)
+  })
+})
+
+describe('session.next.step.ended handler', () => {
+  it('sets waiting=false', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.step.ended', {})
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+})
+
+describe('unknown notification method', () => {
+  it('does not crash on unknown method', () => {
+    const { notifyHandler } = mockClientAndRender()
+
+    expect(() => {
+      TestRenderer.act(() => {
+        notifyHandler!('unknown.xyz', { someData: true })
+      })
+    }).not.toThrow()
+  })
+})
+
+// ─── auth_expired handler tests ─────────────────────────────
+
+describe('auth_expired handler', () => {
+  it('calls logout when auth_expired event is emitted', () => {
+    const logoutSpy = jest.spyOn(useAuthStore.getState(), 'logout')
+    let authExpiredHandler: (() => void) | null = null
+    const client = mockClient()
+    client.on = jest.fn().mockImplementation((event: string, handler: any) => {
+      if (event === 'auth_expired') { authExpiredHandler = handler }
+      return jest.fn()
+    })
+
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
+
+    expect(authExpiredHandler).toBeTruthy()
+
+    TestRenderer.act(() => { authExpiredHandler!() })
+
+    expect(logoutSpy).toHaveBeenCalled()
+    logoutSpy.mockRestore()
+  })
+})
+
+// ─── teardownClient tests ────────────────────────────────────
+
+describe('teardownClient', () => {
+  it('calls destroy when client is set to null', () => {
+    const client = mockClient()
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
+
+    expect(client.destroy).not.toHaveBeenCalled()
+
+    TestRenderer.act(() => { useAuthStore.setState({ client: null }) })
+
+    expect(client.destroy).toHaveBeenCalled()
+  })
+
+  it('cleans up on unmount', () => {
+    const client = mockClient()
+    let tree: TestRenderer.ReactTestRenderer
+    TestRenderer.act(() => {
+      tree = TestRenderer.create(<AppProvider>{null}</AppProvider>)
+    })
+    TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
+
+    expect(client.destroy).not.toHaveBeenCalled()
+
+    TestRenderer.act(() => { tree!.unmount() })
+
+    expect(client.destroy).toHaveBeenCalled()
+  })
+})
+
+describe('session.next.text.ended handler', () => {
+  it('sets waiting=false even without msg id or text', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.text.ended', {})
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+})
+
+describe('session.next.reasoning.delta handler', () => {
+  it('appends reasoning delta without eventId via updateLastAssistant', () => {
+    const { notifyHandler } = mockClientAndRender()
+    const spy = jest.spyOn(useChatStore.getState(), 'updateLastAssistant')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.reasoning.delta', {
+        assistantMessageID: 'msg-1',
+        delta: 'Raw reasoning',
+      })
+    })
+
+    expect(spy).toHaveBeenCalledWith('Raw reasoning')
+    spy.mockRestore()
+  })
+})
+
+describe('session.status handler', () => {
+  it('patches session info when sessionID is provided', () => {
+    const { notifyHandler } = mockClientAndRender()
+    const spy = jest.spyOn(useSessionStore.getState(), 'patchSession')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.status', {
+        sessionID: 'sess-1',
+        status: { type: 'busy' },
+        session: { name: 'My Session' },
+      })
+    })
+
+    expect(spy).toHaveBeenCalledWith('sess-1', { name: 'My Session' })
+    spy.mockRestore()
+  })
+})
+
+describe('setupClient', () => {
+  it('registers notification and auth_expired listeners on client', () => {
+    const client = mockClient()
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
+
+    const events = client.on.mock.calls.map((c: any[]) => c[0])
+    expect(events).toContain('notification')
+    expect(events).toContain('auth_expired')
   })
 })

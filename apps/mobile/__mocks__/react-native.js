@@ -29,7 +29,10 @@ module.exports = {
   TextInput: mockRefComponent('TextInput'),
   TouchableOpacity: mockComponent('TouchableOpacity'),
   ScrollView: mockRefComponent('ScrollView'),
-  FlatList: mockRefComponent('FlatList'),
+  FlatList: React.forwardRef((props, ref) => {
+    const { children, ...rest } = props
+    return React.createElement('FlatList', { ...rest, ref }, children)
+  }),
   Modal: mockComponent('Modal'),
   ActivityIndicator: mockComponent('ActivityIndicator'),
   KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),

@@ -94,16 +94,19 @@ export const ToolApprovalSheet: React.FC = () => {
                 style={styles.argsContainer}
                 showsVerticalScrollIndicator={false}
               >
-                {Object.entries(pending.args).map(([key, value]) => (
-                  <View key={key} style={styles.argRow}>
-                    <Text style={styles.argKey}>{key}</Text>
-                    <Text style={styles.argValue}>
-                      {typeof value === 'object' && value !== null
-                        ? JSON.stringify(value, null, 2)
-                        : String(value)}
-                    </Text>
-                  </View>
-                ))}
+                {pending.args && typeof pending.args === 'object'
+                  ? Object.entries(pending.args).map(([key, value]) => (
+                      <View key={key} style={styles.argRow}>
+                        <Text style={styles.argKey}>{key}</Text>
+                        <Text style={styles.argValue}>
+                          {typeof value === 'object' && value !== null
+                            ? JSON.stringify(value, null, 2)
+                            : String(value)}
+                        </Text>
+                      </View>
+                    ))
+                  : null
+                }
               </ScrollView>
 
               <View style={styles.actions}>

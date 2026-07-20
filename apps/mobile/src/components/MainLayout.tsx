@@ -19,10 +19,13 @@ export const MainLayout: React.FC = () => {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const client = useAuthStore((s) => s.client)
 
-  const [connected, setConnected] = useState(() => client?.connected ?? true)
+  const [connected, setConnected] = useState(() => client?.connected ?? false)
 
   useEffect(() => {
-    if (!client) return
+    if (!client) {
+      setConnected(false)
+      return
+    }
     setConnected(client.connected)
     const offConnected = client.on('connected', () => setConnected(true))
     const offDisconnected = client.on('disconnected', () => setConnected(false))

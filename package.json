@@ -6,6 +6,13 @@
     "bridge:build": "cd servers/bridge && pnpm build",
     "bridge:test": "cd servers/bridge && pnpm test",
     "mobile:android": "cd apps/mobile && npx react-native run-android",
+    "e2e:nav": ".maestro\\maestro.cmd test .maestro\\flows\\navigation.yaml",
+    "e2e:buttons": ".maestro\\maestro.cmd test .maestro\\flows\\sessions-buttons.yaml",
+    "e2e:journey": ".maestro\\maestro.cmd test .maestro\\flows\\full-journey.yaml",
+    "e2e:smoke": ".maestro\\maestro.cmd test .maestro\\flows\\smoke.yaml",
+    "e2e:filebrowser": ".maestro\\maestro.cmd test .maestro\\flows\\file-browser-interaction.yaml",
+    "e2e:chat": ".maestro\\maestro.cmd test .maestro\\flows\\chat-interaction.yaml",
+    "e2e:all": ".maestro\\maestro.cmd test .maestro\\flows\\smoke.yaml",
     "clean": "rm -rf servers/*/dist apps/*/node_modules"
   },
   "devDependencies": {

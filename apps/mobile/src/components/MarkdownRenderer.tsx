@@ -31,6 +31,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
 // 渲染 Markdown 内容
 export function renderMarkdown(content: string): React.ReactNode[] {
+  if (typeof content !== 'string') return []
   const lines = content.split('\n')
   const elements: React.ReactNode[] = []
   let i = 0
@@ -47,7 +48,7 @@ export function renderMarkdown(content: string): React.ReactNode[] {
         codeLines.push(lines[i])
         i++
       }
-      i++ // 跳过结束的 ```
+      if (i < lines.length) i++ // 跳过结束的 ```（仅当存在时）
       elements.push(
         <CodeBlock
           key={`code-${elements.length}`}

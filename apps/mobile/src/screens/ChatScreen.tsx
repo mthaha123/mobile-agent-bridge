@@ -73,6 +73,8 @@ export const ChatScreen: React.FC = () => {
         })
         useChatStore.getState().setWaiting(false)
       }
+    } else {
+      useChatStore.getState().setWaiting(false)
     }
   }
 

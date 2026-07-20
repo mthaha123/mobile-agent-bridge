@@ -248,7 +248,7 @@ const WebFetchRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
       <Text style={styles.url} numberOfLines={1}>{url}</Text>
       {content ? (
         <Text style={styles.contentPreview} numberOfLines={2}>
-          {content.slice(0, 200)}...
+          {content.length > 200 ? content.slice(0, 200) + '...' : content}
         </Text>
       ) : null}
     </View>

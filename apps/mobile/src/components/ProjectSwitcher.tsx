@@ -10,7 +10,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  FlatList,
+  ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native'
@@ -155,20 +155,18 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({ onDismiss }) =
           {browseLoading ? (
             <ActivityIndicator size="small" color="#007AFF" style={styles.loading} />
           ) : (
-            <FlatList
-              data={files}
-              keyExtractor={(item) => item.name}
-              renderItem={({ item }) => (
+            <ScrollView style={styles.browserList}>
+              {files.map((item) => (
                 <TouchableOpacity
+                  key={item.name}
                   style={styles.browserItem}
                   onPress={() => handleEnterDirectory(item.name)}
                 >
                   <Text style={styles.browserItemIcon}>📁</Text>
                   <Text style={styles.browserItemName}>{item.name}</Text>
                 </TouchableOpacity>
-              )}
-              style={styles.browserList}
-            />
+              ))}
+            </ScrollView>
           )}
 
           <TouchableOpacity

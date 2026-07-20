@@ -16,6 +16,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (authenticated && screen === 'connect') {
       setScreen('main')
+    } else if (!authenticated && screen === 'main') {
+      setScreen('connect')
     }
   }, [authenticated, screen, setScreen])
 

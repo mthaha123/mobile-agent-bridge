@@ -32,9 +32,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const unsub = useAuthStore.subscribe((state, prev) => {
       if (state.client && state.client !== prev.client) {
+        if (prev.client) prev.client.destroy()
         setupClient(state.client)
-      }
-      if (!state.client && prev.client) {
+      } else if (!state.client && prev.client) {
         teardownClient()
       }
     })

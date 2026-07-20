@@ -16,7 +16,7 @@ import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useUiStore } from '../stores/uiStore'
 
-function formatRelativeTime(isoDate: string): string {
+export function formatRelativeTime(isoDate: string): string {
   const now = Date.now()
   const date = new Date(isoDate).getTime()
   const diffMs = now - date
@@ -28,9 +28,12 @@ function formatRelativeTime(isoDate: string): string {
 
   if (seconds < 60) return 'just now'
   if (minutes < 60) return `${minutes}m ago`
-  if (hours < 60) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
-  return new Date(isoDate).toLocaleDateString()
+  if (days >= 1) {
+    if (days < 7) return `${days}d ago`
+    return new Date(isoDate).toLocaleDateString()
+  }
+  if (hours >= 1) return `${hours}h ago`
+  return `${minutes}m ago`
 }
 
 export const SessionsScreen: React.FC = () => {
@@ -56,6 +59,8 @@ export const SessionsScreen: React.FC = () => {
     if (switchDirInput.trim()) {
       setShowSwitchModal(false)
       await switchProject(switchDirInput.trim())
+    } else {
+      Alert.alert('Error', '请输入项目目录路径')
     }
   }
 

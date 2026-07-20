@@ -88,6 +88,28 @@
 - 禁止直接运行 `./gradlew` 或 `npx react-native build-android`（阻塞 > 2s 违反核心原则）。
 - 如果构建脚本需要 timeout 兜底，在 `-ScriptBlock` 内部用 `Start-Process -Wait -TimeoutSeconds 180`，而不是外部等待。
 
+## E2E 模拟器测试（Maestro 原生 Windows）
+
+Maestro **有 Windows 原生版本**（不需要 WSL2），安装在项目目录 `.maestro/`。
+
+- **安装**：`.maestro/` 目录 — `bin/` + `lib/`，免配置
+- **启动器**：`.maestro/maestro.cmd`（自动设置 JAVA_HOME = JDK 17）
+- **流程文件**：`.maestro/flows/*.yaml` — Maestro YAML 格式
+- **调试输出**：`%USERPROFILE%\.maestro\tests\` — 含截图和 UI hierarchy
+
+运行方式：
+```
+npm run e2e:nav          # 导航测试（Tab 切换）
+npm run e2e:buttons      # 按钮测试（Switch/Cancel）
+npm run e2e:all          # 全部测试（2 个流程）
+.maestro\maestro.cmd list-devices  # 查看设备
+.maestro\maestro.cmd hierarchy     # 查看 UI 层级
+```
+
+**触摸注入**：Maestro 使用 Android 原生事件注入（非 `adb shell input tap`），含正确 DOWN/UP 时序。
+
+**前置条件**：模拟器已运行、APK 已安装、Bridge 服务器已启动。
+
 ## SSE / fetch 阻塞（代码层约束）
 
 - **禁止在 tsx 环境下使用 SDK 的 `fetch` 通道**（`req.timeout = false` 在 tsx 下会导致 hang）。所有 OpenCode API 调用必须走 `opencodeFetch()`（基于 Node.js `http` 模块）。
