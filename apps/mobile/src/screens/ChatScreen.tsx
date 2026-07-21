@@ -49,6 +49,22 @@ export const ChatScreen: React.FC = () => {
     }
   }, [chatSubScreen, activeSessionId])
 
+  useEffect(() => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    let cancelled = false
+    ;(async () => {
+      const msgs = await useSessionStore.getState().getSessionMessages(activeSessionId, client.call.bind(client))
+      if (!cancelled && msgs.length > 0) {
+        msgs.forEach((m: any) => useChatStore.getState().addMessage({
+          role: m.role || 'assistant',
+          content: m.content || m.text || '',
+        }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [activeSessionId])
+
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
 
@@ -58,23 +74,28 @@ export const ChatScreen: React.FC = () => {
 
     useChatStore.getState().addMessage({ role: 'user', content: text })
     setInputText('')
-    useChatStore.getState().setWaiting(true)
 
     const client = useAuthStore.getState().client
-    if (client) {
-      try {
+    if (!client) return
+
+    useChatStore.getState().setWaiting(true)
+
+    try {
+      if (text.startsWith('!')) {
+        await useChatStore.getState().shellCommand(activeSessionId, text.slice(1).trim(), client.call.bind(client))
+      } else if (text.startsWith('/')) {
+        await useChatStore.getState().writeCommand(activeSessionId, text, client.call.bind(client))
+      } else {
         await client.call('message.send', {
           sessionId: activeSessionId,
           message: text,
         })
-      } catch (e: any) {
-        useChatStore.getState().addMessage({
-          role: 'system',
-          content: `发送失败: ${e?.message || String(e) || '未知错误'}`,
-        })
-        useChatStore.getState().setWaiting(false)
       }
-    } else {
+    } catch (e: any) {
+      useChatStore.getState().addMessage({
+        role: 'system',
+        content: `发送失败: ${e?.message || String(e) || '未知错误'}`,
+      })
       useChatStore.getState().setWaiting(false)
     }
   }

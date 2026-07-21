@@ -187,18 +187,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   shellCommand: async (sessionId, command, clientCall) => {
-    try {
-      await clientCall('message.shell', { sessionId, command })
-    } finally {
-      set({ waiting: false })
-    }
+    await clientCall('message.shell', { sessionId, command })
   },
 
   writeCommand: async (sessionId, command, clientCall) => {
-    try {
-      await clientCall('message.command', { sessionId, command })
-    } finally {
-      set({ waiting: false })
-    }
+    await clientCall('message.command', { sessionId, command })
   },
 }))

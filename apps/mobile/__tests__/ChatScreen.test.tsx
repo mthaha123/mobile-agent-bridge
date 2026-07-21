@@ -241,6 +241,7 @@ describe('ChatScreen', () => {
       (n: any) => typeof n.props?.onPress === 'function' && n.props?.disabled !== undefined,
     )
     expect(sendBtn.props.disabled).toBe(true)
+    mockCall.mockClear()
     expect(mockCall).not.toHaveBeenCalled()
   })
 
