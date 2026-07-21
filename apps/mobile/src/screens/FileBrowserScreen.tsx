@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Modal,
 } from 'react-native'
 import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
@@ -36,6 +37,8 @@ export const FileBrowserScreen: React.FC = () => {
 
   const client = useAuthStore((s) => s.client)
   const projectDir = useProjectStore((s) => s.directory)
+
+  const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
 
   const loadDirectory = useCallback(async (path: string) => {
     if (!client) return
@@ -84,6 +87,10 @@ export const FileBrowserScreen: React.FC = () => {
     }
   }
 
+  const handleFileLongPress = (file: FileInfo) => {
+    setFileInfoTarget(file)
+  }
+
   const handleSearch = async () => {
     if (!searchQuery.trim() || !client) return
 
@@ -106,6 +113,7 @@ export const FileBrowserScreen: React.FC = () => {
     <TouchableOpacity
       style={styles.fileItem}
       onPress={() => handleFilePress(item)}
+      onLongPress={() => handleFileLongPress(item)}
     >
       <Text style={styles.fileIcon}>
         {item.type === 'directory' ? '📁' : item.type === 'symlink' ? '🔗' : '📄'}
@@ -215,6 +223,64 @@ export const FileBrowserScreen: React.FC = () => {
           }
         />
       )}
+
+      <Modal
+        visible={!!fileInfoTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFileInfoTarget(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setFileInfoTarget(null)}
+        >
+          <View style={styles.fileInfoModal}>
+            <Text style={styles.fileInfoTitle}>
+              {fileInfoTarget?.type === 'directory' ? '📁' : fileInfoTarget?.type === 'symlink' ? '🔗' : '📄'}{' '}
+              {fileInfoTarget?.name}
+            </Text>
+            <View style={styles.fileInfoRow}>
+              <Text style={styles.fileInfoLabel}>Path</Text>
+              <Text style={styles.fileInfoValue}>{currentPath}/{fileInfoTarget?.name}</Text>
+            </View>
+            <View style={styles.fileInfoRow}>
+              <Text style={styles.fileInfoLabel}>Type</Text>
+              <Text style={styles.fileInfoValue}>{fileInfoTarget?.type}</Text>
+            </View>
+            {fileInfoTarget?.type !== 'directory' && (
+              <View style={styles.fileInfoRow}>
+                <Text style={styles.fileInfoLabel}>Size</Text>
+                <Text style={styles.fileInfoValue}>{formatSize(fileInfoTarget?.size || 0)}</Text>
+              </View>
+            )}
+            {fileInfoTarget?.modified && (
+              <View style={styles.fileInfoRow}>
+                <Text style={styles.fileInfoLabel}>Modified</Text>
+                <Text style={styles.fileInfoValue}>{fileInfoTarget.modified}</Text>
+              </View>
+            )}
+            {fileInfoTarget?.permissions && (
+              <View style={styles.fileInfoRow}>
+                <Text style={styles.fileInfoLabel}>Permissions</Text>
+                <Text style={styles.fileInfoValue}>{fileInfoTarget.permissions}</Text>
+              </View>
+            )}
+            {fileInfoTarget?.type !== 'directory' && (
+              <TouchableOpacity
+                style={styles.fileInfoAction}
+                onPress={() => {
+                  const target = fileInfoTarget
+                  setFileInfoTarget(null)
+                  if (target) handleFilePress(target)
+                }}
+              >
+                <Text style={styles.fileInfoActionText}>Open File</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   )
 }
@@ -371,5 +437,56 @@ const styles = StyleSheet.create({
     color: '#eee',
     fontSize: 14,
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  fileInfoModal: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
+    padding: 20,
+    width: '85%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+  fileInfoTitle: {
+    color: '#eee',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  fileInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#16213e',
+  },
+  fileInfoLabel: {
+    color: '#888',
+    fontSize: 14,
+    flex: 1,
+  },
+  fileInfoValue: {
+    color: '#eee',
+    fontSize: 14,
+    flex: 2,
+    textAlign: 'right',
+  },
+  fileInfoAction: {
+    marginTop: 16,
+    backgroundColor: '#0f3460',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  fileInfoActionText: {
+    color: '#4a9eff',
+    fontSize: 16,
+    fontWeight: '500',
   },
 })

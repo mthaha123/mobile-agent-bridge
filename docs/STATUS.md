@@ -160,7 +160,7 @@
 | `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ❌ 需 messageID |
 | `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ❌ 同上 |
 | `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ❌ 低优 |
-| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ❌ 未实现 |
+| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ✅ |
 
 ### SSE 事件未处理
 
@@ -185,5 +185,6 @@
 | `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |
 | Agent 类型选择 UI | `SlashSheet.tsx` + `ChatScreen.tsx` | — |
 | 斜杠命令参考 UI | `SlashSheet.tsx` | — |
+| 文件属性详情 (file.info) | `FileBrowserScreen.tsx` | — |
 | `config.get` 配置展示 | `SettingsScreen.tsx` | — |
 | `vcs.get` VCS 状态展示 | `SettingsScreen.tsx` | — |
