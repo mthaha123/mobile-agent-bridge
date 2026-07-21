@@ -1,4 +1,4 @@
-# 开发进度
+﻿# 开发进度
 
 ## 已完成
 
@@ -71,7 +71,7 @@
 | 类型 | 文件 | 数量 | 状态 |
 |------|------|:----:|:----:|
 | Bridge 单元测试 | `servers/bridge/__tests__/*.test.ts` | 99 | ✅ 全通过 |
-| Mobile 单元测试 | `apps/mobile/__tests__/*.test.*` | 576 | ✅ 全通过 |
+| | Mobile 单元测试 | pps/mobile/__tests__/*.test.* | 576 | ✅ 全通过 |
 | E2E (Bridge) | `servers/bridge/scripts/e2e.mjs` | ~51 场景 | ✅ |
 | E2E (SSE) | `servers/bridge/scripts/e2e-sse.mjs` | 2 场景 | ✅ |
 | E2E (Android) | `scripts/android-test.mjs` | 24 场景 | ✅ 19/22 通过, 3 跳过 |
