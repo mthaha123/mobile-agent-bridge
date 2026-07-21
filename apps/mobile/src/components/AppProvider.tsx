@@ -71,6 +71,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     useConfigStore.getState().fetchAgents(call)
     useConfigStore.getState().fetchProviders(call)
     useConfigStore.getState().fetchCommands(call)
+    useConfigStore.getState().fetchVcs(call)
+    useConfigStore.getState().fetchConfig(call)
 
     client.on('notification', (method: string, payload: any) => {
       // 流式文本增量（带 eventId 排序重组）

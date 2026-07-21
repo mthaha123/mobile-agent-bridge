@@ -147,20 +147,20 @@
 
 ### RPC 方法有 Store 实现但无 UI 调用
 
-| 方法 | Store 方法 | 缺口说明 | 预估工时 |
-|------|-----------|----------|:-------:|
-| `config.agents` | `configStore.fetchAgents()` | 无 Agent 选择界面，用户只能盲打 `/agent xxx` | 4h |
-| `config.providers` | `configStore.fetchProviders()` | 无 Provider 展示页面 | 2h |
-| `config.get` | `configStore.fetchConfig()` | 无配置信息展示 | 2h |
-| `command.list` | `configStore.fetchCommands()` | 用户不知道有哪些斜杠命令可用 | 2h |
-| `vcs.get` | `configStore.fetchVcs()` | 无 VCS 状态展示 | 1h |
-| `session.rename` | `sessionStore.renameSession()` | 无法重命名会话 | 1h |
-| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h |
-| `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h |
-| `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h |
-| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h |
-| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h |
-| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h |
+| 方法 | Store 方法 | 缺口说明 | 预估工时 | 状态 |
+|------|-----------|----------|:-------:|:----:|
+| `config.agents` | `configStore.fetchAgents()` | 无 Agent 选择界面，用户只能盲打 `/agent xxx` | 4h | ✅ |
+| `config.providers` | `configStore.fetchProviders()` | 无 Provider 展示页面 | 2h | ✅ |
+| `config.get` | `configStore.fetchConfig()` | 无配置信息展示 | 2h | ✅ |
+| `command.list` | `configStore.fetchCommands()` | 用户不知道有哪些斜杠命令可用 | 2h | ✅ |
+| `vcs.get` | `configStore.fetchVcs()` | 无 VCS 状态展示 | 1h | ✅ |
+| `session.rename` | `sessionStore.renameSession()` | 无法重命名会话 | 1h | ✅ |
+| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h | ❌ 功能已合并到 rename |
+| `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h | ✅ |
+| `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ❌ 需 messageID |
+| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ❌ 同上 |
+| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ❌ 低优 |
+| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ❌ 未实现 |
 
 ### SSE 事件未处理
 
@@ -185,3 +185,5 @@
 | `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |
 | Agent 类型选择 UI | `SlashSheet.tsx` + `ChatScreen.tsx` | — |
 | 斜杠命令参考 UI | `SlashSheet.tsx` | — |
+| `config.get` 配置展示 | `SettingsScreen.tsx` | — |
+| `vcs.get` VCS 状态展示 | `SettingsScreen.tsx` | — |

@@ -2,6 +2,7 @@ import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useConfigStore } from '../stores/configStore'
 import { useUiStore } from '../stores/uiStore'
 
 export const SettingsScreen: React.FC = () => {
@@ -10,6 +11,12 @@ export const SettingsScreen: React.FC = () => {
   const directory = useProjectStore((s) => s.directory)
   const logout = useAuthStore((s) => s.logout)
   const setScreen = useUiStore((s) => s.setScreen)
+
+  const vcs = useConfigStore((s) => s.vcs) as Record<string, unknown> | null
+  const vcsType = vcs?.type || vcs?.vcs || ''
+  const vcsBranch = vcs?.branch || vcs?.currentBranch || ''
+  const agents = useConfigStore((s) => s.agents) as Array<{ name?: string }>
+  const providers = useConfigStore((s) => s.providers) as Array<{ name?: string; id?: string }>
 
   const handleDisconnect = () => {
     logout()
@@ -40,6 +47,42 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.rowLabel}>Directory</Text>
           <Text style={styles.rowValue} numberOfLines={1}>{directory || '(none)'}</Text>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>VCS</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Type</Text>
+          <Text style={styles.rowValue}>{vcsType ? String(vcsType) : '(none)'}</Text>
+        </View>
+        {vcsBranch ? (
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Branch</Text>
+            <Text style={styles.rowValue}>{String(vcsBranch)}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Providers ({providers.length})</Text>
+        {providers.length > 0 ? providers.slice(0, 5).map((p, i) => (
+          <View key={i} style={styles.row}>
+            <Text style={styles.rowLabel}>{p.name || p.id || `Provider ${i + 1}`}</Text>
+          </View>
+        )) : (
+          <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Agents ({agents.length})</Text>
+        {agents.length > 0 ? agents.slice(0, 5).map((a, i) => (
+          <View key={i} style={styles.row}>
+            <Text style={styles.rowLabel}>{a.name || `Agent ${i + 1}`}</Text>
+          </View>
+        )) : (
+          <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
+        )}
       </View>
 
       <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
