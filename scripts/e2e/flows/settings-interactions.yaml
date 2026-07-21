@@ -1,0 +1,26 @@
+# Settings Screen — Interactions
+# Tests Disconnect button and navigation back to Sessions
+---
+- stopApp
+- launchApp
+- waitForVisible: "Sessions"
+
+# Navigate to Settings
+- tapOn: "Settings"
+- waitForVisible: "Disconnect"
+- assertVisible: "Connected"
+- screenshot: "20-settings-screen"
+
+# Go back to Chat tab
+- tapOn: "Chat"
+- waitForVisible: "Sessions"
+- screenshot: "21-back-from-settings"
+
+# Navigate to Files
+- tapOn: "Files"
+- waitForVisible: "Search"
+- screenshot: "22-files-screen"
+
+# Back to Chat
+- tapOn: "Chat"
+- waitForVisible: "Sessions"

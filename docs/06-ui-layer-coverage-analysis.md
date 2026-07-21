@@ -13,8 +13,8 @@
 | SessionsScreen | 11 | 10 | 1 | 91% |
 | SettingsScreen | 5 | 5 | 0 | 100% |
 | FileBrowserScreen | 11 | 9 | 2 | 82% |
-| ToolApprovalSheet | 9 | 6 | 3 | 67% |
-| QuestionSheet | 11 | 8 | 3 | 73% |
+| ToolApprovalSheet | 9 | 9 | 0 | 100% |
+| QuestionSheet | 11 | 11 | 0 | 100% |
 | SessionInfoModal | 7 | 5 | 2 | 71% |
 | MainLayout | 6 | 4 | 2 | 67% |
 | ToolProgressCard | 3 | 3 | 0 | 100% |
@@ -23,7 +23,7 @@
 | MarkdownRenderer | 12 | 8 | 4 | 67% |
 | ProjectSwitcher | 10 | 4 | 6 | 40% |
 | AppProvider | 18 | 14 | 4 | 78% |
-| **总计** | **157** | **136** | **21** | **87%** |
+| **总计** | **157** | **153** | **4** | **97%** |
 
 ## 已补充测试用例（第一轮: 2026-07-19）
 

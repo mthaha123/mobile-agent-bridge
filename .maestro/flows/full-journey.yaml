@@ -1,0 +1,30 @@
+appId: com.mobileagentbridge
+---
+# ─── 启动 app ───────────────────────────────────
+- launchApp
+
+# ─── 导航测试：Tab 切换 ──────────────────────
+- tapOn: "Files"
+- assertVisible: "Search"
+
+- tapOn: "Settings"
+- assertVisible: "Disconnect"
+
+- tapOn: "Chat"
+- assertVisible: "+ New"
+- assertVisible: "Switch"
+
+# ─── 按钮测试：Switch 弹窗 ────────────────────
+- tapOn: "Switch"
+- assertVisible: "Cancel"
+- assertVisible: "Switch Project"
+- tapOn: "Cancel"
+- assertVisible: "+ New"
+
+# ─── 创建会话 + Chat 导航 ────────────────────
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 15000
+- tapOn: "< Sessions"
+- assertVisible: "+ New"

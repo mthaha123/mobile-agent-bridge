@@ -1,0 +1,23 @@
+appId: com.mobileagentbridge
+---
+# Chat screen interaction test (info, refresh, new session)
+
+# Navigate to Chat tab
+- tapOn: "Chat"
+- assertVisible: "+ New"
+
+# Create a new session
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 15000
+
+# Session info button should be visible
+- assertVisible: "ℹ"
+
+# Refresh button should be visible
+- assertVisible: "↻"
+
+# Navigate back to Sessions
+- tapOn: "< Sessions"
+- assertVisible: "+ New"

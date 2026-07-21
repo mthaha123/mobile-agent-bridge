@@ -26,8 +26,9 @@ export interface ToolState {
   enqueue: (approval: ToolApproval) => void
   dequeue: (id: string) => void
   setVisible: (v: boolean) => void
-  approve: (id: string, replyCall: (id: string, approved: boolean) => Promise<void>) => Promise<void>
-  reject: (id: string, replyCall: (id: string, approved: boolean) => Promise<void>) => Promise<void>
+  approve: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
+  reject: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
+  alwaysAllow: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
 }
 
 export const useToolStore = create<ToolState>((set, get) => ({
@@ -54,12 +55,17 @@ export const useToolStore = create<ToolState>((set, get) => ({
   setVisible: (visible) => set({ visible }),
 
   approve: async (id, replyCall) => {
-    await replyCall(id, true)
+    await replyCall(id, 'once')
     get().dequeue(id)
   },
 
   reject: async (id, replyCall) => {
-    await replyCall(id, false)
+    await replyCall(id, 'reject')
+    get().dequeue(id)
+  },
+
+  alwaysAllow: async (id, replyCall) => {
+    await replyCall(id, 'always')
     get().dequeue(id)
   },
 }))

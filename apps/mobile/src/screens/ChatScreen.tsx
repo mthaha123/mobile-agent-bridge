@@ -88,6 +88,12 @@ export const ChatScreen: React.FC = () => {
     }
   }
 
+  const handleAbort = async () => {
+    const client = useAuthStore.getState().client
+    if (!client || !activeSessionId) return
+    await useChatStore.getState().abortMessage(activeSessionId, client.call.bind(client))
+  }
+
   const handleRefreshSessions = async () => {
     const client = useAuthStore.getState().client
     if (!client) return
@@ -214,13 +220,19 @@ export const ChatScreen: React.FC = () => {
           onSubmitEditing={handleSend}
           editable={!waiting}
         />
-        <TouchableOpacity
-          style={[styles.sendButton, (!inputText.trim() || waiting) && styles.sendButtonDisabled]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || waiting}
-        >
-          <Text style={styles.sendButtonText}>➤</Text>
-        </TouchableOpacity>
+        {waiting ? (
+          <TouchableOpacity style={styles.stopButton} onPress={handleAbort}>
+            <Text style={styles.stopButtonText}>■</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim()}
+          >
+            <Text style={styles.sendButtonText}>➤</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <SessionInfoModal
@@ -378,5 +390,18 @@ const styles = StyleSheet.create({
   sendButtonText: {
     color: '#eee',
     fontSize: 18,
+  },
+  stopButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 })

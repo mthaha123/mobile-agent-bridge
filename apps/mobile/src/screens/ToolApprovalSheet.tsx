@@ -23,11 +23,11 @@ import { useToolStore } from '../stores/toolStore'
 // 由外部（如通知处理器）在 enqueue ToolApproval 时注册，
 // 用于将审批结果发回 Bridge 服务端。
 let _replyCall:
-  | ((id: string, approved: boolean) => Promise<void>)
+  | ((id: string, reply: 'once' | 'always' | 'reject') => Promise<void>)
   | null = null
 
 export function setToolReplyCall(
-  cb: (id: string, approved: boolean) => Promise<void>,
+  cb: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>,
 ): void {
   _replyCall = cb
 }
@@ -39,6 +39,7 @@ export const ToolApprovalSheet: React.FC = () => {
   const pendingApprovals = useToolStore((s) => s.pendingApprovals)
   const approve = useToolStore((s) => s.approve)
   const reject = useToolStore((s) => s.reject)
+  const alwaysAllow = useToolStore((s) => s.alwaysAllow)
   const setVisible = useToolStore((s) => s.setVisible)
 
   // 当可见但队列已空时自动关闭
@@ -57,6 +58,12 @@ export const ToolApprovalSheet: React.FC = () => {
   const handleReject = async (id: string) => {
     if (_replyCall) {
       await reject(id, _replyCall)
+    }
+  }
+
+  const handleAlwaysAllow = async (id: string) => {
+    if (_replyCall) {
+      await alwaysAllow(id, _replyCall)
     }
   }
 
@@ -123,6 +130,13 @@ export const ToolApprovalSheet: React.FC = () => {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.actionButtonText}>Approve</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.alwaysButton]}
+                  onPress={() => handleAlwaysAllow(pending.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Always Allow</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -200,6 +214,9 @@ const styles = StyleSheet.create({
   },
   rejectButton: {
     backgroundColor: '#e74c3c',
+  },
+  alwaysButton: {
+    backgroundColor: '#f39c12',
   },
   actionButtonText: {
     color: '#fff',

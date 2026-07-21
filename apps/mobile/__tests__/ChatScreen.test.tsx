@@ -8,6 +8,7 @@ import { useSessionStore } from '../src/stores/sessionStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useToolProgressStore } from '../src/stores/toolProgressStore'
+import { textOf } from './test-utils'
 
 const onNavigateToSessions = jest.fn()
 
@@ -123,15 +124,17 @@ describe('ChatScreen', () => {
     expect(sendBtn.props.disabled).toBe(true)
   })
 
-  it('send button is disabled when waiting', () => {
+  it('shows stop button when waiting', () => {
     useChatStore.setState({ activeSessionId: 's1', inputText: 'hello', waiting: true })
     const tree = TestRenderer.create(
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
-    const sendBtn = tree.root.find(
-      (n: any) => typeof n.props?.onPress === 'function' && n.props?.disabled !== undefined,
+    const stopText = tree.root.find(
+      (n: any) => typeof n.type === 'string' && n.children?.includes('■'),
     )
-    expect(sendBtn.props.disabled).toBe(true)
+    expect(stopText).toBeDefined()
+    const stopBtn = stopText.parent?.parent
+    expect(typeof stopBtn?.props?.onPress).toBe('function')
   })
 
   it('waiting shows "AI is thinking..." in store state', () => {

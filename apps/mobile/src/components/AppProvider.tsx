@@ -10,17 +10,17 @@ import { useTodoStore } from '../stores/todoStore'
 import { useQuestionStore } from '../stores/questionStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
-import { setQuestionReplyCall } from '../screens/QuestionSheet'
+import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
 
-function createReplyCall(client: BridgeClient): (id: string, approved: boolean) => Promise<void> {
-  return async (id: string, approved: boolean) => {
+function createReplyCall(client: BridgeClient): (id: string, reply: 'once' | 'always' | 'reject') => Promise<void> {
+  return async (id: string, reply: 'once' | 'always' | 'reject') => {
     const { pendingApprovals } = useToolStore.getState()
     const item = pendingApprovals.find((a) => a.id === id)
     if (!item) return
     await client.call('permission.reply', {
       sessionId: item.sessionId,
       id,
-      reply: approved ? 'once' : 'reject',
+      reply,
     })
   }
 }
@@ -29,6 +29,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const clientRef = useRef<BridgeClient | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     const unsub = useAuthStore.subscribe((state, prev) => {
@@ -49,7 +50,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   function setupClient(client: BridgeClient) {
     clientRef.current = client
 
+    refreshTimerRef.current = setInterval(() => {
+      useAuthStore.getState().refreshToken()
+    }, 25 * 60 * 1000)
+
     setToolReplyCall(createReplyCall(client))
+    setQuestionRejectCall(async (id: string) => {
+      const found = useQuestionStore.getState().pending.find((q) => q.id === id)
+      if (!found) return
+      await client.call('question.reject', { id, sessionId: found.sessionId })
+    })
     setQuestionReplyCall(async (id: string, answers: string[]) => {
       const found = useQuestionStore.getState().pending.find((q) => q.id === id)
       if (!found) return
@@ -61,6 +71,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (method === 'session.next.text.delta') {
         const delta = payload?.delta || ''
         const msgId = payload?.assistantMessageID || ''
+        const eventId = payload?.eventId
+        if (delta && msgId && typeof eventId === 'number') {
+          useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
+        } else if (delta) {
+          useChatStore.getState().updateLastAssistant(delta)
+        }
+      }
+
+      // SDK Part 字段增量（备选流式通道）
+      if (method === 'message.part.delta') {
+        const delta = payload?.data?.delta || payload?.delta || ''
+        const msgId = payload?.assistantMessageID || payload?.data?.assistantMessageID || ''
         const eventId = payload?.eventId
         if (delta && msgId && typeof eventId === 'number') {
           useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
@@ -231,6 +253,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   }
 
   function teardownClient() {
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
+    refreshTimerRef.current = null
+    setQuestionRejectCall(null)
     clientRef.current?.destroy()
     clientRef.current = null
   }

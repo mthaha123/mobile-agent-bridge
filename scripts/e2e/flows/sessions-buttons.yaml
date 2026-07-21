@@ -1,0 +1,21 @@
+# Sessions Screen — Button Tests
+# Tests New Session button, Switch button, and Switch modal Cancel
+---
+- stopApp
+- launchApp
+- waitForVisible: "Sessions"
+
+# Test "+ New" button
+- assertVisible: "New"
+- screenshot: "10-new-button"
+
+# Test "Switch" button opens modal
+- tapOn: "Switch"
+- waitForVisible: "Cancel"
+- assertVisible: "Switch Project"
+- screenshot: "11-switch-modal"
+
+# Dismiss with Cancel
+- tapOn: "Cancel"
+- waitForVisible: "Sessions"
+- screenshot: "12-after-cancel"

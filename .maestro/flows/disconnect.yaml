@@ -1,0 +1,11 @@
+appId: com.mobileagentbridge
+---
+- launchApp
+- tapOn: "Settings"
+- assertVisible: "Disconnect"
+- assertVisible: "Connected"
+- tapOn: "Disconnect"
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 10000
+- assertVisible: "Connect"

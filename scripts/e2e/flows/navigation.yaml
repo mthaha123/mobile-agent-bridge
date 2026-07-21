@@ -1,0 +1,24 @@
+# Navigation Flow — Tab switching
+---
+- stopApp
+- launchApp
+- waitForVisible: "Sessions"
+- assertVisible: "New"
+- assertVisible: "Switch"
+- screenshot: "01-sessions-start"
+
+# Tab: Chat → Files
+- tapOn: "Files"
+- waitForVisible: "Search"
+- screenshot: "02-files-tab"
+
+# Tab: Files → Settings
+- tapOn: "Settings"
+- waitForVisible: "Disconnect"
+- screenshot: "03-settings-tab"
+
+# Tab: Settings → Chat
+- tapOn: "Chat"
+- waitForVisible: "Sessions"
+- assertVisible: "New"
+- screenshot: "04-back-to-chat"

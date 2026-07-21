@@ -15,10 +15,20 @@ let _replyCall:
   | ((id: string, answers: string[]) => Promise<void>)
   | null = null
 
+let _rejectCall:
+  | ((id: string) => Promise<void>)
+  | null = null
+
 export function setQuestionReplyCall(
   cb: (id: string, answers: string[]) => Promise<void>,
 ): void {
   _replyCall = cb
+}
+
+export function setQuestionRejectCall(
+  cb: ((id: string) => Promise<void>) | null,
+): void {
+  _rejectCall = cb
 }
 
 export const QuestionSheet: React.FC = () => {
@@ -66,6 +76,12 @@ export const QuestionSheet: React.FC = () => {
       return (selected[i] || []).join(', ')
     })
     await _replyCall(current.id, answers)
+    removeQuestion(current.id)
+  }
+
+  const handleRejectQ = async () => {
+    if (!_rejectCall || !current) return
+    await _rejectCall(current.id)
     removeQuestion(current.id)
   }
 
@@ -151,13 +167,22 @@ export const QuestionSheet: React.FC = () => {
                 ))}
               </ScrollView>
 
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={handleSubmit}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.submitText}>Submit</Text>
-              </TouchableOpacity>
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.rejectBtn]}
+                  onPress={handleRejectQ}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Reject</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.submitBtn]}
+                  onPress={handleSubmit}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionButtonText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
             </>
           ) : (
             <Text style={styles.noItems}>No pending questions</Text>
@@ -205,6 +230,27 @@ const styles = StyleSheet.create({
     color: '#ccc',
     marginBottom: 12,
     lineHeight: 22,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  rejectBtn: {
+    backgroundColor: '#e74c3c',
+  },
+  submitBtn: {
+    backgroundColor: '#2ecc71',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   option: {
     backgroundColor: '#0f3460',

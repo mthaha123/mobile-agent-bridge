@@ -1,0 +1,14 @@
+appId: com.mobileagentbridge
+---
+# Create session + Chat screen navigation
+- tapOn: "Chat"
+- assertVisible: "+ New"
+
+# Create a new session
+- tapOn: "+ New"
+- assertVisible: "< Sessions"
+- assertVisible: "Session"
+
+# Navigate back to Sessions
+- tapOn: "< Sessions"
+- assertVisible: "+ New"

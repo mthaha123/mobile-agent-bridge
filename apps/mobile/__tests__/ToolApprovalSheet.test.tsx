@@ -75,7 +75,7 @@ describe('ToolApprovalSheet', () => {
     })
 
     await useToolStore.getState().approve('a1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a1', true)
+    expect(replyCall).toHaveBeenCalledWith('a1', 'once')
 
     const remaining = useToolStore.getState().pendingApprovals
     expect(remaining.find((a) => a.id === 'a1')).toBeUndefined()
@@ -88,7 +88,7 @@ describe('ToolApprovalSheet', () => {
     })
 
     await useToolStore.getState().reject('a2', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a2', false)
+    expect(replyCall).toHaveBeenCalledWith('a2', 'reject')
 
     const remaining = useToolStore.getState().pendingApprovals
     expect(remaining.find((a) => a.id === 'a2')).toBeUndefined()
@@ -256,7 +256,7 @@ describe('ToolApprovalSheet', () => {
       })
     })
     await useToolStore.getState().approve('a1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a1', true)
+    expect(replyCall).toHaveBeenCalledWith('a1', 'once')
   })
 
   it('reject action calls replyCall with approved=false', async () => {
@@ -268,7 +268,7 @@ describe('ToolApprovalSheet', () => {
       })
     })
     await useToolStore.getState().reject('a2', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a2', false)
+    expect(replyCall).toHaveBeenCalledWith('a2', 'reject')
   })
 
   it('does not crash when replyCall is null on approve', async () => {

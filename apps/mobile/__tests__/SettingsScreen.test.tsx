@@ -102,7 +102,7 @@ describe('SettingsScreen', () => {
 // ─── 交互测试 ─────────────────────────────────────────────
 
 describe('SettingsScreen — interactions', () => {
-  it('Disconnect button calls logout and navigates to connect', () => {
+  it('Disconnect button calls logout and navigates to connect', async () => {
     const client = mockClient()
     act(() => {
       useAuthStore.setState({
@@ -121,7 +121,7 @@ describe('SettingsScreen — interactions', () => {
     })
     expect(disconnectBtn).toBeDefined()
 
-    act(() => { disconnectBtn!.props.onPress() })
+    await act(async () => { disconnectBtn!.props.onPress() })
 
     expect(useAuthStore.getState().authenticated).toBe(false)
     expect(useAuthStore.getState().client).toBeNull()

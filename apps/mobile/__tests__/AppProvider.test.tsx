@@ -266,7 +266,7 @@ describe('createReplyCall sends correct WS frames', () => {
     const replyCall = jest.fn()
     await useToolStore.getState().approve('req-1', replyCall)
 
-    expect(replyCall).toHaveBeenCalledWith('req-1', true)
+    expect(replyCall).toHaveBeenCalledWith('req-1', 'once')
   })
 
   it('permission.reply sends {reply: "reject"} when approved=false', async () => {
@@ -276,7 +276,7 @@ describe('createReplyCall sends correct WS frames', () => {
       sessionId: 'sess-1', requestedAt: Date.now(),
     })
     await useToolStore.getState().reject('req-2', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('req-2', false)
+    expect(replyCall).toHaveBeenCalledWith('req-2', 'reject')
   })
 
   it('question reply calls question.reply (not question.v2.reply)', () => {

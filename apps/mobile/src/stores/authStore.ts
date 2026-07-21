@@ -87,9 +87,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: () => {
+  logout: async () => {
     const { client } = get()
-    client?.destroy()
+    if (client) {
+      try { await client.call('auth.logout', {}) } catch {}
+      client.destroy()
+    }
     set({
       client: null,
       token: null,

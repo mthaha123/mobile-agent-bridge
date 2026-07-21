@@ -1,0 +1,22 @@
+appId: com.mobileagentbridge
+---
+# File Browser interaction test
+
+# Navigate to Files tab
+- tapOn: "Files"
+- assertVisible: "Search"
+- assertVisible: "Search files"
+
+# Enter search query
+- tapOn: "Search files"
+- inputText: "index.ts"
+- pressKey: Enter
+
+# Verify search results (timeout for search to complete)
+- extendedWaitUntil:
+    visible: "index.ts"
+    timeout: 15000
+
+# Clear search
+- tapOn: "✕"
+- assertVisible: "Search files"

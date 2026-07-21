@@ -1,0 +1,6 @@
+appId: com.mobileagentbridge
+---
+# Navigate to Files tab
+- tapOn: "Files"
+- assertVisible: "Search"
+- assertVisible: "Search files"

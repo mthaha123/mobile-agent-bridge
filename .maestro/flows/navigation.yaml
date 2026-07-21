@@ -1,0 +1,14 @@
+appId: com.mobileagentbridge
+---
+- tapOn: "Chat"
+- assertVisible: "Sessions"
+- assertVisible: "+ New"
+
+- tapOn: "Files"
+- assertVisible: "Search"
+
+- tapOn: "Settings"
+- assertVisible: "Disconnect"
+
+- tapOn: "Chat"
+- assertVisible: "+ New"

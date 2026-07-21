@@ -190,7 +190,7 @@ describe('Tool approval flow', () => {
 
     // approve
     await useToolStore.getState().approve('req-1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('req-1', true)
+    expect(replyCall).toHaveBeenCalledWith('req-1', 'once')
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
     expect(useToolStore.getState().visible).toBe(false)
   })
@@ -205,7 +205,7 @@ describe('Tool approval flow', () => {
     expect(useToolStore.getState().visible).toBe(true)
 
     await useToolStore.getState().reject('req-2', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('req-2', false)
+    expect(replyCall).toHaveBeenCalledWith('req-2', 'reject')
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
     expect(useToolStore.getState().visible).toBe(false)
   })
@@ -386,7 +386,7 @@ describe('Full app flow simulation', () => {
     // Step 8: Approve tool
     const replyCall = jest.fn()
     await useToolStore.getState().approve('approve-1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('approve-1', true)
+    expect(replyCall).toHaveBeenCalledWith('approve-1', 'once')
 
     // Step 9: Tool progress updates
     useToolProgressStore.getState().updateProgress('call-1', { content: ['writing...'] })

@@ -1,0 +1,12 @@
+appId: com.mobileagentbridge
+---
+- assertVisible: "+ New"
+- assertVisible: "Switch"
+
+# Open Switch modal
+- tapOn: "Switch"
+- assertVisible: "Cancel"
+- assertVisible: "Switch Project"
+
+# Dismiss modal
+- tapOn: "Cancel"

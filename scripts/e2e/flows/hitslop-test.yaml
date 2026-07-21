@@ -1,0 +1,30 @@
+# Button Response Tests
+# Verify key buttons exist and are tappable
+# hitSlop boundary verification is done via unit tests (MainLayout.test.tsx)
+# because hitSlop is a JS-layer concept; ADB injection events go through
+# Android native hit-testing and cannot reach JS hitSlop handling.
+---
+- stopApp
+- launchApp
+- waitForVisible: "Sessions"
+
+# "+ New" button visible
+- assertVisible: "New"
+- screenshot: "30-new-button"
+
+# "Switch" button → opens modal
+- tapOn: "Switch"
+- waitForVisible: "Cancel"
+- assertVisible: "Switch Project"
+- screenshot: "31-switch-modal"
+
+# Dismiss modal
+- tapOn: "Cancel"
+- waitForVisible: "Sessions"
+- screenshot: "32-after-cancel"
+
+# Navigate to Settings, verify buttons
+- tapOn: "Settings"
+- waitForVisible: "Disconnect"
+- assertVisible: "Connected"
+- screenshot: "33-settings-buttons"

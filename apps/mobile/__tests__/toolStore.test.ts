@@ -66,14 +66,14 @@ describe('toolStore', () => {
   it('approve calls replyCall with true then dequeues', async () => {
     useToolStore.getState().enqueue(createApproval({ id: 'a1' }))
     await useToolStore.getState().approve('a1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a1', true)
+    expect(replyCall).toHaveBeenCalledWith('a1', 'once')
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 
   it('reject calls replyCall with false then dequeues', async () => {
     useToolStore.getState().enqueue(createApproval({ id: 'a1' }))
     await useToolStore.getState().reject('a1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('a1', false)
+    expect(replyCall).toHaveBeenCalledWith('a1', 'reject')
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 

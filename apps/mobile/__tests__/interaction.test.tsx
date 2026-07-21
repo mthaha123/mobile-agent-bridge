@@ -156,7 +156,7 @@ describe('ToolApprovalSheet — user interaction', () => {
 
     const replyCall = jest.fn()
     await useToolStore.getState().approve('req-1', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('req-1', true)
+    expect(replyCall).toHaveBeenCalledWith('req-1', 'once')
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 
@@ -170,7 +170,7 @@ describe('ToolApprovalSheet — user interaction', () => {
 
     const replyCall = jest.fn()
     await useToolStore.getState().reject('req-2', replyCall)
-    expect(replyCall).toHaveBeenCalledWith('req-2', false)
+    expect(replyCall).toHaveBeenCalledWith('req-2', 'reject')
   })
 })
 
