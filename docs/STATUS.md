@@ -180,4 +180,6 @@
 |------|------|:----:|
 | `permission.v2.replied` handler | `AppProvider.tsx` | — |
 | Session 重命名 | `SessionInfoModal.tsx` | — |
+| Session Fork 按钮 | `SessionInfoModal.tsx` | — |
+| 连接后加载 agents/providers/commands | `AppProvider.tsx` | — |
 | `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |

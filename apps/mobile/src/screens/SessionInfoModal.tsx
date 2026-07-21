@@ -45,6 +45,22 @@ export const SessionInfoModal: React.FC<{
     }
   }
 
+  const handleFork = async () => {
+    if (!sessionId || !client) return
+    try {
+      const newId = await useSessionStore.getState().forkSession(sessionId, client.call.bind(client))
+      if (newId) {
+        Alert.alert('Forked', `New session: ${newId.slice(0, 8)}...`)
+        onClose()
+        await useSessionStore.getState().fetchSessions(client.call.bind(client))
+      } else {
+        Alert.alert('Error', 'Fork returned no session ID')
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to fork session')
+    }
+  }
+
   return (
     <Modal
       visible={visible}
@@ -84,12 +100,17 @@ export const SessionInfoModal: React.FC<{
             ) : (
               <>
                 <Text style={styles.title} numberOfLines={1}>{sessionName || 'Session Info'}</Text>
-                <TouchableOpacity
-                  onPress={() => { setNewName(sessionName || ''); setRenaming(true) }}
-                  style={styles.renameBtn}
-                >
-                  <Text style={styles.renameIcon}>✏️</Text>
-                </TouchableOpacity>
+                <View style={styles.titleActions}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={handleFork}>
+                    <Text style={styles.actionBtnText}>Fork</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => { setNewName(sessionName || ''); setRenaming(true) }}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.actionBtnText}>✏️</Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -208,11 +229,20 @@ const styles = StyleSheet.create({
     color: '#eee',
     flex: 1,
   },
-  renameBtn: {
-    padding: 4,
+  titleActions: {
+    flexDirection: 'row',
+    gap: 6,
   },
-  renameIcon: {
-    fontSize: 16,
+  actionBtn: {
+    backgroundColor: '#0f3460',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  actionBtnText: {
+    color: '#8ab4f8',
+    fontSize: 13,
+    fontWeight: '600',
   },
   renameRow: {
     flexDirection: 'row',

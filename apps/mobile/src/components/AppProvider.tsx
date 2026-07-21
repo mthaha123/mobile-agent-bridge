@@ -8,6 +8,7 @@ import { useToolProgressStore } from '../stores/toolProgressStore'
 import { useDiffStore } from '../stores/diffStore'
 import { useTodoStore } from '../stores/todoStore'
 import { useQuestionStore } from '../stores/questionStore'
+import { useConfigStore } from '../stores/configStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
@@ -65,6 +66,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!found) return
       await client.call('question.reply', { id, sessionId: found.sessionId, answers })
     })
+
+    const call = client.call.bind(client)
+    useConfigStore.getState().fetchAgents(call)
+    useConfigStore.getState().fetchProviders(call)
+    useConfigStore.getState().fetchCommands(call)
 
     client.on('notification', (method: string, payload: any) => {
       // 流式文本增量（带 eventId 排序重组）
