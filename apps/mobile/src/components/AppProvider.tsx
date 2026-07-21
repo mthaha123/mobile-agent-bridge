@@ -180,6 +180,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
+      // 审批结果确认
+      if (method === 'permission.v2.replied') {
+        useToolStore.getState().dequeue(payload?.id || '')
+      }
+
       // session 状态变更
       if (method === 'session.status') {
         const statusType = payload?.status?.type

@@ -7,9 +7,13 @@ import {
   Modal,
   ScrollView,
   Platform,
+  TextInput,
+  Alert,
 } from 'react-native'
 import { useDiffStore, FileDiff } from '../stores/diffStore'
 import { useTodoStore, TodoItem } from '../stores/todoStore'
+import { useSessionStore, Session } from '../stores/sessionStore'
+import { useAuthStore } from '../stores/authStore'
 
 type Tab = 'diff' | 'todo'
 
@@ -19,9 +23,27 @@ export const SessionInfoModal: React.FC<{
   onClose: () => void
 }> = ({ visible, sessionId, onClose }) => {
   const [tab, setTab] = useState<Tab>('diff')
+  const [renaming, setRenaming] = useState(false)
+  const [newName, setNewName] = useState('')
 
   const diffs = useDiffStore((s) => (sessionId ? s.diffs[sessionId] ?? [] : []))
   const todos = useTodoStore((s) => (sessionId ? s.todos[sessionId] ?? [] : []))
+  const sessions = useSessionStore((s) => s.sessions)
+  const client = useAuthStore((s) => s.client)
+
+  const currentSession = sessions.find((s: Session) => s.id === sessionId)
+  const sessionName = currentSession?.name || ''
+
+  const handleRename = async () => {
+    const name = newName.trim()
+    if (!name || !sessionId || !client) return
+    try {
+      await useSessionStore.getState().renameSession(sessionId, name, client.call.bind(client))
+      setRenaming(false)
+    } catch {
+      Alert.alert('Error', 'Failed to rename session')
+    }
+  }
 
   return (
     <Modal
@@ -40,7 +62,37 @@ export const SessionInfoModal: React.FC<{
           activeOpacity={1}
           onPress={() => {}}
         >
-          <Text style={styles.title}>Session Info</Text>
+          <View style={styles.titleRow}>
+            {renaming ? (
+              <View style={styles.renameRow}>
+                <TextInput
+                  style={styles.renameInput}
+                  value={newName}
+                  onChangeText={setNewName}
+                  onSubmitEditing={handleRename}
+                  placeholder="Session name"
+                  placeholderTextColor="#666"
+                  autoFocus
+                />
+                <TouchableOpacity style={styles.renameSaveBtn} onPress={handleRename}>
+                  <Text style={styles.renameSaveText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setRenaming(false)}>
+                  <Text style={styles.renameCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.title} numberOfLines={1}>{sessionName || 'Session Info'}</Text>
+                <TouchableOpacity
+                  onPress={() => { setNewName(sessionName || ''); setRenaming(true) }}
+                  style={styles.renameBtn}
+                >
+                  <Text style={styles.renameIcon}>✏️</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
 
           <View style={styles.tabs}>
             <TouchableOpacity
@@ -144,11 +196,53 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '80%',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: '#eee',
-    marginBottom: 12,
+    flex: 1,
+  },
+  renameBtn: {
+    padding: 4,
+  },
+  renameIcon: {
+    fontSize: 16,
+  },
+  renameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  renameInput: {
+    flex: 1,
+    backgroundColor: '#0f3460',
+    color: '#eee',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 16,
+  },
+  renameSaveBtn: {
+    backgroundColor: '#1a5276',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  renameSaveText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  renameCancelText: {
+    color: '#888',
+    fontSize: 14,
   },
   tabs: {
     flexDirection: 'row',

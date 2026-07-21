@@ -71,7 +71,7 @@
 | 类型 | 文件 | 数量 | 状态 |
 |------|------|:----:|:----:|
 | Bridge 单元测试 | `servers/bridge/__tests__/*.test.ts` | 99 | ✅ 全通过 |
-| | Mobile 单元测试 | pps/mobile/__tests__/*.test.* | 576 | ✅ 全通过 |
+| | Mobile 单元测试 | apps/mobile/__tests__/*.test.* | 557 | ✅ 全通过 |
 | E2E (Bridge) | `servers/bridge/scripts/e2e.mjs` | ~51 场景 | ✅ |
 | E2E (SSE) | `servers/bridge/scripts/e2e-sse.mjs` | 2 场景 | ✅ |
 | E2E (Android) | `scripts/android-test.mjs` | 24 场景 | ✅ 19/22 通过, 3 跳过 |
@@ -138,3 +138,46 @@
 | 断线重连 (Android) | 需要 Bridge 运行时测试 | 已在 Layer 4 标记 |
 | 并发多客户端 | 未覆盖 | 可选 |
 | 长时间运行稳定性 | 未覆盖 | 可选 |
+
+---
+
+## UI-Server 接口对齐盲区
+
+> 以下为 2026-07-21 审计结果：服务端已实现、但客户端无对应 UI 的功能缺口。
+
+### RPC 方法有 Store 实现但无 UI 调用
+
+| 方法 | Store 方法 | 缺口说明 | 预估工时 |
+|------|-----------|----------|:-------:|
+| `config.agents` | `configStore.fetchAgents()` | 无 Agent 选择界面，用户只能盲打 `/agent xxx` | 4h |
+| `config.providers` | `configStore.fetchProviders()` | 无 Provider 展示页面 | 2h |
+| `config.get` | `configStore.fetchConfig()` | 无配置信息展示 | 2h |
+| `command.list` | `configStore.fetchCommands()` | 用户不知道有哪些斜杠命令可用 | 2h |
+| `vcs.get` | `configStore.fetchVcs()` | 无 VCS 状态展示 | 1h |
+| `session.rename` | `sessionStore.renameSession()` | 无法重命名会话 | 1h |
+| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h |
+| `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h |
+| `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h |
+| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h |
+| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h |
+| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h |
+
+### SSE 事件未处理
+
+| 事件 | 类型 | 缺口说明 | 预估工时 |
+|------|------|----------|:-------:|
+| `permission.v2.replied` | 通知 | 服务器确认权限响应后无任何反馈 | 0.5h |
+
+### 未接入组件
+
+| 组件 | 说明 | 建议 |
+|------|------|------|
+| ~~`ProjectSwitcher.tsx`~~ | ~~完整功能但无人调用~~ | ✅ 已删除（2026-07-21） |
+
+### 已修复项（本轮解决）
+
+| 缺口 | 文件 | 提交 |
+|------|------|:----:|
+| `permission.v2.replied` handler | `AppProvider.tsx` | — |
+| Session 重命名 | `SessionInfoModal.tsx` | — |
+| `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |
