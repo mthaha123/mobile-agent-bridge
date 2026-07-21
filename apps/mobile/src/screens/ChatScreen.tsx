@@ -17,9 +17,11 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
+import { SlashSheet } from './SlashSheet'
 
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
+  const [slashSheetVisible, setSlashSheetVisible] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -115,6 +117,24 @@ export const ChatScreen: React.FC = () => {
     const client = useAuthStore.getState().client
     if (!client || !activeSessionId) return
     await useChatStore.getState().abortMessage(activeSessionId, client.call.bind(client))
+  }
+
+  const handleSlashSelect = async (command: string) => {
+    if (!activeSessionId) return
+    const client = useAuthStore.getState().client
+    if (!client) return
+    setSlashSheetVisible(false)
+    useChatStore.getState().addMessage({ role: 'user', content: command })
+    useChatStore.getState().setWaiting(true)
+    try {
+      await useChatStore.getState().writeCommand(activeSessionId, command, client.call.bind(client))
+    } catch (e: unknown) {
+      useChatStore.getState().addMessage({
+        role: 'system',
+        content: `发送失败: ${e instanceof Error ? e.message : String(e) || '未知错误'}`,
+      })
+      useChatStore.getState().setWaiting(false)
+    }
   }
 
   const handleRefreshSessions = async () => {
@@ -231,6 +251,9 @@ export const ChatScreen: React.FC = () => {
       />
 
       <View style={styles.inputContainer}>
+        <TouchableOpacity style={styles.cmdButton} onPress={() => setSlashSheetVisible(true)}>
+          <Text style={styles.cmdButtonText}>⌘</Text>
+        </TouchableOpacity>
         <TextInput
           ref={inputRef}
           style={styles.input}
@@ -262,6 +285,11 @@ export const ChatScreen: React.FC = () => {
         visible={infoModalVisible}
         sessionId={activeSessionId}
         onClose={() => setInfoModalVisible(false)}
+      />
+      <SlashSheet
+        visible={slashSheetVisible}
+        onClose={() => setSlashSheetVisible(false)}
+        onSelect={handleSlashSelect}
       />
     </KeyboardAvoidingView>
   )
@@ -389,9 +417,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginHorizontal: 12,
     marginVertical: 8,
-    paddingLeft: 16,
+    paddingLeft: 4,
     paddingRight: 4,
     paddingVertical: 4,
+  },
+  cmdButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cmdButtonText: {
+    fontSize: 18,
+    color: '#8ab4f8',
   },
   input: {
     flex: 1,

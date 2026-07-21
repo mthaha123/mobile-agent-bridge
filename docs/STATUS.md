@@ -183,3 +183,5 @@
 | Session Fork 按钮 | `SessionInfoModal.tsx` | — |
 | 连接后加载 agents/providers/commands | `AppProvider.tsx` | — |
 | `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |
+| Agent 类型选择 UI | `SlashSheet.tsx` + `ChatScreen.tsx` | — |
+| 斜杠命令参考 UI | `SlashSheet.tsx` | — |
