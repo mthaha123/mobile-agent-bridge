@@ -50,7 +50,6 @@ export interface SessionState {
   // Advanced session operations
   getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
   getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
-  updateSession: (id: string, title: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   renameSession: (id: string, name: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   getSessionTodo: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
   getSessionDiff: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
@@ -142,14 +141,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '获取会话消息失败' })
       return []
-    }
-  },
-
-  updateSession: async (id, title, clientCall) => {
-    try {
-      await clientCall('session.update', { sessionId: id, title })
-    } catch (e: unknown) {
-      console.warn('session.update failed:', e instanceof Error ? e.message : e)
     }
   },
 

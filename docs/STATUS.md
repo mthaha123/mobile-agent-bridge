@@ -155,7 +155,7 @@
 | `command.list` | `configStore.fetchCommands()` | 用户不知道有哪些斜杠命令可用 | 2h | ✅ |
 | `vcs.get` | `configStore.fetchVcs()` | 无 VCS 状态展示 | 1h | ✅ |
 | `session.rename` | `sessionStore.renameSession()` | 无法重命名会话 | 1h | ✅ |
-| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h | ❌ 功能已合并到 rename |
+| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h | ❌ 已删除（与 rename 等价） |
 | `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h | ✅ |
 | `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ❌ 需 messageID |
 | `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ✅ |

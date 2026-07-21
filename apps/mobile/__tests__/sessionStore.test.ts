@@ -282,35 +282,6 @@ describe('getSessionMessages', () => {
 })
 
 // ---------------------------------------------------------------------------
-// updateSession (RPC)
-// ---------------------------------------------------------------------------
-
-describe('updateSession (RPC)', () => {
-  it('calls session.update with title', async () => {
-    const clientCall = mockClientCall()
-    clientCall.mockResolvedValue(undefined)
-
-    await useSessionStore.getState().updateSession('sess-1', 'New Title', clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('session.update', {
-      sessionId: 'sess-1',
-      title: 'New Title',
-    })
-  })
-
-  it('warns on error', async () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation()
-    const clientCall = mockClientCall()
-    clientCall.mockRejectedValue(new Error('update failed'))
-
-    await useSessionStore.getState().updateSession('sess-1', 'Title', clientCall)
-
-    expect(warnSpy).toHaveBeenCalledWith('session.update failed:', 'update failed')
-    warnSpy.mockRestore()
-  })
-})
-
-// ---------------------------------------------------------------------------
 // renameSession
 // ---------------------------------------------------------------------------
 
