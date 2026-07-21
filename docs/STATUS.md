@@ -158,7 +158,7 @@
 | `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h | ❌ 功能已合并到 rename |
 | `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h | ✅ |
 | `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ❌ 需 messageID |
-| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ❌ 同上 |
+| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ✅ |
 | `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ❌ 低优 |
 | `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ✅ |
 
@@ -186,5 +186,6 @@
 | Agent 类型选择 UI | `SlashSheet.tsx` + `ChatScreen.tsx` | — |
 | 斜杠命令参考 UI | `SlashSheet.tsx` | — |
 | 文件属性详情 (file.info) | `FileBrowserScreen.tsx` | — |
+| Session Unrevert 按钮 | `SessionInfoModal.tsx` | — |
 | `config.get` 配置展示 | `SettingsScreen.tsx` | — |
 | `vcs.get` VCS 状态展示 | `SettingsScreen.tsx` | — |

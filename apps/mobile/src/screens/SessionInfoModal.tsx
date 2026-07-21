@@ -61,6 +61,16 @@ export const SessionInfoModal: React.FC<{
     }
   }
 
+  const handleUnrevert = async () => {
+    if (!sessionId || !client) return
+    try {
+      await useSessionStore.getState().unrevertSession(sessionId, client.call.bind(client))
+      Alert.alert('Unreverted', 'Session has been unreverted')
+    } catch {
+      Alert.alert('Error', 'Failed to unrevert session')
+    }
+  }
+
   return (
     <Modal
       visible={visible}
@@ -101,6 +111,9 @@ export const SessionInfoModal: React.FC<{
               <>
                 <Text style={styles.title} numberOfLines={1}>{sessionName || 'Session Info'}</Text>
                 <View style={styles.titleActions}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={handleUnrevert}>
+                    <Text style={styles.actionBtnText}>Unrevert</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.actionBtn} onPress={handleFork}>
                     <Text style={styles.actionBtnText}>Fork</Text>
                   </TouchableOpacity>
