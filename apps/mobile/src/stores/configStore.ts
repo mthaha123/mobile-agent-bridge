@@ -30,8 +30,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const result = (await clientCall('config.get')) as Record<string, unknown>
       set({ config: result, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取配置失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取配置失败' })
     }
   },
 
@@ -40,8 +40,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const result = (await clientCall('config.providers')) as unknown[]
       set({ providers: result, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取 providers 失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取 providers 失败' })
     }
   },
 
@@ -50,8 +50,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const result = (await clientCall('config.agents')) as unknown[]
       set({ agents: result, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取 agents 失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取 agents 失败' })
     }
   },
 
@@ -60,8 +60,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const result = (await clientCall('command.list')) as unknown[]
       set({ commands: result, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取 commands 失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取 commands 失败' })
     }
   },
 
@@ -70,8 +70,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const result = await clientCall('vcs.get')
       set({ vcs: result, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取 VCS 失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取 VCS 失败' })
     }
   },
 }))

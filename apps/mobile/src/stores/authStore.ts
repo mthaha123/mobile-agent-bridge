@@ -78,10 +78,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 步骤3：最后标记已认证，页面跳转至 SessionsScreen
       set({ authenticated: true, loading: false })
-    } catch (e: any) {
+    } catch (e: unknown) {
       set({
         loading: false,
-        error: e.message || '登录失败',
+        error: e instanceof Error ? e.message : '登录失败',
         authenticated: false,
       })
     }
@@ -114,8 +114,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = (await client.call('auth.refresh', {})) as { token: string }
       set({ token: result.token, error: null })
-    } catch (e: any) {
-      set({ error: e.message || '刷新 token 失败' })
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '刷新 token 失败' })
     }
   },
 

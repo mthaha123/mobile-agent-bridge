@@ -12,6 +12,19 @@ import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { ToolCallProgress } from '../stores/toolProgressStore'
 
+function str(input: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const v = input[key]
+    if (typeof v === 'string') return v
+  }
+  return ''
+}
+
+function arr(input: Record<string, unknown>, key: string): unknown[] {
+  const v = input[key]
+  return Array.isArray(v) ? v : []
+}
+
 interface ToolRendererProps {
   call: ToolCallProgress
   expanded?: boolean
@@ -70,7 +83,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
 
 const ShellRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
   const [outputExpanded, setOutputExpanded] = useState(false)
-  const command = (call.input as any)?.command || (call.input as any)?.cmd || ''
+  const command = str(call.input, 'command', 'cmd')
   const output = call.result ? String(call.result) : ''
   const statusIcon = call.status === 'success' ? '✅' : call.status === 'failed' ? '❌' : '⏳'
 
@@ -106,7 +119,7 @@ const ShellRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Read 渲染器 ─────────────────────────────────────────
 
 const ReadRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const filePath = (call.input as any)?.path || (call.input as any)?.file || ''
+  const filePath = str(call.input, 'path', 'file')
   const content = call.result ? String(call.result) : ''
   const lines = content.split('\n').length
 
@@ -133,8 +146,8 @@ const ReadRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Write 渲染器 ────────────────────────────────────────
 
 const WriteRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const filePath = (call.input as any)?.path || (call.input as any)?.file || ''
-  const content = (call.input as any)?.content || ''
+  const filePath = str(call.input, 'path', 'file')
+  const content = str(call.input, 'content')
 
   return (
     <View style={styles.toolContent}>
@@ -158,9 +171,9 @@ const WriteRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Edit 渲染器 ─────────────────────────────────────────
 
 const EditRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const filePath = (call.input as any)?.path || (call.input as any)?.file || ''
-  const oldString = (call.input as any)?.oldString || ''
-  const newString = (call.input as any)?.newString || ''
+  const filePath = str(call.input, 'path', 'file')
+  const oldString = str(call.input, 'oldString')
+  const newString = str(call.input, 'newString')
 
   return (
     <View style={styles.toolContent}>
@@ -187,7 +200,7 @@ const EditRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Glob 渲染器 ─────────────────────────────────────────
 
 const GlobRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const pattern = (call.input as any)?.pattern || (call.input as any)?.glob || ''
+  const pattern = str(call.input, 'pattern', 'glob')
   const results = call.result ? (Array.isArray(call.result) ? call.result : []) : []
 
   return (
@@ -210,7 +223,7 @@ const GlobRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Grep 渲染器 ─────────────────────────────────────────
 
 const GrepRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const query = (call.input as any)?.query || (call.input as any)?.pattern || ''
+  const query = str(call.input, 'query', 'pattern')
   const results = call.result ? (Array.isArray(call.result) ? call.result : []) : []
 
   return (
@@ -233,7 +246,7 @@ const GrepRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── WebFetch 渲染器 ─────────────────────────────────────
 
 const WebFetchRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const url = (call.input as any)?.url || ''
+  const url = str(call.input, 'url')
   const content = call.result ? String(call.result) : ''
 
   return (
@@ -258,7 +271,7 @@ const WebFetchRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── WebSearch 渲染器 ────────────────────────────────────
 
 const WebSearchRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const query = (call.input as any)?.query || ''
+  const query = str(call.input, 'query')
   const results = call.result ? (Array.isArray(call.result) ? call.result : []) : []
 
   return (
@@ -281,7 +294,7 @@ const WebSearchRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Task 渲染器 ─────────────────────────────────────────
 
 const TaskRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const description = (call.input as any)?.description || ''
+  const description = str(call.input, 'description')
 
   return (
     <View style={styles.toolContent}>
@@ -300,7 +313,7 @@ const TaskRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Question 渲染器 ─────────────────────────────────────
 
 const QuestionRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const question = (call.input as any)?.question || ''
+  const question = str(call.input, 'question')
 
   return (
     <View style={styles.toolContent}>
@@ -319,7 +332,7 @@ const QuestionRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── Skill 渲染器 ────────────────────────────────────────
 
 const SkillRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const name = (call.input as any)?.name || ''
+  const name = str(call.input, 'name')
 
   return (
     <View style={styles.toolContent}>
@@ -338,7 +351,7 @@ const SkillRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
 // ─── TodoWrite 渲染器 ────────────────────────────────────
 
 const TodoWriteRenderer: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
-  const todos = (call.input as any)?.todos || []
+  const todos = arr(call.input, 'todos')
 
   return (
     <View style={styles.toolContent}>

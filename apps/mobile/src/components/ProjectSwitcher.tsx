@@ -59,8 +59,8 @@ export const ProjectSwitcher: React.FC<ProjectSwitcherProps> = ({ onDismiss }) =
       const dirs = items.filter(item => item.type === 'directory')
       setFiles(dirs)
       setCurrentBrowsePath(path)
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to browse directory')
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to browse directory')
     } finally {
       setBrowseLoading(false)
     }

@@ -47,9 +47,10 @@ export const FileBrowserScreen: React.FC = () => {
     try {
       const files = await client.listFiles(path)
       setFiles(files)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load directory')
-      Alert.alert('Error', err.message || 'Failed to load directory')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load directory'
+      setError(msg)
+      Alert.alert('Error', msg)
     } finally {
       setLoading(false)
     }
@@ -75,8 +76,8 @@ export const FileBrowserScreen: React.FC = () => {
       try {
         const content = await client?.readFile(currentPath + '/' + file.name)
         setCurrentFile(content || null)
-      } catch (err: any) {
-        Alert.alert('Error', err.message || 'Failed to read file')
+      } catch (err: unknown) {
+        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to read file')
       } finally {
         setLoading(false)
       }
@@ -92,9 +93,10 @@ export const FileBrowserScreen: React.FC = () => {
     try {
       const results = await client.searchFiles(searchQuery, { dirs: [currentPath] })
       setSearchResults(results)
-    } catch (err: any) {
-      setError(err.message || 'Search failed')
-      Alert.alert('Error', err.message || 'Search failed')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Search failed'
+      setError(msg)
+      Alert.alert('Error', msg)
     } finally {
       setLoading(false)
     }

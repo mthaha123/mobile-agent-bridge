@@ -5,6 +5,24 @@
  */
 import { create } from 'zustand'
 
+function normalizeArray<T>(result: unknown, key: string): T[] {
+  if (Array.isArray(result)) return result as T[]
+  if (result && typeof result === 'object') {
+    const v = (result as Record<string, unknown>)[key]
+    if (Array.isArray(v)) return v as T[]
+  }
+  return []
+}
+
+function normalizeItem<T>(result: unknown, key: string): T | null {
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const obj = result as Record<string, unknown>
+    if (key in obj) return obj[key] as T
+    return result as T
+  }
+  return result as T ?? null
+}
+
 export interface Session {
   id: string
   name: string
@@ -66,32 +84,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   fetchSessions: async (clientCall) => {
     set({ loading: true, error: null })
     try {
-      const result = (await clientCall('session.list', {})) as
-        | { sessions: Session[] }
-        | Session[]
-      // v2 返回数组，v1 返回 { sessions }
-      const sessions = Array.isArray(result) ? result : (result as any).sessions ?? []
+      const result = await clientCall('session.list', {})
+      const sessions = normalizeArray<Session>(result, 'sessions')
       set({ sessions, loading: false })
-    } catch (e: any) {
-      set({ loading: false, error: e.message || '获取会话列表失败' })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取会话列表失败' })
     }
   },
 
   createSession: async (clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.create', {})) as
-        | { session: Session }
-        | Session
-      // v2 直接返回 session 对象，v1 返回 { session }
-      const session = (result as any).session ?? result
-      if (session && (session as Session).id) {
-        get().addSession(session as Session)
-        return (session as Session).id
+      const result = await clientCall('session.create', {})
+      const session = normalizeItem<Session>(result, 'session')
+      if (session?.id) {
+        get().addSession(session)
+        return session.id
       }
       return null
-    } catch (e: any) {
-      set({ error: e.message || '创建会话失败' })
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '创建会话失败' })
       return null
     }
   },
@@ -101,9 +113,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       await clientCall('session.delete', { sessionId: id })
       get().removeSession(id)
-    } catch (e: any) {
-      // v2 暂不支持 delete，静默忽略
-      console.warn('session.delete not supported:', e.message)
+    } catch (e: unknown) {
+      console.warn('session.delete not supported:', e instanceof Error ? e.message : e)
     }
   },
 
@@ -114,13 +125,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   getSession: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.get', { sessionId: id })) as
-        | { session: Session }
-        | Session
-      const session = (result as any).session ?? result
-      return (session as Session)?.id ? (session as Session) : null
-    } catch (e: any) {
-      set({ error: e.message || '获取会话失败' })
+      const result = await clientCall('session.get', { sessionId: id })
+      const session = normalizeItem<Session>(result, 'session')
+      return session?.id ? session : null
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '获取会话失败' })
       return null
     }
   },
@@ -128,12 +137,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   getSessionMessages: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.messages', { sessionId: id })) as
-        | { messages: any[] }
-        | any[]
-      return Array.isArray(result) ? result : (result as any).messages ?? []
-    } catch (e: any) {
-      set({ error: e.message || '获取会话消息失败' })
+      const result = await clientCall('session.messages', { sessionId: id })
+      return normalizeArray<any>(result, 'messages')
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '获取会话消息失败' })
       return []
     }
   },
@@ -141,39 +148,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   updateSession: async (id, title, clientCall) => {
     try {
       await clientCall('session.update', { sessionId: id, title })
-    } catch (e: any) {
-      console.warn('session.update failed:', e.message)
+    } catch (e: unknown) {
+      console.warn('session.update failed:', e instanceof Error ? e.message : e)
     }
   },
 
   renameSession: async (id, name, clientCall) => {
     try {
       await clientCall('session.rename', { sessionId: id, name })
-    } catch (e: any) {
-      console.warn('session.rename failed:', e.message)
+    } catch (e: unknown) {
+      console.warn('session.rename failed:', e instanceof Error ? e.message : e)
     }
   },
 
   getSessionTodo: async (id, clientCall) => {
     try {
-      const result = (await clientCall('session.todo', { sessionId: id })) as
-        | { todos: any[] }
-        | any[]
-      return Array.isArray(result) ? result : (result as any).todos ?? []
-    } catch (e: any) {
-      console.warn('session.todo failed:', e.message)
+      const result = await clientCall('session.todo', { sessionId: id })
+      return normalizeArray<any>(result, 'todos')
+    } catch (e: unknown) {
+      console.warn('session.todo failed:', e instanceof Error ? e.message : e)
       return []
     }
   },
 
   getSessionDiff: async (id, clientCall) => {
     try {
-      const result = (await clientCall('session.diff', { sessionId: id })) as
-        | { diffs: any[] }
-        | any[]
-      return Array.isArray(result) ? result : (result as any).diffs ?? []
-    } catch (e: any) {
-      console.warn('session.diff failed:', e.message)
+      const result = await clientCall('session.diff', { sessionId: id })
+      return normalizeArray<any>(result, 'diffs')
+    } catch (e: unknown) {
+      console.warn('session.diff failed:', e instanceof Error ? e.message : e)
       return []
     }
   },
@@ -181,13 +184,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   forkSession: async (id, clientCall) => {
     set({ error: null })
     try {
-      const result = (await clientCall('session.fork', { sessionId: id })) as
-        | { sessionId: string }
-        | string
-      const newId = typeof result === 'string' ? result : (result as any).sessionId ?? (result as any).sessionID ?? null
-      return newId || null
-    } catch (e: any) {
-      set({ error: e.message || '复刻会话失败' })
+      const result = await clientCall('session.fork', { sessionId: id })
+      if (typeof result === 'string') return result || null
+      if (result && typeof result === 'object') {
+        const obj = result as Record<string, unknown>
+        return (obj.sessionId as string) ?? (obj.sessionID as string) ?? null
+      }
+      return null
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '复刻会话失败' })
       return null
     }
   },
@@ -195,16 +200,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   revertSession: async (id, messageID, partID, clientCall) => {
     try {
       await clientCall('session.revert', { sessionId: id, messageID, partID })
-    } catch (e: any) {
-      console.warn('session.revert failed:', e.message)
+    } catch (e: unknown) {
+      console.warn('session.revert failed:', e instanceof Error ? e.message : e)
     }
   },
 
   unrevertSession: async (id, clientCall) => {
     try {
       await clientCall('session.unrevert', { sessionId: id })
-    } catch (e: any) {
-      console.warn('session.unrevert failed:', e.message)
+    } catch (e: unknown) {
+      console.warn('session.unrevert failed:', e instanceof Error ? e.message : e)
     }
   },
 }))

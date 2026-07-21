@@ -178,7 +178,7 @@ export class BridgeClient {
 
   // ─── RPC 调用 ─────────────────────────────────────────
 
-  async call(method: string, params: unknown = {}): Promise<unknown> {
+  async call<T = unknown>(method: string, params: unknown = {}): Promise<T> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('BridgeClient: 未连接')
     }
@@ -193,8 +193,8 @@ export class BridgeClient {
       }, this.requestTimeout)
 
       this.pending.set(id, {
-        resolve,
-        reject,
+        resolve: resolve as (value: unknown) => void,
+        reject: reject as (reason: Error) => void,
         timer,
       })
 
@@ -259,7 +259,7 @@ export class BridgeClient {
     modified: string
     permissions: string
   }>> {
-    return this.call('file.list', { path }) as any
+    return this.call('file.list', { path })
   }
 
   async readFile(path: string, encoding?: string): Promise<{
@@ -268,7 +268,7 @@ export class BridgeClient {
     size: number
     path: string
   }> {
-    return this.call('file.read', { path, encoding }) as any
+    return this.call('file.read', { path, encoding })
   }
 
   async searchFiles(
@@ -280,7 +280,7 @@ export class BridgeClient {
     content: string
     match?: string
   }>> {
-    return this.call('file.search', { query, ...options }) as any
+    return this.call('file.search', { query, ...options })
   }
 
   async getFileInfo(path: string): Promise<{
@@ -290,6 +290,6 @@ export class BridgeClient {
     modified: string
     permissions: string
   }> {
-    return this.call('file.info', { path }) as any
+    return this.call('file.info', { path })
   }
 }

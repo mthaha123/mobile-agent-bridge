@@ -56,10 +56,12 @@ export const ChatScreen: React.FC = () => {
     ;(async () => {
       const msgs = await useSessionStore.getState().getSessionMessages(activeSessionId, client.call.bind(client))
       if (!cancelled && msgs.length > 0) {
-        msgs.forEach((m: any) => useChatStore.getState().addMessage({
-          role: m.role || 'assistant',
-          content: m.content || m.text || '',
-        }))
+        msgs.forEach((msg: { role?: string; content?: string; text?: string }) => {
+          useChatStore.getState().addMessage({
+            role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
+            content: msg.content || msg.text || '',
+          })
+        })
       }
     })()
     return () => { cancelled = true }
@@ -91,10 +93,10 @@ export const ChatScreen: React.FC = () => {
           message: text,
         })
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       useChatStore.getState().addMessage({
         role: 'system',
-        content: `发送失败: ${e?.message || String(e) || '未知错误'}`,
+        content: `发送失败: ${e instanceof Error ? e.message : String(e) || '未知错误'}`,
       })
       useChatStore.getState().setWaiting(false)
     }

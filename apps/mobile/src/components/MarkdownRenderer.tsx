@@ -67,7 +67,7 @@ export function renderMarkdown(content: string): React.ReactNode[] {
         elements.push(
           <Text
             key={`h-${elements.length}`}
-            style={[styles.heading, (styles as any)[`heading${level}`]]}
+            style={[styles.heading, styles[`heading${level}` as keyof typeof styles]]}
           >
             {match[2]}
           </Text>
