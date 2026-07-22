@@ -58,10 +58,22 @@ export const ChatScreen: React.FC = () => {
     ;(async () => {
       const msgs = await useSessionStore.getState().getSessionMessages(activeSessionId, client.call.bind(client))
       if (!cancelled && msgs.length > 0) {
-        msgs.forEach((msg: { role?: string; content?: string; text?: string }) => {
+        msgs.forEach((msg: any) => {
+          const msgId = msg.id || undefined
+          let partId: string | undefined
+          let text = msg.content || msg.text || ''
+          if (Array.isArray(msg.content)) {
+            const textPart = msg.content.find((p: any) => p.type === 'text')
+            if (textPart) {
+              text = textPart.text || text
+              partId = textPart.id || undefined
+            }
+          }
           useChatStore.getState().addMessage({
             role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
-            content: msg.content || msg.text || '',
+            content: text,
+            messageID: msgId,
+            partID: partId,
           })
         })
       }
@@ -174,6 +186,17 @@ export const ChatScreen: React.FC = () => {
     )
   }
 
+  const handleRevert = async (messageID: string, partID?: string) => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    try {
+      await useSessionStore.getState().revertSession(activeSessionId, messageID, partID || '', client.call.bind(client))
+      Alert.alert('Reverted', 'Message changes have been reverted')
+    } catch {
+      Alert.alert('Error', 'Failed to revert message')
+    }
+  }
+
   const renderMessage = ({ item }: { item: import('../stores/chatStore').ChatMessage }) => {
     const isUser = item.role === 'user'
     const isSystem = item.role === 'system'
@@ -196,6 +219,14 @@ export const ChatScreen: React.FC = () => {
         >
           {item.content}
         </Text>
+        {isAssistant && item.messageID && (
+          <TouchableOpacity
+            style={styles.revertBtn}
+            onPress={() => handleRevert(item.messageID!, item.partID)}
+          >
+            <Text style={styles.revertBtnText}>Revert</Text>
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
@@ -464,6 +495,19 @@ const styles = StyleSheet.create({
   stopButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  revertBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#3a1a1a',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  revertBtnText: {
+    color: '#ff6b6b',
+    fontSize: 12,
     fontWeight: '600',
   },
 })

@@ -5,6 +5,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
+  messageID?: string
+  partID?: string
 }
 
 interface TextStreamState {
@@ -35,7 +37,7 @@ export interface ChatState {
 
 let msgCounter = 0
 
-function appendToLastAssistant(messages: ChatMessage[], text: string): ChatMessage[] {
+function appendToLastAssistant(messages: ChatMessage[], text: string, messageID?: string): ChatMessage[] {
   const result = [...messages]
   const lastIdx = result.length - 1
   if (lastIdx >= 0 && result[lastIdx].role === 'assistant') {
@@ -46,6 +48,7 @@ function appendToLastAssistant(messages: ChatMessage[], text: string): ChatMessa
       role: 'assistant',
       content: text,
       timestamp: Date.now(),
+      messageID,
     })
   }
   return result
@@ -93,7 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       if (track.lastAppliedId === -1 || eventId === track.lastAppliedId + 1) {
-        let messages = appendToLastAssistant(state.messages, delta)
+        let messages = appendToLastAssistant(state.messages, delta, assistantMessageId)
         let newTrack = { ...track, lastAppliedId: eventId }
 
         while (newTrack.buffer[newTrack.lastAppliedId + 1]) {
@@ -155,7 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let found = false
       for (let i = result.length - 1; i >= 0; i--) {
         if (result[i].role === 'assistant') {
-          result[i] = { ...result[i], content: fullText, timestamp: Date.now() }
+          result[i] = { ...result[i], content: fullText, timestamp: Date.now(), messageID: assistantMessageId }
           found = true
           break
         }
@@ -166,6 +169,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           role: 'assistant',
           content: fullText,
           timestamp: Date.now(),
+          messageID: assistantMessageId,
         })
       }
       const streamStates = { ...state.streamStates }
