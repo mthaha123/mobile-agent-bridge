@@ -128,6 +128,24 @@ export const SessionInfoModal: React.FC<{
             )}
           </View>
 
+          {currentSession && (
+            <View style={styles.sessionStatsRow}>
+              <Text style={styles.sessionStatItem}>
+                {currentSession.messageCount ?? 0} msgs
+              </Text>
+              {currentSession.createdAt && (
+                <Text style={styles.sessionStatItem}>
+                  Created {formatTime(currentSession.createdAt)}
+                </Text>
+              )}
+              {currentSession.updatedAt && (
+                <Text style={styles.sessionStatItem}>
+                  Updated {formatTime(currentSession.updatedAt)}
+                </Text>
+              )}
+            </View>
+          )}
+
           <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, tab === 'diff' && styles.tabActive]}
@@ -215,6 +233,15 @@ export const SessionInfoModal: React.FC<{
       </TouchableOpacity>
     </Modal>
   )
+}
+
+function formatTime(t: string): string {
+  try {
+    const d = new Date(t)
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return t
+  }
 }
 
 const styles = StyleSheet.create({
@@ -403,5 +430,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     marginLeft: 24,
+  },
+  sessionStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#0f3460',
+  },
+  sessionStatItem: {
+    color: '#888',
+    fontSize: 12,
+    backgroundColor: '#0f3460',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
 })

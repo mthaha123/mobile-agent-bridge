@@ -159,7 +159,7 @@
 | `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h | ✅ |
 | `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ✅ ChatScreen 消息级 |
 | `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ✅ |
-| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ❌ 低优 |
+| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ✅ SessionInfoModal 显示 meta |
 | `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ✅ |
 
 ### SSE 事件未处理
@@ -187,6 +187,7 @@
 | 斜杠命令参考 UI | `SlashSheet.tsx` | — |
 | 文件属性详情 (file.info) | `FileBrowserScreen.tsx` | — |
 | Session Unrevert 按钮 | `SessionInfoModal.tsx` | — |
+| Session 元数据显示 | `SessionInfoModal.tsx` | — |
 | 消息级 Revert 按钮 | `ChatScreen.tsx` + `chatStore.ts` | — |
 | `config.get` 配置展示 | `SettingsScreen.tsx` | — |
 | `vcs.get` VCS 状态展示 | `SettingsScreen.tsx` | — |
