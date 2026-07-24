@@ -1,64 +1,52 @@
 ﻿# 开发进度
 
-## 已完成
+> 更新日期：2026-07-24
 
-### Bridge 服务器 (Phase 1 ✅ + Phase 2 ✅)
+---
 
-| 模块 | 文件 | 状态 | 说明 |
-|------|------|:----:|------|
-| WS 服务器 | `src/server/ws.ts` | ✅ | 连接管理、JWT 验证、broadcastToAll |
-| JWT 认证 | `src/server/auth.ts` | ✅ | sign/verify/refresh/logout |
-| RPC 路由 | `src/server/router.ts` | ✅ | 35+ 方法注册、参数翻译、SSE→WS 透传 |
-| OpenCode 适配器 | `src/adapters/OpenCodeAdapter.ts` | ✅ | SDK client 生命周期、自定义 Node.js fetch |
-| 项目状态管理 | `src/state/project.ts` | ✅ | project.switch/current、SSE 生命周期、并发锁 |
-| 文件操作 | `src/server/fileHandler.ts` | ✅ | file.list/read/search/info |
-| 入口 | `src/index.ts` | ✅ | 服务器启动 |
+## 一、已完成
 
-**Bridge 已实现的 RPC 方法：**
+### Bridge 服务器
 
-| 方法 | 状态 | 说明 |
-|------|:----:|------|
-| `auth.login/refresh/logout` | ✅ | 直接实现 |
-| `health.ping` | ✅ | 直接实现 |
-| `project.switch/current` | ✅ | 直接实现 |
-| `session.create/list/get/delete/update/status/messages` | ✅ | SDK 代理 |
-| `session.diff/todo/fork/revert/unrevert` | ✅ | SDK 代理 (顶层) |
-| `message.send/shell/command/abort` | ✅ | SDK 代理 |
-| `permission.reply` | ✅ | SDK 代理 |
-| `question.reply/reject` | ✅ | SDK 代理 |
-| `config.get/providers/agents` | ✅ | SDK 代理 |
-| `provider.list/command.list/vcs.get` | ✅ | SDK 代理 |
-| `file.list/read/search/info` | ✅ | 文件系统操作 |
-| SSE 事件透传 | ✅ | session.next.text.delta, permission.v2.asked 等 20+ 事件 |
+| 模块 | 文件 | 状态 |
+|------|------|:----:|
+| WS 服务器 (连接管理、JWT、broadcast) | `src/server/ws.ts` | ✅ |
+| JWT 认证 (sign/verify/refresh/logout) | `src/server/auth.ts` | ✅ |
+| RPC 路由 (37 handler) | `src/server/router.ts` | ✅ |
+| OpenCode SDK 适配器 | `src/adapters/OpenCodeAdapter.ts` | ✅ |
+| 项目状态管理 (SSE 生命周期、并发锁) | `src/state/project.ts` | ✅ |
+| 文件操作 (list/read/search/info) | `src/server/fileHandler.ts` | ✅ |
+| 入口 | `src/index.ts` | ✅ |
 
-### 手机客户端 (Phase 1 ✅ + Phase 2 ✅)
+### 手机客户端
 
-| 模块 | 文件 | 状态 | 说明 |
-|------|------|:----:|------|
-| BridgeClient | `src/services/BridgeClient.ts` | ✅ | WS 客户端、call/event、自动重连 |
-| AppProvider | `src/components/AppProvider.tsx` | ✅ | 全局通知处理、SSE 事件分发 |
-| ConnectScreen | `src/screens/ConnectScreen.tsx` | ✅ | URL + 密码输入、登录 |
-| SessionsScreen | `src/screens/SessionsScreen.tsx` | ✅ | 会话列表、创建、切换 |
-| ChatScreen | `src/screens/ChatScreen.tsx` | ✅ | 消息列表、流式显示、发送 |
-| ToolApprovalSheet | `src/screens/ToolApprovalSheet.tsx` | ✅ | 工具审批弹窗 |
-| QuestionSheet | `src/screens/QuestionSheet.tsx` | ✅ | 问答向导 |
-| SessionInfoModal | `src/screens/SessionInfoModal.tsx` | ✅ | 会话详情 |
-| ToolProgressCard | `src/components/ToolProgressCard.tsx` | ✅ | 工具进度卡片 |
-| ToolRenderer | `src/components/ToolRenderer.tsx` | ✅ | 14 种工具专用渲染器 |
-| FileBrowserScreen | `src/screens/FileBrowserScreen.tsx` | ✅ | 文件浏览器 (目录树+查看) |
-| ProjectSwitcher | `src/components/ProjectSwitcher.tsx` | ✅ | 项目目录切换 UI |
-| MarkdownRenderer | `src/components/MarkdownRenderer.tsx` | ✅ | Markdown 渲染 (标题/代码/表格/列表) |
-| ReasoningCollapsible | `src/components/ReasoningCollapsible.tsx` | ✅ | 思考/推理折叠组件 |
+| 模块 | 文件 | 状态 |
+|------|------|:----:|
+| BridgeClient (WS 客户端、重连) | `src/services/BridgeClient.ts` | ✅ |
+| AppProvider (全局通知、SSE 分发) | `src/components/AppProvider.tsx` | ✅ |
+| ConnectScreen | `src/screens/ConnectScreen.tsx` | ✅ |
+| SessionsScreen | `src/screens/SessionsScreen.tsx` | ✅ |
+| ChatScreen (消息列表/发送/流式) | `src/screens/ChatScreen.tsx` | ✅ |
+| SettingsScreen (连接/配置/VCS) | `src/screens/SettingsScreen.tsx` | ✅ |
+| SessionInfoModal (diff/todo/rename/fork/unrevert/meta) | `src/screens/SessionInfoModal.tsx` | ✅ |
+| ToolApprovalSheet | `src/screens/ToolApprovalSheet.tsx` | ✅ |
+| QuestionSheet | `src/screens/QuestionSheet.tsx` | ✅ |
+| SlashSheet (agent 选择/斜杠命令) | `src/screens/SlashSheet.tsx` | ✅ |
+| FileBrowserScreen (浏览/查看/属性) | `src/screens/FileBrowserScreen.tsx` | ✅ |
+| ToolProgressCard | `src/components/ToolProgressCard.tsx` | ✅ |
+| ToolRenderer (14 种工具渲染器) | `src/components/ToolRenderer.tsx` | ✅ |
+| MarkdownRenderer | `src/components/MarkdownRenderer.tsx` | ✅ |
+| ReasoningCollapsible | `src/components/ReasoningCollapsible.tsx` | ✅ |
 
-**Zustand Stores：**
+### Zustand Stores
 
 | Store | 状态 | 说明 |
 |-------|:----:|------|
 | `authStore` | ✅ | token、登录状态 |
-| `sessionStore` | ✅ | 会话列表、当前会话 |
-| `chatStore` | ✅ | 消息、流式增量 |
+| `sessionStore` | ✅ | 会话 CRUD + revert/unrevert |
+| `chatStore` | ✅ | 消息、流式增量、messageID/partID |
 | `projectStore` | ✅ | 当前目录、项目信息 |
-| `configStore` | ✅ | 配置、providers、agents |
+| `configStore` | ✅ | 配置/providers/agents/commands/VCS |
 | `toolStore` | ✅ | 工具审批队列 |
 | `toolProgressStore` | ✅ | 工具执行进度 |
 | `questionStore` | ✅ | 问答队列 |
@@ -66,128 +54,158 @@
 | `todoStore` | ✅ | 待办列表 |
 | `fileStore` | ✅ | 文件浏览器状态 |
 
+### UI-Server 接口对齐（12 项全部关闭 ✅）
+
+| RPC 方法 | 客户端 UI | 状态 |
+|----------|-----------|:----:|
+| `config.agents` | SlashSheet agent 选择 | ✅ |
+| `config.providers` | SettingsScreen Provider 列表 | ✅ |
+| `config.get` | SettingsScreen 配置展示 | ✅ |
+| `command.list` | SlashSheet 斜杠命令参考 | ✅ |
+| `vcs.get` | SettingsScreen VCS 状态 | ✅ |
+| `session.rename` | SessionInfoModal 重命名 | ✅ |
+| `session.fork` | SessionInfoModal Fork 按钮 | ✅ |
+| `session.revert` | ChatScreen 消息级 Revert | ✅ |
+| `session.unrevert` | SessionInfoModal Unrevert | ✅ |
+| `session.get` | SessionInfoModal 元数据显示 | ✅ |
+| `file.info` | FileBrowserScreen 长按属性 | ✅ |
+| SSE `permission.v2.replied` | AppProvider handler | ✅ |
+
 ### 测试
 
-| 类型 | 文件 | 数量 | 状态 |
-|------|------|:----:|:----:|
-| Bridge 单元测试 | `servers/bridge/__tests__/*.test.ts` | 99 | ✅ 全通过 |
-| | Mobile 单元测试 | apps/mobile/__tests__/*.test.* | 557 | ✅ 全通过 |
-| E2E (Bridge) | `servers/bridge/scripts/e2e.mjs` | ~51 场景 | ✅ |
-| E2E (SSE) | `servers/bridge/scripts/e2e-sse.mjs` | 2 场景 | ✅ |
-| E2E (Android) | `scripts/android-test.mjs` | 24 场景 | ✅ 19/22 通过, 3 跳过 |
-
-### Android
-
-| 模块 | 状态 | 说明 |
-|------|:----:|------|
-| APK 构建 | ✅ | release APK 45.8 MB |
-| SoLoader 修复 | ✅ | MainApplication.kt |
-| Hermes bundle | ✅ | index.android.bundle 路径 |
-| AndroidManifest | ✅ | usesCleartextTraffic |
-
-### 共享包
-
-| 模块 | 文件 | 状态 |
-|------|------|:----:|
-| 协议类型 | `packages/shared/src/protocol.ts` | ✅ |
+| 类型 | 数量 | 状态 |
+|------|:----:|:----:|
+| Bridge 单元测试 | 99 | ✅ |
+| Mobile 单元测试 | 559 | ✅ |
+| E2E (Bridge → SDK) | ~51 场景 | ✅ |
+| E2E (SSE 流式) | 2 场景 | ✅ |
+| Android E2E (Maestro) | 22/24 场景 | ✅ (2 skip) |
 
 ---
 
-## 未完成
+## 二、Bridge 服务器 TODO
 
-### Phase 2 — 增强功能 ✅
+> OpenCode SDK v2 有 ~105 个方法，Bridge 目前暴露 37 个 handler。
+> 以下按优先级列出建议新增的 RPC 方法。
 
-| 功能 | Bridge | 客户端 | 优先级 |
-|------|:------:|:------:|:------:|
-| 文件浏览器 (file.list/read/search) | ✅ | ✅ | P1 |
-| 文件查看器 (语法高亮) | — | ✅ (plain text) | P1 |
-| 14 种工具专用渲染器 | — | ✅ | P1 |
-| Shell 模式 (! 开头) | ✅ | ✅ | P1 |
-| 斜杠命令 (/model, /agent) | ✅ | ✅ | P1 |
-| Markdown 渲染 | — | ✅ | P1 |
-| Question 多步向导 | ✅ | ✅ | P1 |
-| 项目目录切换 UI | ✅ | ✅ | P1 |
-| 思考/推理折叠 | — | ✅ | P2 |
+### P1 — 核心体验
 
-### Phase 3 — 生产就绪
+| RPC 方法 | SDK 调用 | 用途 | 客户端需求 |
+|----------|----------|------|-----------|
+| `model.list` | `sdk().v2.model.list()` | 获取可用模型列表 | 模型切换 UI |
+| `session.children` | `sdk().session.children({ sessionID })` | 获取 fork 树子会话 | 会话关系图 |
+| `session.switchAgent` | `sdk().v2.session.switchAgent({ sessionID, agent })` | 切换会话 Agent | ChatScreen agent 切换 |
+| `session.switchModel` | `sdk().v2.session.switchModel({ sessionID, model })` | 切换会话模型 | ChatScreen 模型切换 |
+| `file.find` | `sdk().find.files({ pattern, dirs })` | 按文件名搜索 | 文件浏览器搜索增强 |
+| `find.symbols` | `sdk().find.symbols({ query, dirs })` | LSP 符号搜索 | 代码导航 |
 
-| 功能 | 状态 | 优先级 |
-|------|:----:|:------:|
-| Hermes 适配器 | ❌ | P2 |
-| OpenClaw 适配器 | ❌ | P2 |
-| Agent 类型选择 UI | ❌ | P2 |
-| 离线缓存 | ❌ | P2 |
-| 推送通知 (APNs/FCM) | ❌ | P2 |
-| 后台保活 | ❌ | P2 |
-| 语音输入 | ❌ | P3 |
-| 多服务器支持 | ❌ | P3 |
-| 主题系统 | ❌ | P3 |
-| 会话导出 | ❌ | P3 |
-| HarmonyOS ArkUI | ❌ | P3 |
+### P2 — 增强功能
+
+| RPC 方法 | SDK 调用 | 用途 |
+|----------|----------|------|
+| `vcs.status` | `sdk().vcs.status()` | 获取未暂存文件列表 |
+| `vcs.diff` | `sdk().vcs.diff({ file })` | 获取文件详细 diff |
+| `vcs.apply` | `sdk().vcs.apply({ patch })` | 应用 patch |
+| `permission.list` | `sdk().v2.permission.request.list()` | 列出待审批权限 |
+| `permission.saved.list` | `sdk().v2.permission.saved.list()` | 列出已保存权限规则 |
+| `permission.saved.remove` | `sdk().v2.permission.saved.remove({ id })` | 删除保存的权限规则 |
+| `tool.list` | `sdk().tool.list()` | 列出可用工具及其 schema |
+| `config.update` | `sdk().config.update({ ... })` | 更新项目级配置 |
+| `global.config.update` | `sdk().global.config.update({ ... })` | 更新全局配置 |
+| `project.list` | `sdk().project.list()` | 项目列表（切换用） |
+
+### P3 — 高级/实验性
+
+| 功能 | SDK 路径 | 备注 |
+|------|----------|------|
+| `session.share/unshare` | `sdk().session.share/unshare()` | 会话分享 |
+| `session.summarize` | `sdk().session.summarize()` | AI 摘要 |
+| `session.compact` | `sdk().v2.session.compact()` | 压缩会话历史 |
+| `session.context` | `sdk().v2.session.context()` | 获取活跃上下文 |
+| `session.deleteMessage` | `sdk().session.deleteMessage()` | 删除单条消息 |
+| `workspace.*` | `sdk().experimental.workspace.*` | 工作区管理 |
+| `mcp.*` | `sdk().mcp.*` | MCP 连接管理 |
+| `pty.*` | `sdk().pty.*` | 终端管理 |
+| `sync.*` / `worktree.*` | `sdk().sync.*` / `sdk().worktree.*` | 同步/工作树 |
+| `integration.*` | `sdk().v2.integration.*` | 第三方集成 |
+| `provider.oauth.*` | `sdk().provider.oauth.*` | OAuth 流程 |
+| `find.symbols` | `sdk().find.symbols()` | LSP 符号搜索 |
 
 ---
 
-## 测试覆盖盲区
+## 三、手机客户端 TODO
+
+### P1 — 核心体验
+
+| 功能 | 相关 Store/RPC | 说明 |
+|------|---------------|------|
+| 模型选择 UI | `model.list` → ChatScreen | 发送消息前选择模型 |
+| Agent 切换 UI | `session.switchAgent` → ChatScreen | 会话中更换 Agent |
+| 消息富文本渲染 | `chatStore` → 支持 code/markdown | 目前纯文本，需集成 MarkdownRenderer |
+| 会话列表刷新 | `session.list` → pull-to-refresh | 手动刷新会话列表 |
+| 文件搜索增强 | `file.search` + `file.find` | 按文件名/内容/符号搜索 |
+
+### P2 — 增强功能
+
+| 功能 | 相关 Store/RPC | 说明 |
+|------|---------------|------|
+| 会话 fork 树可视化 | `session.children` | 查看/导航 fork 关系 |
+| 权限规则管理 | `permission.saved.list/remove` | 查看/删除已保存的权限 |
+| 设置页增强 | `config.update` | 配置编辑（非只读） |
+| 消息操作 (复制/删除) | `session.deleteMessage` | 长按消息弹出操作菜单 |
+| 断线重连状态指示 | `BridgeClient` 事件 | 显示连接状态 banner |
+| 后台保活 | 原生模块 | app 切后台时维持 WS 连接 |
+
+### P3 — 高级
+
+| 功能 | 说明 |
+|------|------|
+| 会话分享 | 生成分享链接 |
+| 离线缓存 (messages) | 本地 SQLite 持久化 |
+| 多服务器支持 | 管理多个 Bridge 连接 |
+| 主题系统 | 浅色/深色/跟随系统 |
+| 语音输入 | 语音转文字发送 |
+| 推送通知 (FCM/APNs) | 后台消息通知 |
+| 会话导出 (JSON/Markdown) | 导出会话记录 |
+| HarmonyOS 适配 | 鸿蒙原生版本 |
+
+---
+
+## 四、对齐约束
+
+> 以下规则确保 Bridge（服务器）和 Mobile（客户端）开发始终对齐。
+
+### 接口变更流程
+
+1. **Bridge 新增 RPC 方法** → 同时在 `router.ts` 注册 handler + `__tests__/router.test.ts` 加测试
+2. **Mobile 新增 UI 功能** → 确认对应 RPC 方法已在 Bridge 实现；若无，先实现 Bridge 侧
+3. **参数名对齐**：客户端统一使用 `sessionId`（小写驼峰），Bridge `resolveSessionId()` 做兼容
+4. **通知事件**：SSE 事件类型名透传不变，Mobile 按 SDK v2 事件名处理
+
+### 测试对齐
+
+| 场景 | Bridge 测试 | Mobile 测试 |
+|------|:-----------:|:-----------:|
+| RPC 方法注册 | `router.test.ts` | — |
+| 方法参数兼容 | `router.test.ts` | — |
+| Store 方法 | — | `sessionStore.test.ts` 等 |
+| UI 组件 | — | `*.test.tsx` |
+
+### 当前接口状态
+
+- Bridge handler: **37 个** (router.ts)
+- Mobile `client.call()`: **32 个** (各 store + screens)
+- SSE 事件: **20+ 个** (AppProvider 全量覆盖)
+- 接口对齐: ✅ **完全对齐，零缺口**
+
+---
+
+## 五、测试覆盖盲区
 
 | 盲区 | 说明 | 建议 |
 |------|------|------|
-| 聊天消息收发 (E2E) | 需要 OpenCode 运行 | 已在 e2e-sse.mjs 覆盖 |
-| 权限审批 (E2E) | 需要 OpenCode 触发工具调用 | 人工验证 |
-| 文件浏览器 (E2E) | Phase 2 完成，可补充集成测试 | 可选 |
-| Markdown 渲染 (E2E) | Phase 2 完成，已覆盖单元测试 | 可选 |
-| 断线重连 (Android) | 需要 Bridge 运行时测试 | 已在 Layer 4 标记 |
-| 并发多客户端 | 未覆盖 | 可选 |
-| 长时间运行稳定性 | 未覆盖 | 可选 |
-
----
-
-## UI-Server 接口对齐盲区
-
-> 以下为 2026-07-21 审计结果：服务端已实现、但客户端无对应 UI 的功能缺口。
-
-### RPC 方法有 Store 实现但无 UI 调用
-
-| 方法 | Store 方法 | 缺口说明 | 预估工时 | 状态 |
-|------|-----------|----------|:-------:|:----:|
-| `config.agents` | `configStore.fetchAgents()` | 无 Agent 选择界面，用户只能盲打 `/agent xxx` | 4h | ✅ |
-| `config.providers` | `configStore.fetchProviders()` | 无 Provider 展示页面 | 2h | ✅ |
-| `config.get` | `configStore.fetchConfig()` | 无配置信息展示 | 2h | ✅ |
-| `command.list` | `configStore.fetchCommands()` | 用户不知道有哪些斜杠命令可用 | 2h | ✅ |
-| `vcs.get` | `configStore.fetchVcs()` | 无 VCS 状态展示 | 1h | ✅ |
-| `session.rename` | `sessionStore.renameSession()` | 无法重命名会话 | 1h | ✅ |
-| `session.update` | `sessionStore.updateSession()` | 无法修改会话标题 | 1h | ❌ 已删除（与 rename 等价） |
-| `session.fork` | `sessionStore.forkSession()` | SessionInfoModal 无 Fork 按钮 | 1h | ✅ |
-| `session.revert` | `sessionStore.revertSession()` | SessionInfoModal 无 Revert 按钮 | 1h | ✅ ChatScreen 消息级 |
-| `session.unrevert` | `sessionStore.unrevertSession()` | SessionInfoModal 无 Unrevert 按钮 | 1h | ✅ |
-| `session.get` | `sessionStore.getSession()` | 从未单独调用 get session | <0.5h | ✅ SessionInfoModal 显示 meta |
-| `file.info` | `client.getFileInfo()` | 文件浏览器无文件属性/详情页 | 2h | ✅ |
-
-### SSE 事件未处理
-
-| 事件 | 类型 | 缺口说明 | 预估工时 |
-|------|------|----------|:-------:|
-| `permission.v2.replied` | 通知 | 服务器确认权限响应后无任何反馈 | 0.5h |
-
-### 未接入组件
-
-| 组件 | 说明 | 建议 |
-|------|------|------|
-| ~~`ProjectSwitcher.tsx`~~ | ~~完整功能但无人调用~~ | ✅ 已删除（2026-07-21） |
-
-### 已修复项（本轮解决）
-
-| 缺口 | 文件 | 提交 |
-|------|------|:----:|
-| `permission.v2.replied` handler | `AppProvider.tsx` | — |
-| Session 重命名 | `SessionInfoModal.tsx` | — |
-| Session Fork 按钮 | `SessionInfoModal.tsx` | — |
-| 连接后加载 agents/providers/commands | `AppProvider.tsx` | — |
-| `ProjectSwitcher.tsx` 清理 | 删除死组件 + 测试文件 | — |
-| Agent 类型选择 UI | `SlashSheet.tsx` + `ChatScreen.tsx` | — |
-| 斜杠命令参考 UI | `SlashSheet.tsx` | — |
-| 文件属性详情 (file.info) | `FileBrowserScreen.tsx` | — |
-| Session Unrevert 按钮 | `SessionInfoModal.tsx` | — |
-| Session 元数据显示 | `SessionInfoModal.tsx` | — |
-| 消息级 Revert 按钮 | `ChatScreen.tsx` + `chatStore.ts` | — |
-| `config.get` 配置展示 | `SettingsScreen.tsx` | — |
-| `vcs.get` VCS 状态展示 | `SettingsScreen.tsx` | — |
+| 断线重连 (Android) | 需要 Bridge 运行时 + 模拟器 | 可以加 Maestro 测试 |
+| 并发多客户端 | 多 WS 连接同时操作 | 可选 |
+| 长时间运行稳定性 | 数小时持续运行 | 可选 |
+| 消息收发 E2E | 需要真实 OpenCode 服务端 | 依赖 SDK 可用性 |
+| 权限审批 E2E | 需要 OpenCode 触发工具调用 | 人工验证 |
