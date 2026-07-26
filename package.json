@@ -19,6 +19,7 @@
     "e2e:l4": "node scripts/e2e/run-layer.mjs --layer=l4",
     "e2e:mock": "node scripts/e2e/mock-bridge.mjs",
     "e2e:test-rpcs": "node scripts/e2e/test-new-rpcs.mjs",
+    "e2e:l4": "node scripts/e2e/run-layer4.mjs",
     "clean": "rm -rf servers/*/dist apps/*/node_modules"
   },
   "devDependencies": {

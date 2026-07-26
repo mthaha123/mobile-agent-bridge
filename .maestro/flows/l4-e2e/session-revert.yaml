@@ -1,0 +1,34 @@
+appId: com.mobileagentbridge
+tags:
+  - layer: l4
+  - needs-opencode: true
+---
+# Layer 4 — 会话 Revert + Unrevert
+- launchApp
+
+- runFlow: .maestro/flows/shared/connect-l4.yaml
+
+# 创建会话
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 30000
+
+# 发送消息
+- tapOn: "Type a message..."
+- inputText: "write a simple hello world function in python"
+- tapOn: "Send"
+
+# 等待 AI 回复完成
+- extendedWaitUntil:
+    notVisible: "AI is thinking..."
+    timeout: 90000
+
+# 点击 Revert 按钮撤销这条 AI 回复
+- tapOn: "Revert"
+- extendedWaitUntil:
+    visible: "Reverted"
+    timeout: 10000
+
+# 确认弹窗
+- tapOn: "OK"

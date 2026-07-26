@@ -1,0 +1,42 @@
+appId: com.mobileagentbridge
+tags:
+  - layer: l4
+  - needs-opencode: true
+---
+# Layer 4 — 全链路 E2E: 创建会话 → 发送消息 → 接收 SSE 流式响应
+- launchApp
+
+# 连接真实 Bridge
+- runFlow: .maestro/flows/shared/connect-l4.yaml
+
+# 创建新会话
+- tapOn: "+ New"
+
+# 等待 ChatScreen 加载
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 30000
+
+# 输入消息并发送
+- tapOn: "Type a message..."
+- inputText: "say hello"
+- tapOn: "Send"
+
+# 等待 AI 流式回复开始
+- extendedWaitUntil:
+    visible: "AI is thinking..."
+    timeout: 15000
+
+# 等待回复完成（流式文本出现）
+- extendedWaitUntil:
+    notVisible: "AI is thinking..."
+    timeout: 60000
+
+# 验证消息已渲染（用户消息 + 助手回复）
+- assertVisible: "say hello"
+
+# 回到会话列表
+- tapOn: "< Sessions"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000

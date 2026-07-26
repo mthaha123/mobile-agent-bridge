@@ -79,7 +79,7 @@
 | Mobile 单元测试 | 570 | ✅ |
  | E2E (Bridge → SDK) | ~51 场景 | ✅ |
  | E2E (SSE 流式) | 2 场景 | ✅ |
- | Android E2E (Maestro) | 27/27 场景 | ✅ |
+ | Android E2E (Maestro) | 31/31 场景 | ✅ |
 | — Layer 1 Smoke | `l1-smoke/connect-screen.yaml`, `input-interaction.yaml` | ✅ |
 | — Layer 2 Bridge Mock | `l2-bridge-*.yaml` 9 flows | ✅ |
 | — Layer 3 UI 组件 | `l3-question.yaml`, `l3-tool-approval.yaml`, `l3-tool-progress.yaml` | ✅ |
@@ -216,8 +216,8 @@
 | 断线重连 (Android) | 需要 Bridge 运行时 + 模拟器 | Layer 2 (Mock Bridge) | ✅ |
 | 并发多客户端 | 多 WS 连接同时操作 | 可选 | ⏳ |
 | 长时间运行稳定性 | 数小时持续运行 | 可选 | ⏳ |
-| 消息收发 E2E | 需要真实 OpenCode 服务端 | Layer 4 | ⏳ |
-| 权限审批 E2E | 需要 OpenCode 触发工具调用 | Layer 4 | ⏳ |
+| 消息收发 E2E | 需要真实 OpenCode 服务端 | Layer 4 | ✅ |
+| 权限审批 E2E | 需要 OpenCode 触发工具调用 | Layer 4 | ✅ |
 
 ## 六、自动 E2E 测试方案
 
@@ -231,7 +231,7 @@
 | Layer 1 flows (Smoke) | `.maestro/flows/l1-smoke/` | ✅ |
 | Layer 2 flows (Mock) | `.maestro/flows/l2-bridge-*.yaml` (9 flows) | ✅ |
 | Layer 3 flows (UI) | `.maestro/flows/l3-*.yaml` (3 flows) | ✅ |
-| Layer 4 flows (E2E) | `.maestro/flows/l4-e2e/` | ⏳ |
+| Layer 4 flows (E2E) | `.maestro/flows/l4-e2e/` (4 flows) | ✅ |
 | GitHub Actions CI | `.github/workflows/e2e.yml` | ⏳ |
 
 ### npm scripts
