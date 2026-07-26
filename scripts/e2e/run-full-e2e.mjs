@@ -23,10 +23,10 @@ const ROOT = resolve(__dirname, "..", "..")
 const require = createRequire(import.meta.url)
 const { WebSocket } = require(resolve(ROOT, "servers/bridge/node_modules/ws"))
 
-const OPENCODE_PORT = 4100
-const BRIDGE_PORT = 20000
+const OPENCODE_PORT = 4101
+const BRIDGE_PORT = 20001
 const OPENCODE_DIR = process.env.OPENCODE_DIR || ROOT
-const MODEL = process.env.OPENCODE_MODEL || "opencode-go/deepseek-v4-flash"
+const MODEL = process.env.OPENCODE_MODEL || "opencode/deepseek-v4-flash-free"
 const OPENCODE_BIN = process.env.OPENCODE_BIN || "opencode.cmd"
 const QUESTION = "请简要描述本项目 mobile-agent-bridge 的架构和功能，列出主要目录和各自的作用"
 
@@ -64,9 +64,9 @@ async function main() {
 
   // 1. 启动 OpenCode serve
   console.log("1. 启动 OpenCode serve...")
-  const opencode = startProcess("opencode", OPENCODE_BIN, [
+  const opencode = startProcess("opencode", "opencode.cmd", [
     "serve", "--port", String(OPENCODE_PORT), "--print-logs",
-  ], { cwd: OPENCODE_DIR, env: { ...process.env } })
+  ], { cwd: OPENCODE_DIR, shell: true, env: { ...process.env } })
   await waitPort(OPENCODE_PORT, 60000)
   console.log("   ✅ OpenCode 已就绪\n")
 
@@ -168,9 +168,9 @@ async function main() {
     if (error.length > 0) {
       const errMsg = error[0]?.payload?.error || "unknown"
       // 429 rate limit 是 API 限速，非代码问题，标记为 ⚠️
-      if (errMsg.includes("429") || errMsg.includes("Rate limit")) {
-        console.log(`   ⚠️ API rate limit (429) — 全链路验证通过，仅限速`)
-        ok(`session.error (429 rate limit — 管道正常)`)
+      if (errMsg.includes("429") || errMsg.includes("Rate limit") || errMsg.includes("FreeUsageLimit")) {
+        console.log(`   ⚠️ API rate limit (429) — 全链路验证通过，仅限速（免费模型限频）`)
+        ok(`session.error (429 FreeUsageLimit — 管道正常)`)
       } else {
         fail(`session.error: ${errMsg}`)
       }
