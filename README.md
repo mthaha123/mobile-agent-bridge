@@ -12,30 +12,42 @@
 
 ```
 mobile-agent-bridge/
-├── servers/bridge/              # Bridge 服务器 (Node.js + ws + @opencode-ai/sdk)
-│   ├── src/server/              # WS 服务、JWT 认证、RPC 路由、文件操作
-│   ├── src/adapters/            # OpenCode SDK 适配器
-│   ├── src/state/               # 项目状态、SSE 生命周期
-│   └── __tests__/               # 路由/认证/文件 handler 测试 (117 tests)
-├── apps/mobile/                 # React Native 客户端 (Android)
-│   ├── src/screens/             # 9 个页面 (Chat/Sessions/Connect/Settings 等)
-│   ├── src/components/          # 6 个组件 (Markdown/ToolRenderer/AppProvider 等)
-│   ├── src/stores/              # 11 个 Zustand Store
-│   ├── src/services/            # BridgeClient (WS 客户端)
-│   └── __tests__/               # Store/Screen/Component 测试 (571 tests)
-├── packages/shared/             # 共享协议类型
-├── scripts/                     # 构建/部署/E2E 脚本
-│   └── e2e/                     # Mock Bridge、Layer Runner、RPC 测试
-├── docs/                        # 设计文档
-│   └── plans/                   # 实施计划
+├── servers/bridge/                    # Bridge 服务器 (Node.js)
+│   ├── src/
+│   │   ├── server/                    # ws.ts, auth.ts, router.ts, fileHandler.ts
+│   │   ├── adapters/                  # OpenCodeAdapter.ts
+│   │   └── state/                     # project.ts (SSE 生命周期)
+│   ├── __tests__/                     # 3 测试文件 (router/auth/fileHandler)
+│   └── scripts/                       # E2E/验证脚本
+├── apps/mobile/                       # React Native 客户端 (Android)
+│   ├── src/
+│   │   ├── screens/                   # 9 页面
+│   │   ├── components/                # 6 UI 组件
+│   │   ├── stores/                    # 12 Zustand Store
+│   │   ├── services/                  # BridgeClient.ts
+│   │   └── types/                     # 类型定义
+│   ├── __tests__/                     # 29 测试文件
+│   └── __mocks__/                     # Jest 全局 Mock
+├── packages/shared/src/               # 共享协议类型
+├── scripts/                           # 构建/部署/E2E 脚本
+│   ├── e2e/                           # Mock Bridge、Layer Runner
+│   ├── build-*.ps1/bat                # Android APK 构建
+│   └── start_*.ps1/bat                # Bridge 服务器启动
+├── docs/                              # 架构/需求/计划文档
+│   ├── plans/                         # 实施计划
+│   └── code-reference/                # 代码参考
 ├── logs/
-│   ├── build/                   # 编译/测试日志
-│   ├── dumps/                   # UI hierarchy dump (adb)
-│   └── screenshots/             # 测试截图
-└── .maestro/flows/              # Maestro E2E flows
-    ├── l1-smoke/                # Layer 1: 冒烟测试
-    ├── l2-bridge-*.yaml         # Layer 2: Mock Bridge 集成测试
-    └── l3-*.yaml                # Layer 3: UI 组件专项测试
+│   ├── build/                         # 编译/测试日志
+│   ├── dumps/                         # UI hierarchy dump (adb)
+│   └── screenshots/                   # 测试截图
+└── .maestro/
+    ├── flows/                         # Maestro E2E 流程
+    │   ├── l1-smoke/                  # Layer 1: 冒烟测试
+    │   ├── l2-bridge-*.yaml           # Layer 2: Mock 集成测试
+    │   ├── l3-*.yaml                  # Layer 3: UI 组件测试
+    │   └── shared/                    # 公共连接步骤
+    ├── bin/                           # Maestro 可执行文件
+    └── lib/                           # Maestro 依赖库
 ```
 
 ---
@@ -89,7 +101,7 @@ npm run e2e:test-rpcs     # 验证 5 个核心 RPC (9 断言)
 | Agent/模型切换 | `session.switchAgent/switchModel` | ChatScreen / SlashSheet |
 | 会话 Fork | `session.fork/children` | SessionInfoModal |
 
-**共 46 个 RPC handler，40 个客户端调用接口，20+ 个 SSE 事件类型。**
+**共 46 个 RPC handler、12 个 Store、9 个 Screen、6 个 Component、20+ 个 SSE 事件类型。**
 
 ---
 
@@ -98,8 +110,8 @@ npm run e2e:test-rpcs     # 验证 5 个核心 RPC (9 断言)
 ### 单元测试
 
 ```bash
-npm run bridge:test               # Bridge: 117 tests
-cd apps/mobile && npx jest        # Mobile: 571 tests
+npm run bridge:test               # Bridge: 117 tests (3 test files)
+cd apps/mobile && npx jest        # Mobile: 571 tests (29 test files)
 ```
 
 ### E2E 测试
@@ -122,9 +134,9 @@ cd apps/mobile && npx jest        # Mobile: 571 tests
 │  手机客户端      │ ◄───────────────────► │  Bridge 服务器    │ ◄──────────────► │  OpenCode      │
 │  (React Native)  │    req/res/notify     │  (Node.js)       │    @opencode-ai  │  Agent 服务    │
 │                  │                      │  46 RPC handler   │    /sdk v2      │                │
-│  9 screens       │                      │  JWT 认证         │                 │  会话持久化    │
-│  6 components    │                      │  SSE→WS 转发      │                 │  LLM 推理      │
-│  11 stores       │                      │  文件直接操作      │                 │  工具执行      │
+│  12 Store        │                      │  JWT 认证         │                 │  会话持久化    │
+│  9 Screen        │                      │  SSE→WS 转发      │                 │  LLM 推理      │
+│  6 Component     │                      │  文件直接操作      │                 │  工具执行      │
 └─────────────────┘                      └──────────────────┘                 └────────────────┘
 ```
 
