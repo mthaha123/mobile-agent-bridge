@@ -108,17 +108,17 @@
 
 ### P2 — 增强功能
 
-| RPC 方法 | SDK 调用 | 用途 |
-|----------|----------|------|
-| `vcs.status` | `sdk().vcs.status()` | 获取未暂存文件列表 |
-| `vcs.diff` | `sdk().vcs.diff({ file })` | 获取文件详细 diff |
-| `vcs.apply` | `sdk().vcs.apply({ patch })` | 应用 patch |
+| RPC 方法 | SDK 调用 | 用途 | 状态 |
+|----------|----------|------|:----:|
+| `vcs.status` | `sdk().vcs.status()` | 获取未暂存文件列表（桌面 warp 场景，移动端不适用） | ❌ 不适配 |
+| `vcs.diff` | `sdk().vcs.diff({ file })` | 获取文件详细 diff（桌面场景，移动端不适用） | ❌ 不适配 |
+| `vcs.apply` | `sdk().vcs.apply({ patch })` | 应用 patch（桌面场景，移动端不适用） | ❌ 不适配 |
 | `permission.list` | `sdk().v2.permission.request.list()` | 列出待审批权限 | ✅ |
 | `permission.saved.list` | `sdk().v2.permission.saved.list()` | 列出已保存权限规则 | ✅ |
 | `permission.saved.remove` | `sdk().v2.permission.saved.remove({ id })` | 删除保存的权限规则 | ✅ |
-| `tool.list` | `sdk().tool.list()` | 列出可用工具及其 schema |
+| `tool.list` | `sdk().tool.list()` | 列出可用工具及其 schema（工具名已在审批事件中获取，移动端不适用） | ❌ 不适配 |
 | `config.update` | `sdk().config.update({ ... })` | 更新项目级配置 | ✅ |
-| `global.config.update` | `sdk().global.config.update({ ... })` | 更新全局配置（移动端不适用） | ❌ 不开发 |
+| `global.config.update` | `sdk().global.config.update({ ... })` | 更新全局配置（移动端不适用） | ❌ 不适配 |
 | `project.list` | `sdk().project.list()` | 项目列表（切换用） | ✅ |
 
 ### P3 — 高级/实验性
