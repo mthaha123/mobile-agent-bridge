@@ -54,6 +54,7 @@ export interface SessionState {
   getSessionTodo: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
   getSessionDiff: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
   forkSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
+  getSessionChildren: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
   revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   unrevertSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchAgent: (id: string, agent: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
@@ -187,6 +188,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '复刻会话失败' })
       return null
+    }
+  },
+
+  getSessionChildren: async (id, clientCall) => {
+    try {
+      const result = await clientCall('session.children', { sessionId: id })
+      return normalizeArray<any>(result, 'sessions')
+    } catch (e: unknown) {
+      console.warn('session.children failed:', e instanceof Error ? e.message : e)
+      return []
     }
   },
 

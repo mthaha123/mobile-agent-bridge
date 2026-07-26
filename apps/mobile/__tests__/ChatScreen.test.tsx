@@ -544,6 +544,58 @@ describe('ChatScreen', () => {
     expect(mdComponents[0].props.content).toBe('Hi')
   })
 
+  it('copy button exists on user messages', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'user', content: 'copy this', timestamp: 1000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.props?.onPress === 'function',
+    )
+    const copyBtn = pressables.find((n: any) => {
+      let text = ''
+      function walk(node: any) {
+        if (!node) return
+        if (typeof node === 'string') { text += node; return }
+        if (node.children) node.children.forEach(walk)
+      }
+      walk(n)
+      return text.includes('Copy')
+    })
+    expect(copyBtn).toBeTruthy()
+  })
+
+  it('copy button exists on assistant messages', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'answer', timestamp: 1000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.props?.onPress === 'function',
+    )
+    const copyBtn = pressables.find((n: any) => {
+      let text = ''
+      function walk(node: any) {
+        if (!node) return
+        if (typeof node === 'string') { text += node; return }
+        if (node.children) node.children.forEach(walk)
+      }
+      walk(n)
+      return text.includes('Copy')
+    })
+    expect(copyBtn).toBeTruthy()
+  })
+
   it('system message does not use MarkdownRenderer', () => {
     useChatStore.setState({
       activeSessionId: 's1',

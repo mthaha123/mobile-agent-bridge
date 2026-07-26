@@ -184,6 +184,11 @@ registerHandler("session.unrevert", async (p) => {
   if (!id) throw new Error("session.unrevert requires sessionId parameter")
   return sdkCall(() => sdk().session.unrevert({ sessionID: id }))
 })
+registerHandler("session.children", async (p) => {
+  const id = resolveSessionIdOrId(p)
+  if (!id) throw new Error("session.children requires sessionId parameter")
+  return sdkCall(() => sdk().session.children({ sessionID: id }))
+})
 registerHandler("session.switchAgent", async (p) => {
   const id = resolveSessionId(p)
   if (!id) throw new Error("session.switchAgent requires sessionId parameter")

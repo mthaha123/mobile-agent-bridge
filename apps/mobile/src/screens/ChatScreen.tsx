@@ -12,6 +12,7 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Clipboard,
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
@@ -217,6 +218,11 @@ export const ChatScreen: React.FC = () => {
     }
   }
 
+  const handleCopyMessage = (content: string) => {
+    Clipboard.setString(content)
+    Alert.alert('Copied', 'Message content copied to clipboard')
+  }
+
   const renderMessage = ({ item }: { item: import('../stores/chatStore').ChatMessage }) => {
     const isUser = item.role === 'user'
     const isSystem = item.role === 'system'
@@ -243,14 +249,22 @@ export const ChatScreen: React.FC = () => {
             {item.content}
           </Text>
         )}
-        {isAssistant && item.messageID && (
+        <View style={styles.messageActions}>
           <TouchableOpacity
-            style={styles.revertBtn}
-            onPress={() => handleRevert(item.messageID!, item.partID)}
+            style={styles.copyBtn}
+            onPress={() => handleCopyMessage(item.content)}
           >
-            <Text style={styles.revertBtnText}>Revert</Text>
+            <Text style={styles.copyBtnText}>Copy</Text>
           </TouchableOpacity>
-        )}
+          {isAssistant && item.messageID && (
+            <TouchableOpacity
+              style={styles.revertBtn}
+              onPress={() => handleRevert(item.messageID!, item.partID)}
+            >
+              <Text style={styles.revertBtnText}>Revert</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     )
   }
@@ -568,8 +582,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  revertBtn: {
+  messageActions: {
+    flexDirection: 'row',
     marginTop: 8,
+    gap: 8,
+  },
+  copyBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#1a3a1a',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  copyBtnText: {
+    color: '#6bff6b',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  revertBtn: {
     alignSelf: 'flex-start',
     backgroundColor: '#3a1a1a',
     borderRadius: 6,

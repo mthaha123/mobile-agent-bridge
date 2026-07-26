@@ -80,6 +80,7 @@ const MOCK_PAYLOADS = {
   "session.fork": { sessionId: "mock_forked" },
   "session.revert": { ok: true },
   "session.unrevert": { ok: true },
+  "session.children": { sessions: [{ id: "mock_s1_child", name: "Forked Session", messageCount: 0 }] },
   "session.status": { status: { type: "idle" }, sessionID: "mock_s1" },
   "session.active": {},
   "session.switchAgent": { ok: true },

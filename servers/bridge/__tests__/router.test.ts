@@ -45,6 +45,7 @@ function createMockSdk() {
     unrevert: jest.fn<any>().mockResolvedValue({ data: { id: "sess_123" } }),
     shell: jest.fn<any>().mockResolvedValue({ data: {} }),
     command: jest.fn<any>().mockResolvedValue({ data: {} }),
+    children: jest.fn<any>().mockResolvedValue({ data: [] }),
   }
   const mockGlobal = { config: { get: jest.fn<any>().mockResolvedValue({ data: {} }) }, dispose: jest.fn<any>().mockResolvedValue(undefined) }
   const mockConfig = { providers: jest.fn<any>().mockResolvedValue({ data: [] }) }
@@ -621,6 +622,27 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockSession2.unrevert).toHaveBeenCalledWith({ sessionID: "sess_123" })
+  })
+
+  it("should call session.children", async () => {
+    const { mockSession2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.children",
+      params: { sessionID: "sess_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockSession2.children).toHaveBeenCalledWith({ sessionID: "sess_123" })
+  })
+
+  it("should reject session.children without id", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.children", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
   })
 
   // ===== Message handlers =====

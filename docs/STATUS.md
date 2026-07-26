@@ -1,6 +1,6 @@
 ﻿# 开发进度
 
-> 更新日期：2026-07-26 (v2 — L2 E2E 全量通过)
+> 更新日期：2026-07-26 (v3 — session.children + 消息复制)
 
 ---
 
@@ -75,8 +75,8 @@
 
 | 类型 | 数量 | 状态 |
 |------|:----:|:----:|
-| Bridge 单元测试 | 108 | ✅ |
- | Mobile 单元测试 | 559 | ✅ |
+| Bridge 单元测试 | 110 | ✅ |
+| Mobile 单元测试 | 561 | ✅ |
  | E2E (Bridge → SDK) | ~51 场景 | ✅ |
  | E2E (SSE 流式) | 2 场景 | ✅ |
  | Android E2E (Maestro) | 27/27 场景 | ✅ |
@@ -102,7 +102,7 @@
 | `model.list` | `sdk().v2.model.list()` | 获取可用模型列表 | 模型切换 UI | ✅ |
 | `session.switchAgent` | `sdk().v2.session.switchAgent({ sessionID, agent })` | 切换会话 Agent | ChatScreen agent 切换 | ✅ |
 | `session.switchModel` | `sdk().v2.session.switchModel({ sessionID, model })` | 切换会话模型 | ChatScreen 模型切换 | ✅ |
-| `session.children` | `sdk().session.children({ sessionID })` | 获取 fork 树子会话 | 会话关系图 | ⏳ |
+| `session.children` | `sdk().session.children({ sessionID })` | 获取 fork 树子会话 | 会话关系图 | ✅ |
 | `file.find` | `sdk().find.files({ pattern, dirs })` | 按文件名搜索 | 文件浏览器搜索增强 | ⏳ |
 | `find.symbols` | `sdk().find.symbols({ query, dirs })` | LSP 符号搜索 | 代码导航 | ⏳ |
 
@@ -150,6 +150,8 @@
 | Agent 切换 UI | `session.switchAgent` → ChatScreen | 会话中更换 Agent | ✅ |
 | 消息富文本渲染 | `chatStore` → 支持 code/markdown | 集成 react-native-markdown-display | ✅ |
 | 文件搜索增强 | `file.search` + `file.find` | 按文件名/内容/符号搜索 | ⏳ |
+| 消息复制 | `Clipboard` → ChatScreen | 长按/按钮复制消息内容 | ✅ |
+| 会话历史消息加载 | `ChatScreen useEffect` | 切换会话后自动加载历史 | ✅ |
 
 ### P2 — 增强功能
 
@@ -199,8 +201,8 @@
 
 ### 当前接口状态
 
-- Bridge handler: **40 个** (router.ts)
-- Mobile `client.call()`: **35 个** (各 store + screens)
+- Bridge handler: **41 个** (router.ts)
+- Mobile `client.call()`: **36 个** (各 store + screens)
 - SSE 事件: **20+ 个** (AppProvider 全量覆盖)
 - 接口对齐: ✅ **完全对齐，零缺口**
 
