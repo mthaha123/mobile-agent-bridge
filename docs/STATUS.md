@@ -104,7 +104,7 @@
 | `session.switchModel` | `sdk().v2.session.switchModel({ sessionID, model })` | 切换会话模型 | ChatScreen 模型切换 | ✅ |
 | `session.children` | `sdk().session.children({ sessionID })` | 获取 fork 树子会话 | 会话关系图 | ✅ |
 | `file.find` | `sdk().find.files({ pattern, dirs })` | 按文件名搜索 | TUI @-mention 联想，移动端触屏不适用 | ❌ 不开发 |
-| `find.symbols` | `sdk().find.symbols({ query, dirs })` | LSP 符号搜索 | 代码导航 | ⏳ |
+| `find.symbols` | `sdk().find.symbols({ query, dirs })` | LSP 符号搜索 | 依赖服务端 LSP，移动端不适用 | ❌ 不开发 |
 
 ### P2 — 增强功能
 
@@ -136,7 +136,7 @@
 | `sync.*` / `worktree.*` | `sdk().sync.*` / `sdk().worktree.*` | 同步/工作树 |
 | `integration.*` | `sdk().v2.integration.*` | 第三方集成 |
 | `provider.oauth.*` | `sdk().provider.oauth.*` | OAuth 流程 |
-| `find.symbols` | `sdk().find.symbols()` | LSP 符号搜索 |
+| ~~`find.symbols`~~ | ~~`sdk().find.symbols()`~~ | LSP 符号搜索（移动端不适用） |
 
 ---
 
