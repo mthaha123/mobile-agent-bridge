@@ -184,6 +184,19 @@ registerHandler("session.unrevert", async (p) => {
   if (!id) throw new Error("session.unrevert requires sessionId parameter")
   return sdkCall(() => sdk().session.unrevert({ sessionID: id }))
 })
+registerHandler("session.switchAgent", async (p) => {
+  const id = resolveSessionId(p)
+  if (!id) throw new Error("session.switchAgent requires sessionId parameter")
+  if (!p.agent) throw new Error("session.switchAgent requires agent parameter")
+  return sdkCall(() => sdk().v2.session.switchAgent({ sessionID: id, agent: p.agent as string }))
+})
+registerHandler("session.switchModel", async (p) => {
+  const id = resolveSessionId(p)
+  if (!id) throw new Error("session.switchModel requires sessionId parameter")
+  const model = resolveModel(p.model)
+  if (!model) throw new Error("session.switchModel requires model parameter")
+  return sdkCall(() => sdk().v2.session.switchModel({ sessionID: id, model }))
+})
 
 registerHandler("message.send", async (p) => {
   const sid = resolveSessionId(p)
@@ -252,6 +265,7 @@ registerHandler("config.agents", async () => sdkCall(() => sdk().v2.agent.list({
 registerHandler("config.providers", async () => sdkCall(() => sdk().config.providers({})))
 registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))
 registerHandler("command.list", async () => sdkCall(() => sdk().v2.command.list({})))
+registerHandler("model.list", async () => sdkCall(() => sdk().v2.model.list({})))
 registerHandler("vcs.get", async () => sdkCall(() => sdk().vcs.get({})))
 
 // ===== 文件操作（直接实现，不经过 SDK）=====

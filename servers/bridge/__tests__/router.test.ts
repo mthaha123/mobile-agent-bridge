@@ -50,7 +50,12 @@ function createMockSdk() {
   const mockConfig = { providers: jest.fn<any>().mockResolvedValue({ data: [] }) }
   const mockVcs = { get: jest.fn<any>().mockResolvedValue({ data: {} }) }
   const mockV2 = {
-    session: mockV3Session,
+    session: {
+      ...mockV3Session,
+      switchAgent: jest.fn<any>().mockResolvedValue({ data: { id: "sess_123" } }),
+      switchModel: jest.fn<any>().mockResolvedValue({ data: { id: "sess_123" } }),
+    },
+    model: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     agent: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     provider: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     command: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
@@ -735,6 +740,116 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockVcs.get).toHaveBeenCalledWith({})
+  })
+
+  it("should call model.list", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "model.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.model.list).toHaveBeenCalledWith({})
+  })
+
+  it("should call session.switchAgent with agent name", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchAgent",
+      params: { sessionId: "sess_123", agent: "build" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.session.switchAgent).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      agent: "build",
+    })
+  })
+
+  it("should accept sessionID (upper case D) in session.switchAgent", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchAgent",
+      params: { sessionID: "sess_123", agent: "coder" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.session.switchAgent).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      agent: "coder",
+    })
+  })
+
+  it("should reject session.switchAgent without sessionId", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchAgent",
+      params: { agent: "build" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+  })
+
+  it("should reject session.switchAgent without agent", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchAgent",
+      params: { sessionId: "sess_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("agent")
+  })
+
+  it("should call session.switchModel with string model (resolved to object)", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchModel",
+      params: { sessionId: "sess_123", model: "claude-sonnet-4" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.session.switchModel).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      model: { id: "claude-sonnet-4", providerID: "claude-sonnet-4" },
+    })
+  })
+
+  it("should call session.switchModel with model object (pass through)", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchModel",
+      params: { sessionId: "sess_123", model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" } },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.session.switchModel).toHaveBeenCalledWith({
+      sessionID: "sess_123",
+      model: { id: "gpt-4o", providerID: "openai", variant: "2024-11" },
+    })
+  })
+
+  it("should reject session.switchModel without sessionId", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchModel",
+      params: { model: "claude" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+  })
+
+  it("should reject session.switchModel without model", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.switchModel",
+      params: { sessionId: "sess_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("model")
   })
 
   // ===== Project handler =====
