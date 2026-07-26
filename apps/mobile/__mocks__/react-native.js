@@ -30,8 +30,15 @@ module.exports = {
   TouchableOpacity: mockComponent('TouchableOpacity'),
   ScrollView: mockRefComponent('ScrollView'),
   FlatList: React.forwardRef((props, ref) => {
-    const { children, ...rest } = props
-    return React.createElement('FlatList', { ...rest, ref }, children)
+    const { children, data, renderItem, ...rest } = props
+    const items = data && renderItem
+      ? data.map(function(item, index) {
+          return React.createElement('FlatList-Item', { key: item.id ?? index },
+            renderItem({ item, index, separators: {} }),
+          )
+        })
+      : children
+    return React.createElement('FlatList', { ...rest, ref }, items)
   }),
   Modal: mockComponent('Modal'),
   ActivityIndicator: mockComponent('ActivityIndicator'),

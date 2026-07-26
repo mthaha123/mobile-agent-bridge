@@ -21,5 +21,5 @@ appId: com.mobileagentbridge
     visible: "Chat"
     timeout: 15000
 
-# 检查 "Sessions" 文字
-- assertVisible: "Sessions"
+# 检查 "< Sessions" 文字
+- assertVisible: "< Sessions"

@@ -9,6 +9,7 @@ import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { textOf } from './test-utils'
+import { MarkdownRenderer } from '../src/components/MarkdownRenderer'
 
 const onNavigateToSessions = jest.fn()
 
@@ -493,5 +494,85 @@ describe('ChatScreen', () => {
     expect(newBtn).toBeDefined()
     act(() => { newBtn!.props.onPress() })
     expect(Alert.alert).toHaveBeenCalledWith('Error', '未连接到服务器')
+  })
+
+  // ─── Markdown rendering integration ──────────────────────
+
+  it('assistant message renders via MarkdownRenderer', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'Hello **world**', timestamp: 1000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const mdComponents = tree.root.findAllByType(MarkdownRenderer)
+    expect(mdComponents.length).toBeGreaterThanOrEqual(1)
+    expect(mdComponents[0].props.content).toBe('Hello **world**')
+  })
+
+  it('assistant message with markdown renders content text', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'assistant', content: '# Title\n\n**bold** text\n\n```js\ncode\n```', timestamp: 1000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    expect(textOf(tree)).toContain('Title')
+    expect(textOf(tree)).toContain('bold')
+    expect(textOf(tree)).toContain('code')
+  })
+
+  it('user message does not use MarkdownRenderer', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'user', content: 'Hello', timestamp: 1000 },
+        { id: 'm2', role: 'assistant', content: 'Hi', timestamp: 2000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const mdComponents = tree.root.findAllByType(MarkdownRenderer)
+    expect(mdComponents).toHaveLength(1)
+    expect(mdComponents[0].props.content).toBe('Hi')
+  })
+
+  it('system message does not use MarkdownRenderer', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'system', content: 'System notice', timestamp: 1000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const mdComponents = tree.root.findAllByType(MarkdownRenderer)
+    expect(mdComponents).toHaveLength(0)
+  })
+
+  it('multiple assistant messages each get their own MarkdownRenderer', () => {
+    useChatStore.setState({
+      activeSessionId: 's1',
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'First', timestamp: 1000 },
+        { id: 'm2', role: 'user', content: 'Okay', timestamp: 2000 },
+        { id: 'm3', role: 'assistant', content: 'Second', timestamp: 3000 },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const mdComponents = tree.root.findAllByType(MarkdownRenderer)
+    expect(mdComponents).toHaveLength(2)
+    expect(mdComponents[0].props.content).toBe('First')
+    expect(mdComponents[1].props.content).toBe('Second')
   })
 })

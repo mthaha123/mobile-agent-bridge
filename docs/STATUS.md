@@ -1,6 +1,6 @@
 ﻿# 开发进度
 
-> 更新日期：2026-07-26
+> 更新日期：2026-07-26 (v2 — L2 E2E 全量通过)
 
 ---
 
@@ -76,16 +76,17 @@
 | 类型 | 数量 | 状态 |
 |------|:----:|:----:|
 | Bridge 单元测试 | 108 | ✅ |
-| Mobile 单元测试 | 548 | ✅ |
-| E2E (Bridge → SDK) | ~51 场景 | ✅ |
-| E2E (SSE 流式) | 2 场景 | ✅ |
-| Android E2E (Maestro) | 25/27 场景 | ✅ (2 skip) |
+ | Mobile 单元测试 | 559 | ✅ |
+ | E2E (Bridge → SDK) | ~51 场景 | ✅ |
+ | E2E (SSE 流式) | 2 场景 | ✅ |
+ | Android E2E (Maestro) | 27/27 场景 | ✅ |
 | — Layer 1 Smoke | `l1-smoke/connect-screen.yaml`, `input-interaction.yaml` | ✅ |
 | — Layer 2 Bridge Mock | `l2-bridge-*.yaml` 9 flows | ✅ |
 | — Layer 3 UI 组件 | `l3-question.yaml`, `l3-tool-approval.yaml`, `l3-tool-progress.yaml` | ✅ |
 | Mock Bridge (39 handler + HTTP Push API) | `scripts/e2e/mock-bridge.mjs` — 39 handler + push notify，无依赖启动 | ✅ |
 | Push Notify CLI | `scripts/e2e/push-notify.mjs` — 向 Mock Bridge 发送 push 通知 | ✅ |
 | E2E Layer Runner | `scripts/e2e/run-layer.mjs` — 分层统一入口 | ✅ |
+| Maestro Driver | 首次运行需手动安装 `maestro-app.apk` + `maestro-server.apk`（从 `maestro-client.jar` 提取） | ⚠️ |
 
 ---
 
@@ -209,7 +210,7 @@
 
 | 盲区 | 说明 | 建议 | 状态 |
 |------|------|------|:----:|
-| 断线重连 (Android) | 需要 Bridge 运行时 + 模拟器 | Layer 2 (Mock Bridge) | ⏳ |
+| 断线重连 (Android) | 需要 Bridge 运行时 + 模拟器 | Layer 2 (Mock Bridge) | ✅ |
 | 并发多客户端 | 多 WS 连接同时操作 | 可选 | ⏳ |
 | 长时间运行稳定性 | 数小时持续运行 | 可选 | ⏳ |
 | 消息收发 E2E | 需要真实 OpenCode 服务端 | Layer 4 | ⏳ |
