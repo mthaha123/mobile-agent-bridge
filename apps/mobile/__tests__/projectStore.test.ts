@@ -211,3 +211,56 @@ describe('fetchCurrentProject', () => {
     ).resolves.not.toThrow()
   })
 })
+
+// ---------------------------------------------------------------------------
+// listProjects
+// ---------------------------------------------------------------------------
+
+describe('listProjects', () => {
+  beforeEach(() => {
+    useProjectStore.setState({ projects: [] })
+  })
+
+  it('calls project.list and stores project array', async () => {
+    const projectList = [
+      { directory: '/proj/a', name: 'Project A' },
+      { directory: '/proj/b', name: 'Project B' },
+    ]
+    const clientCall = jest.fn().mockResolvedValue(projectList)
+
+    await useProjectStore.getState().listProjects(clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('project.list', {})
+    expect(useProjectStore.getState().projects).toEqual(projectList)
+  })
+
+  it('extracts projects from wrapped response', async () => {
+    const clientCall = jest.fn().mockResolvedValue({
+      projects: [{ directory: '/wrapped', name: 'Wrapped' }],
+    })
+
+    await useProjectStore.getState().listProjects(clientCall)
+
+    expect(useProjectStore.getState().projects).toEqual([
+      { directory: '/wrapped', name: 'Wrapped' },
+    ])
+  })
+
+  it('handles empty response gracefully', async () => {
+    const clientCall = jest.fn().mockResolvedValue({})
+
+    await useProjectStore.getState().listProjects(clientCall)
+
+    expect(useProjectStore.getState().projects).toEqual([])
+  })
+
+  it('catches errors silently', async () => {
+    const clientCall = jest.fn().mockRejectedValue(new Error('network error'))
+    useProjectStore.setState({ projects: [{ directory: '/existing' }] })
+
+    await useProjectStore.getState().listProjects(clientCall)
+
+    // Should not throw; existing projects preserved
+    expect(useProjectStore.getState().projects).toEqual([{ directory: '/existing' }])
+  })
+})

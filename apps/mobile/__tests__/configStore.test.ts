@@ -166,3 +166,35 @@ describe('fetchVcs', () => {
     expect(useConfigStore.getState().error).toBe('vcs error')
   })
 })
+
+// ---------------------------------------------------------------------------
+// updateConfig
+// ---------------------------------------------------------------------------
+
+describe('updateConfig', () => {
+  beforeEach(() => {
+    resetConfigStore()
+  })
+
+  it('calls config.update with updates and refreshes config', async () => {
+    const updatedConfig = { theme: 'light', language: 'en' }
+    const clientCall = jest.fn()
+    clientCall.mockResolvedValueOnce({})            // config.update
+    clientCall.mockResolvedValueOnce(updatedConfig) // config.get (re-fetch)
+
+    await useConfigStore.getState().updateConfig({ theme: 'light' }, clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('config.update', { theme: 'light' })
+    expect(useConfigStore.getState().config).toEqual(updatedConfig)
+  })
+
+  it('catches errors silently', async () => {
+    const clientCall = jest.fn().mockRejectedValue(new Error('update failed'))
+    useConfigStore.setState({ config: { existing: true } })
+
+    await useConfigStore.getState().updateConfig({ theme: 'light' }, clientCall)
+
+    // config should remain unchanged
+    expect(useConfigStore.getState().config).toEqual({ existing: true })
+  })
+})
