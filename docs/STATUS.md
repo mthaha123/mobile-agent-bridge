@@ -103,7 +103,7 @@
 | `session.switchAgent` | `sdk().v2.session.switchAgent({ sessionID, agent })` | 切换会话 Agent | ChatScreen agent 切换 | ✅ |
 | `session.switchModel` | `sdk().v2.session.switchModel({ sessionID, model })` | 切换会话模型 | ChatScreen 模型切换 | ✅ |
 | `session.children` | `sdk().session.children({ sessionID })` | 获取 fork 树子会话 | 会话关系图 | ✅ |
-| `file.find` | `sdk().find.files({ pattern, dirs })` | 按文件名搜索 | 文件浏览器搜索增强 | ⏳ |
+| `file.find` | `sdk().find.files({ pattern, dirs })` | 按文件名搜索 | TUI @-mention 联想，移动端触屏不适用 | ❌ 不开发 |
 | `find.symbols` | `sdk().find.symbols({ query, dirs })` | LSP 符号搜索 | 代码导航 | ⏳ |
 
 ### P2 — 增强功能
@@ -149,7 +149,7 @@
 | 模型选择 UI | `model.list` → ChatScreen | 发送消息前选择模型 | ✅ |
 | Agent 切换 UI | `session.switchAgent` → ChatScreen | 会话中更换 Agent | ✅ |
 | 消息富文本渲染 | `chatStore` → 支持 code/markdown | 集成 react-native-markdown-display | ✅ |
-| 文件搜索增强 | `file.search` + `file.find` | 按文件名/内容/符号搜索 | ⏳ |
+| 文件搜索增强 | `file.search` | 文件内容搜索已实现，文件名搜索（TUI @ 联想）移动端不适用 | ✅ |
 | 消息复制 | `Clipboard` → ChatScreen | 长按/按钮复制消息内容 | ✅ |
 | 会话历史消息加载 | `ChatScreen useEffect` | 切换会话后自动加载历史 | ✅ |
 
