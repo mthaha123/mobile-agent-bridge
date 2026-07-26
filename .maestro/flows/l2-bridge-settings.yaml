@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 2 — Settings 完整展示（VCS / Providers / Agents / Config）
+# Layer 2 — Settings 完整展示（VCS / Providers / Agents / Config / Saved Permissions）
 - launchApp
 
 - tapOn: "ws://192.168.1.100:8080/ws"
@@ -28,6 +28,14 @@ appId: com.mobileagentbridge
 # 项目信息
 - assertVisible: "/mock-project"
 
+# Config 编辑（新功能）
+- assertVisible: "Config"
+- assertVisible: "Edit"
+- assertVisible: "theme"
+- assertVisible: "dark"
+- assertVisible: "language"
+- assertVisible: "zh"
+
 # VCS 信息
 - assertVisible: "git"
 - assertVisible: "main"
@@ -45,6 +53,9 @@ appId: com.mobileagentbridge
 - assertVisible: "Build Agent"
 - assertVisible: "Debug Agent"
 - assertVisible: "Architect Agent"
+
+# Saved Permissions 区块（新功能）
+- assertVisible: "Saved Permissions"
 
 # 断开连接按钮
 - assertVisible: "Disconnect"

@@ -1,0 +1,40 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — Switch 项目切换（project.list 列表显示）
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 点击 Switch 按钮打开项目切换 Modal
+- tapOn: "Switch"
+- extendedWaitUntil:
+    visible: "Switch Project"
+    timeout: 5000
+
+# 验证 project.list 返回的项目列表显示
+- assertVisible: "mock-project"
+
+# 点击项目列表中第一个项目切换
+- tapOn: "mock-project"
+
+# Modal 关闭，回到 SessionsScreen
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000
+
+# 验证项目目录已更新
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "/mock-project"
+    timeout: 10000
