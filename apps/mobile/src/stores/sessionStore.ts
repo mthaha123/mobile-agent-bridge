@@ -56,6 +56,8 @@ export interface SessionState {
   forkSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
   revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   unrevertSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  switchAgent: (id: string, agent: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  switchModel: (id: string, model: string | { id: string; providerID: string; variant?: string }, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -201,6 +203,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       await clientCall('session.unrevert', { sessionId: id })
     } catch (e: unknown) {
       console.warn('session.unrevert failed:', e instanceof Error ? e.message : e)
+    }
+  },
+
+  switchAgent: async (id, agent, clientCall) => {
+    set({ error: null })
+    try {
+      await clientCall('session.switchAgent', { sessionId: id, agent })
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '切换 Agent 失败' })
+    }
+  },
+
+  switchModel: async (id, model, clientCall) => {
+    set({ error: null })
+    try {
+      await clientCall('session.switchModel', { sessionId: id, model })
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '切换模型失败' })
     }
   },
 }))
