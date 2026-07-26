@@ -44,7 +44,18 @@ appId: com.mobileagentbridge
 - assertVisible: "Anthropic"
 - assertVisible: "OpenAI"
 
-# 滚动到底部
+# Config 编辑
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Edit Config"
+    timeout: 5000
+- assertVisible: "config"
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "Edit Config"
+    timeout: 5000
+
+# 滚动到中间（Agents + Saved Permissions）
 - swipe:
     direction: UP
     duration: 500
@@ -53,6 +64,11 @@ appId: com.mobileagentbridge
 - assertVisible: "Build Agent"
 - assertVisible: "Debug Agent"
 - assertVisible: "Architect Agent"
+
+# 继续滚动到底部
+- swipe:
+    direction: UP
+    duration: 500
 
 # Saved Permissions 区块（新功能）
 - assertVisible: "Saved Permissions"
