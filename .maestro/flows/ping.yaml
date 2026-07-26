@@ -1,0 +1,5 @@
+appId: com.mobileagentbridge
+---
+# Minimal: just launch and check the title
+- launchApp
+- assertVisible: "Mobile Agent Bridge"

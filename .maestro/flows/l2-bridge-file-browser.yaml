@@ -1,0 +1,41 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — 文件浏览 + 搜索
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 进入 Files 页面
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "src"
+    timeout: 15000
+
+# 验证文件列表
+- assertVisible: "package.json"
+- assertVisible: "README.md"
+
+# 验证搜索栏
+- assertVisible: "Search files..."
+- assertVisible: "Search"
+
+# 点击文件查看详情
+- tapOn: "package.json"
+
+# 返回文件列表
+- tapOn: "Close preview"
+
+# 验证 parent directory 导航
+- tapOn: "src"
+- assertVisible: ".."

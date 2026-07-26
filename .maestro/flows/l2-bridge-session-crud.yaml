@@ -1,0 +1,40 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — 会话列表 + 创建 + 返回
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+# 等待会话列表加载
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 验证会话列表有 mock 数据
+- assertVisible: "Session 1"
+- assertVisible: "Session 2"
+
+# 创建新会话
+- tapOn: "+ New"
+# 等待 ChatScreen 加载
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 15000
+
+# 回到会话列表
+- tapOn: "Back to sessions"
+- assertVisible: "+ New"
+
+# 验证 Switch 弹窗
+- tapOn: "Switch"
+- assertVisible: "Cancel"
+- assertVisible: "Switch Project"
+- tapOn: "Cancel"
+- assertVisible: "+ New"

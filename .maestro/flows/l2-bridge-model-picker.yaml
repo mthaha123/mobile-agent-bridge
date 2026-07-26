@@ -1,0 +1,45 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — ⚙ 模型选择按钮 + Model Picker Modal
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+- tapOn: "+ New"
+# 等待 ChatScreen 加载（session 名称 "New Session" 唯一标识 ChatScreen）
+- extendedWaitUntil:
+    visible: "New Session"
+    timeout: 15000
+
+# ⚙ header 右侧可见（通过 contentDescription）
+- assertVisible: "Model settings"
+
+# 点击打开模型选择 Modal
+- tapOn: "Model settings"
+- extendedWaitUntil:
+    visible: "Select Model"
+    timeout: 5000
+
+# 验证模型列表
+- assertVisible: "Claude Sonnet 4"
+- assertVisible: "GPT-4o"
+- assertVisible: "DeepSeek V3"
+
+# 点击一个模型
+- tapOn: "Claude Sonnet 4"
+
+# Modal 关闭，回到 ChatScreen
+- assertVisible: "Model settings"
+- tapOn: "< Sessions"
+- assertVisible: "+ New"

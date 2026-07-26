@@ -1,0 +1,41 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — 断开连接验证
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 进入 Settings
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Connected"
+    timeout: 10000
+- swipe:
+    direction: UP
+    duration: 500
+- extendedWaitUntil:
+    visible: "Disconnect"
+    timeout: 10000
+
+# 点击断开连接
+- tapOn: "Disconnect"
+
+# 回到 ConnectScreen
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 15000
+
+# 验证连接已断开 — 回到 ConnectScreen
+- assertVisible: "Connect"
+- assertVisible: "Mobile Agent Bridge"
