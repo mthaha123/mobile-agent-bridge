@@ -15,7 +15,7 @@
  */
 
 import { spawn, execSync } from "node:child_process"
-import { resolve, dirname } from "node:path"
+import { resolve, dirname, basename, relative, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { readdirSync, existsSync } from "node:fs"
 
@@ -54,11 +54,23 @@ function adb(args) {
 
 function findFlows(layer) {
   const prefix = `${layer}-`
-  const all = readdirSync(flowsDir).filter(f => f.endsWith(".yaml"))
-  const matched = all.filter(f => f.startsWith(prefix))
+  function walk(dir) {
+    const files = []
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const e of entries) {
+      const full = join(dir, e.name)
+      if (e.isDirectory()) files.push(...walk(full))
+      else if (e.name.endsWith(".yaml")) files.push(full)
+    }
+    return files
+  }
+  const all = walk(flowsDir)
+  const matched = all
+    .filter(f => basename(dirname(f)).startsWith(prefix) || basename(f).startsWith(prefix))
+    .map(f => relative(flowsDir, f))
 
   if (matched.length === 0) {
-    console.warn(yellow(`[WARN] Layer ${layer}: no flows found matching "${prefix}*"`))
+    console.warn(yellow(`[WARN] Layer ${layer}: no flows found matching "${prefix}-*"`))
   }
   return matched.sort()
 }

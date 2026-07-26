@@ -1,0 +1,23 @@
+appId: com.mobileagentbridge
+---
+# Layer 1 Smoke — 输入框交互验证
+- launchApp
+
+# 输入 URL
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://test-server:9090/ws"
+- assertVisible: "ws://test-server:9090/ws"
+
+# 输入密码（secureTextEntry，不可见明文字符）
+- tapOn: "password \\(optional\\)"
+- inputText: "mysecret"
+# 密码字段不验证文本可见性（secureTextEntry 遮挡）
+
+# 输入项目目录
+- tapOn: "project directory \\(e.g\\. /home/user/project\\)"
+- inputText: "/my/project"
+- assertVisible: "/my/project"
+
+# Connect 按钮可点击
+- assertVisible: "Connect"

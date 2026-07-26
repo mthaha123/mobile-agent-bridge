@@ -1,0 +1,21 @@
+appId: com.mobileagentbridge
+---
+# Layer 1 Smoke — ConnectScreen 基本渲染验证
+- launchApp
+
+# 页面标题和副标题
+- assertVisible: "Mobile Agent Bridge"
+- assertVisible: "Connect to your OpenCode agent"
+
+# 输入框
+- assertVisible: "ws://192.168.1.100:8080/ws"
+- assertVisible: "password \\(optional\\)"
+- assertVisible: "project directory \\(e.g\\. /home/user/project\\)"
+
+# 连接按钮
+- assertVisible: "Connect"
+
+# Tab bar 应不可见（未连接状态）
+- assertNotVisible: "Chat"
+- assertNotVisible: "Files"
+- assertNotVisible: "Settings"
