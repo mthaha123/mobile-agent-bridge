@@ -11,15 +11,19 @@ apps/mobile/android/app/src/main/assets/
 apps/mobile/android/app/src/main/res/drawable-mdpi/
 apps/mobile/ios/
 apps/mobile/.metro-health-check*
+
+# 日志/输出文件（任何目录）
 *.log
+*.err
+*.pid
+*.out
+apps/mobile/*.txt
 
 # 测试产物
 logs/
 scripts/test-screenshots/
-scripts/android-smoke-screenshot.png
+scripts/bridge-debug.log
 package-lock.json
 
 # Generated/temp
 .sisyphus/
-servers/bridge/*.err
-servers/bridge/*.pid
