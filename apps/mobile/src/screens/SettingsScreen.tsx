@@ -15,7 +15,7 @@ export const SettingsScreen: React.FC = () => {
   const vcs = useConfigStore((s) => s.vcs) as Record<string, unknown> | null
   const vcsType = vcs?.type || vcs?.vcs || ''
   const vcsBranch = vcs?.branch || vcs?.currentBranch || ''
-  const agents = useConfigStore((s) => s.agents) as Array<{ name?: string }>
+  const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; label?: string }>
   const providers = useConfigStore((s) => s.providers) as Array<{ name?: string; id?: string }>
 
   const handleDisconnect = () => {
@@ -78,7 +78,7 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionLabel}>Agents ({agents.length})</Text>
         {agents.length > 0 ? agents.slice(0, 5).map((a, i) => (
           <View key={i} style={styles.row}>
-            <Text style={styles.rowLabel}>{a.name || `Agent ${i + 1}`}</Text>
+            <Text style={styles.rowLabel}>{a.label || a.name || `Agent ${i + 1}`}</Text>
           </View>
         )) : (
           <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>

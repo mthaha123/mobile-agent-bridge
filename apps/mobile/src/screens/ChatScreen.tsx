@@ -10,6 +10,8 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
+  ScrollView,
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
@@ -18,10 +20,12 @@ import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
+import { useConfigStore } from '../stores/configStore'
 
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
+  const [modelPickerVisible, setModelPickerVisible] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -30,6 +34,9 @@ export const ChatScreen: React.FC = () => {
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
+  const switchAgent = useSessionStore((s) => s.switchAgent)
+  const switchModel = useSessionStore((s) => s.switchModel)
+  const models = useConfigStore((s) => s.models)
   const popChat = useUiStore((s) => s.popChat)
   const chatSubScreen = useUiStore((s) => s.chatSubScreen)
 
@@ -155,6 +162,18 @@ export const ChatScreen: React.FC = () => {
     await fetchSessions(client.call.bind(client))
   }
 
+  const handleSwitchAgent = async (agent: string) => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    await switchAgent(activeSessionId, agent, client.call.bind(client))
+  }
+
+  const handleSwitchModel = async (modelId: string) => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    await switchModel(activeSessionId, modelId, client.call.bind(client))
+  }
+
   const handleBack = () => {
     popChat()
   }
@@ -163,7 +182,7 @@ export const ChatScreen: React.FC = () => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack}>
+          <TouchableOpacity onPress={handleBack} accessibilityLabel="Back to sessions">
             <Text style={styles.headerBackText}>{'< Sessions'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
@@ -252,7 +271,7 @@ export const ChatScreen: React.FC = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
+        <TouchableOpacity onPress={handleBack} accessibilityLabel="Back to sessions">
           <Text style={styles.headerBackText}>{'< Sessions'}</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -260,12 +279,20 @@ export const ChatScreen: React.FC = () => {
         </Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
+            onPress={() => setModelPickerVisible(true)}
+            style={styles.infoButton}
+            accessibilityLabel="Model settings"
+          >
+            <Text style={styles.headerBackText}>⚙</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => setInfoModalVisible(true)}
             style={styles.infoButton}
+            accessibilityLabel="Session info"
           >
             <Text style={styles.headerBackText}>📋</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleRefreshSessions}>
+          <TouchableOpacity onPress={handleRefreshSessions} accessibilityLabel="Refresh">
             <Text style={styles.headerBackText}>↻</Text>
           </TouchableOpacity>
         </View>
@@ -282,7 +309,7 @@ export const ChatScreen: React.FC = () => {
       />
 
       <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.cmdButton} onPress={() => setSlashSheetVisible(true)}>
+        <TouchableOpacity style={styles.cmdButton} onPress={() => setSlashSheetVisible(true)} accessibilityLabel="Open commands">
           <Text style={styles.cmdButtonText}>⌘</Text>
         </TouchableOpacity>
         <TextInput
@@ -321,7 +348,46 @@ export const ChatScreen: React.FC = () => {
         visible={slashSheetVisible}
         onClose={() => setSlashSheetVisible(false)}
         onSelect={handleSlashSelect}
+        onSwitchAgent={handleSwitchAgent}
       />
+
+      <Modal
+        visible={modelPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModelPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setModelPickerVisible(false)}
+        >
+          <TouchableOpacity style={styles.modelPickerCard} activeOpacity={1} onPress={() => {}}>
+            <Text style={styles.modelPickerTitle}>Select Model</Text>
+            <ScrollView style={styles.modelPickerBody}>
+              {Array.isArray(models) && models.length === 0 && (
+                <Text style={styles.modelPickerEmpty}>No models loaded</Text>
+              )}
+              {Array.isArray(models) && models.map((m: any, i: number) => {
+                const label = m.name || m.id || m.label || `Model ${i + 1}`
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.modelPickerItem}
+                    onPress={() => {
+                      handleSwitchModel(m.id || label)
+                      setModelPickerVisible(false)
+                    }}
+                  >
+                    <Text style={styles.modelPickerItemText}>{label}</Text>
+                    <Text style={styles.modelPickerItemArrow}>›</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   )
 }
@@ -509,5 +575,53 @@ const styles = StyleSheet.create({
     color: '#ff6b6b',
     fontSize: 12,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  modelPickerCard: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '70%',
+  },
+  modelPickerTitle: {
+    color: '#eee',
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  modelPickerBody: {
+    maxHeight: 400,
+  },
+  modelPickerEmpty: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
+    padding: 24,
+  },
+  modelPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f3460',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 6,
+  },
+  modelPickerItemText: {
+    color: '#eee',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  modelPickerItemArrow: {
+    color: '#555',
+    fontSize: 20,
   },
 })

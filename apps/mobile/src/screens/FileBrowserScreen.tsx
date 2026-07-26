@@ -173,7 +173,7 @@ export const FileBrowserScreen: React.FC = () => {
             <Text style={styles.filePreviewTitle} numberOfLines={1}>
               {currentFile.path}
             </Text>
-            <TouchableOpacity onPress={() => setCurrentFile(null)}>
+            <TouchableOpacity onPress={() => setCurrentFile(null)} accessibilityLabel="Close preview">
               <Text style={styles.closePreview}>✕</Text>
             </TouchableOpacity>
           </View>

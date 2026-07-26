@@ -13,9 +13,10 @@ interface SlashSheetProps {
   visible: boolean
   onClose: () => void
   onSelect: (command: string) => void
+  onSwitchAgent?: (agent: string) => void
 }
 
-export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect }) => {
+export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent }) => {
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
   const commands = useConfigStore((s) => s.commands) as Array<{ name?: string; command?: string; description?: string }>
 
@@ -66,16 +67,24 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
               <>
                 <Text style={styles.sectionTitle}>Agents</Text>
                 {agents.map((agent, i) => {
-                  const label = agent.name || agent.label || agent.id || ''
+                  const label = agent.label || agent.name || agent.id || ''
                   return (
                     <TouchableOpacity
                       key={`agent-${i}`}
                       style={styles.item}
-                      onPress={() => { onSelect(`/agent ${label}`); onClose() }}
+                      onPress={() => {
+                        if (onSwitchAgent) {
+                          onSwitchAgent(label)
+                        } else {
+                          onSelect(`/agent ${label}`)
+                        }
+                        onClose()
+                      }}
                     >
                       <Text style={styles.itemIcon}>A</Text>
                       <View style={styles.itemContent}>
                         <Text style={styles.itemLabel}>{label}</Text>
+                        {onSwitchAgent ? <Text style={styles.itemDesc}>Switch agent</Text> : null}
                       </View>
                     </TouchableOpacity>
                   )
