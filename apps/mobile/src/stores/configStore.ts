@@ -1,10 +1,20 @@
 import { create } from 'zustand'
 
+function extractArray(result: unknown, key: string): unknown[] {
+  if (Array.isArray(result)) return result
+  if (result && typeof result === 'object') {
+    const v = (result as Record<string, unknown>)[key]
+    if (Array.isArray(v)) return v
+  }
+  return []
+}
+
 export interface ConfigState {
   config: Record<string, unknown> | null
   providers: unknown[]
   agents: unknown[]
   commands: unknown[]
+  models: unknown[]
   vcs: unknown | null
   loading: boolean
   error: string | null
@@ -13,6 +23,7 @@ export interface ConfigState {
   fetchProviders: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchAgents: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchCommands: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  fetchModels: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchVcs: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
@@ -21,6 +32,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
   providers: [],
   agents: [],
   commands: [],
+  models: [],
   vcs: null,
   loading: false,
   error: null,
@@ -38,8 +50,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
   fetchProviders: async (clientCall) => {
     set({ loading: true, error: null })
     try {
-      const result = (await clientCall('config.providers')) as unknown[]
-      set({ providers: result, loading: false })
+      const result = await clientCall('config.providers')
+      set({ providers: extractArray(result, 'providers'), loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 providers 失败' })
     }
@@ -48,8 +60,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
   fetchAgents: async (clientCall) => {
     set({ loading: true, error: null })
     try {
-      const result = (await clientCall('config.agents')) as unknown[]
-      set({ agents: result, loading: false })
+      const result = await clientCall('config.agents')
+      set({ agents: extractArray(result, 'agents'), loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 agents 失败' })
     }
@@ -58,10 +70,20 @@ export const useConfigStore = create<ConfigState>((set) => ({
   fetchCommands: async (clientCall) => {
     set({ loading: true, error: null })
     try {
-      const result = (await clientCall('command.list')) as unknown[]
-      set({ commands: result, loading: false })
+      const result = await clientCall('command.list')
+      set({ commands: extractArray(result, 'commands'), loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 commands 失败' })
+    }
+  },
+
+  fetchModels: async (clientCall) => {
+    set({ loading: true, error: null })
+    try {
+      const result = await clientCall('model.list')
+      set({ models: extractArray(result, 'models'), loading: false })
+    } catch (e: unknown) {
+      set({ loading: false, error: e instanceof Error ? e.message : '获取 models 失败' })
     }
   },
 
