@@ -42,7 +42,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const result = (await clientCall('config.get')) as Record<string, unknown>
-      set({ config: result, loading: false })
+      const config = (result?.config as Record<string, unknown>) || result
+      set({ config, loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取配置失败' })
     }

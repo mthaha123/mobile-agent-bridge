@@ -28,7 +28,7 @@ appId: com.mobileagentbridge
 # 项目信息
 - assertVisible: "/mock-project"
 
-# Config 编辑（新功能）
+# Config 区块（编辑 + key/value 展示）
 - assertVisible: "Config"
 - assertVisible: "Edit"
 - assertVisible: "theme"
@@ -36,42 +36,43 @@ appId: com.mobileagentbridge
 - assertVisible: "language"
 - assertVisible: "zh"
 
+# 点击 Edit 打开配置编辑器
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Edit Config"
+    timeout: 5000
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "Edit Config"
+    timeout: 5000
+
+# 滚动到中间（VCS + Providers + Agents）
+- swipe:
+    direction: UP
+    duration: 500
+- swipe:
+    direction: UP
+    duration: 300
+
 # VCS 信息
 - assertVisible: "git"
 - assertVisible: "main"
 
 # Providers 列表
 - assertVisible: "Anthropic"
-- assertVisible: "OpenAI"
-
-# Config 编辑
-- tapOn: "Edit"
-- extendedWaitUntil:
-    visible: "Edit Config"
-    timeout: 5000
-- assertVisible: "config"
-- tapOn: "Cancel"
-- extendedWaitUntil:
-    notVisible: "Edit Config"
-    timeout: 5000
-
-# 滚动到中间（Agents + Saved Permissions）
-- swipe:
-    direction: UP
-    duration: 500
 
 # Agents 列表
 - assertVisible: "Build Agent"
 - assertVisible: "Debug Agent"
 - assertVisible: "Architect Agent"
 
-# 继续滚动到底部
+# 继续滚动到底部（Saved Permissions）
 - swipe:
     direction: UP
     duration: 500
 
 # Saved Permissions 区块（新功能）
-- assertVisible: "Saved Permissions"
+- assertVisible: "SAVED PERMISSIONS (0)"
 
 # 断开连接按钮
 - assertVisible: "Disconnect"

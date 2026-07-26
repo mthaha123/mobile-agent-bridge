@@ -32,9 +32,9 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('fetchConfig', () => {
-  it('calls config.get and updates config state on success', async () => {
+  it('calls config.get and unwraps config field', async () => {
     const configData = { theme: 'dark', logLevel: 'debug' }
-    const clientCall = jest.fn().mockResolvedValue(configData)
+    const clientCall = jest.fn().mockResolvedValue({ config: configData })
 
     await useConfigStore.getState().fetchConfig(clientCall)
 
@@ -42,6 +42,15 @@ describe('fetchConfig', () => {
     expect(useConfigStore.getState().config).toEqual(configData)
     expect(useConfigStore.getState().loading).toBe(false)
     expect(useConfigStore.getState().error).toBeNull()
+  })
+
+  it('falls back to raw result when no config field', async () => {
+    const configData = { theme: 'dark' }
+    const clientCall = jest.fn().mockResolvedValue(configData)
+
+    await useConfigStore.getState().fetchConfig(clientCall)
+
+    expect(useConfigStore.getState().config).toEqual(configData)
   })
 
   it('handles fetch failure gracefully', async () => {
