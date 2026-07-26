@@ -22,3 +22,5 @@ package-lock.json
 .sisyphus/
 servers/bridge/*.err
 servers/bridge/*.pid
+# adb ui dumps
+ui_*.xml
