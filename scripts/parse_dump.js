@@ -1,5 +1,6 @@
 const fs = require('fs');
-const filename = process.argv[2] || 'dump_cur.xml';
+const path = require('path');
+const filename = process.argv[2] || path.join(__dirname, '..', 'logs', 'dumps', 'dump_cur.xml');
 const xml = fs.readFileSync(filename, 'utf8');
 
 // Extract all nodes with text or content-desc
