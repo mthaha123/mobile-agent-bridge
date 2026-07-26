@@ -30,7 +30,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "..", "..")
 const require = createRequire(import.meta.url)
 
-const OPENCODE_PATH = process.env.OPENCODE_PATH || "opencode"
+const OPENCODE_PATH = process.env.OPENCODE_PATH || "opencode.cmd"
 const OPENCODE_PORT = process.env.OPENCODE_PORT || "4096"
 const BRIDGE_PORT = process.env.BRIDGE_PORT || "19985"
 const BRIDGE_PASSWORD = process.env.BRIDGE_PASSWORD || "test123"
@@ -73,8 +73,9 @@ async function main() {
 
   // 1. 启动 OpenCode serve
   log("1. 启动 OpenCode serve...")
-  const opencode = spawn(OPENCODE_PATH, ["serve", "--port", OPENCODE_PORT], {
+  const opencode = spawn(OPENCODE_PATH, ["serve", "--port", OPENCODE_PORT, "--print-logs"], {
     stdio: ["ignore", "pipe", "pipe"],
+    shell: true,
     env: { ...process.env },
   })
   opencode.stdout.on("data", (d) => process.stdout.write(`[opencode] ${d}`))
