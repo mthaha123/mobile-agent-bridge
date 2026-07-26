@@ -1,0 +1,41 @@
+appId: com.mobileagentbridge
+---
+# Layer 3 — ToolApprovalSheet: 发送 magic message → 审批面板弹出 → 点击 Approve
+- launchApp
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "New Session"
+    timeout: 15000
+
+# 发送 magic message 触发 permission.v2.asked push 通知
+- tapOn: "Type a message..."
+- inputText: '__push__:permission.v2.asked:{"id":"req-1","action":"writeFile","resources":[{"path":"test.ts"}],"sessionID":"mock_s1"}'
+- tapOn: "➤"
+
+- extendedWaitUntil:
+    visible: "Tool Request"
+    timeout: 10000
+- assertVisible: "writeFile"
+- assertVisible: "Reject"
+- assertVisible: "Approve"
+- assertVisible: "Always Allow"
+
+- tapOn: "Approve"
+
+- extendedWaitUntil:
+    notVisible: "Tool Request"
+    timeout: 10000

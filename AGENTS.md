@@ -4,6 +4,12 @@
 
 **禁止在 bash 命令里管理另一个进程的生命周期**（start/wait/sleep/kill）。测试脚本用 Node.js `child_process` 自己管理子进程，bash 只负责"跑这个脚本"。
 
+## Bash 超时安全网
+
+项目 `.opencode/plugin/bash-timeout-guard.ts` 是一个 opencode plugin，自动拦截所有 bash 调用，强制限制 `timeout ≤ 180s`。这意味着：
+- 长后台任务（E2E 测试/APK 构建）**绝不传 timeout 或传很小的 timeout**（仅够启动进程本身），任务本身用 `Start-Process -WindowStyle Hidden` 或 `Start-Job` 启动
+- 日志查询/结果检查命令的 timeout 设 ≤ 15s，用短查询轮询取代长 sleep
+
 ---
 
 ## 启动开发服务器
@@ -19,6 +25,24 @@
 - **禁止** `Start-Process -NoNewWindow`（共享 console 导致工具误判阻塞）。
 - **禁止** `Start-Sleep`（不等、不轮询，由测试脚本自行处理就绪等待）。
 - 环境变量在 `Start-Job` 的 `-ScriptBlock` 内部设置（继承自调用进程的 `$env:` 已过期）。
+
+## E2E 后台运行（Start-Process 模式）
+
+**`Start-Job` 的 Job 对象跨 session 不可见**，新开 bash 进程后无法 `Get-Job`。E2E 测试等长时间后台任务改用 `Start-Process`：
+
+```powershell
+Remove-Item -Force e2e-layer3.log -ErrorAction SilentlyContinue
+Start-Process -WindowStyle Hidden -FilePath cmd -ArgumentList '/c node scripts/e2e/run-layer.mjs --layer l3 --mock > e2e-layer3.log 2>&1'
+```
+
+查询结果用短 timeout（≤15s）轮询日志文件，**禁止用 `sleep` 等固定长时间**：
+```powershell
+python -c "..."  2>&1     # timeout ≤ 15s，不加 sleep
+```
+
+如果查不到就间歇性重试，单条命令绝不阻塞超过 15s。
+
+⚠️ **Windows 文件锁注意**：`cmd /c "node ... > log 2>&1"` 的 `>` 重定向持有排他写锁，python `open(log, 'r')` 会阻塞等待锁释放。改用 `Start-Job` 的 `Out-File`（缓冲写入）或文件复制副本读取。避免读正在被写入的日志文件。
 
 ## 清理 Node 进程
 

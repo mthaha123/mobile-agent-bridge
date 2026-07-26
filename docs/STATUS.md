@@ -1,6 +1,6 @@
 ﻿# 开发进度
 
-> 更新日期：2026-07-24
+> 更新日期：2026-07-26
 
 ---
 
@@ -76,11 +76,15 @@
 | 类型 | 数量 | 状态 |
 |------|:----:|:----:|
 | Bridge 单元测试 | 108 | ✅ |
-| Mobile 单元测试 | 559 | ✅ |
+| Mobile 单元测试 | 548 | ✅ |
 | E2E (Bridge → SDK) | ~51 场景 | ✅ |
 | E2E (SSE 流式) | 2 场景 | ✅ |
-| Android E2E (Maestro) | 22/24 场景 | ✅ (2 skip) |
-| Mock Bridge | `scripts/e2e/mock-bridge.mjs` — 39 handler，无依赖启动 | ✅ |
+| Android E2E (Maestro) | 25/27 场景 | ✅ (2 skip) |
+| — Layer 1 Smoke | `l1-smoke/connect-screen.yaml`, `input-interaction.yaml` | ✅ |
+| — Layer 2 Bridge Mock | `l2-bridge-*.yaml` 9 flows | ✅ |
+| — Layer 3 UI 组件 | `l3-question.yaml`, `l3-tool-approval.yaml`, `l3-tool-progress.yaml` | ✅ |
+| Mock Bridge (39 handler + HTTP Push API) | `scripts/e2e/mock-bridge.mjs` — 39 handler + push notify，无依赖启动 | ✅ |
+| Push Notify CLI | `scripts/e2e/push-notify.mjs` — 向 Mock Bridge 发送 push 通知 | ✅ |
 | E2E Layer Runner | `scripts/e2e/run-layer.mjs` — 分层统一入口 | ✅ |
 
 ---
@@ -143,7 +147,7 @@
 |------|---------------|------|:----:|
 | 模型选择 UI | `model.list` → ChatScreen | 发送消息前选择模型 | ✅ |
 | Agent 切换 UI | `session.switchAgent` → ChatScreen | 会话中更换 Agent | ✅ |
-| 消息富文本渲染 | `chatStore` → 支持 code/markdown | 目前纯文本，需集成 MarkdownRenderer | ⏳ |
+| 消息富文本渲染 | `chatStore` → 支持 code/markdown | 集成 react-native-markdown-display | ✅ |
 | 文件搜索增强 | `file.search` + `file.find` | 按文件名/内容/符号搜索 | ⏳ |
 
 ### P2 — 增强功能
@@ -217,11 +221,12 @@
 
 | 组件 | 文件 | 状态 |
 |------|------|:----:|
-| Mock Bridge (39 handler) | `scripts/e2e/mock-bridge.mjs` | ✅ |
+| Mock Bridge (39 handler + HTTP Push API) | `scripts/e2e/mock-bridge.mjs` | ✅ |
+| Push Notify CLI | `scripts/e2e/push-notify.mjs` | ✅ |
 | Layer Runner | `scripts/e2e/run-layer.mjs` | ✅ |
-| Layer 1 flows (Smoke) | `.maestro/flows/l1-smoke/` | ⏳ |
-| Layer 2 flows (Mock) | `.maestro/flows/l2-bridge/` | ⏳ |
-| Layer 3 flows (UI) | `.maestro/flows/l3-ui/` | ⏳ |
+| Layer 1 flows (Smoke) | `.maestro/flows/l1-smoke/` | ✅ |
+| Layer 2 flows (Mock) | `.maestro/flows/l2-bridge-*.yaml` (9 flows) | ✅ |
+| Layer 3 flows (UI) | `.maestro/flows/l3-*.yaml` (3 flows) | ✅ |
 | Layer 4 flows (E2E) | `.maestro/flows/l4-e2e/` | ⏳ |
 | GitHub Actions CI | `.github/workflows/e2e.yml` | ⏳ |
 

@@ -26,11 +26,24 @@ const flowsDir = resolve(rootDir, ".maestro", "flows")
 
 const USE_MOCK = process.argv.includes("--mock")
 const RUN_ALL = process.argv.includes("--all")
-const layers = RUN_ALL
-  ? ["l1", "l2", "l3"]
-  : process.argv
-      .filter(a => a.startsWith("--layer="))
-      .map(a => a.split("=")[1])
+
+function parseLayers() {
+  const layers = []
+  for (let i = 2; i < process.argv.length; i++) {
+    const a = process.argv[i]
+    if (a === "--layer" && i + 1 < process.argv.length) {
+      layers.push(process.argv[i + 1])
+      i++
+    } else if (a.startsWith("--layer=")) {
+      layers.push(a.split("=")[1])
+    }
+  }
+  return layers
+}
+
+const layers = RUN_ALL ? ["l1", "l2", "l3"] : parseLayers()
+// Layer 3 需要 Mock Bridge (HTTP push API)
+const NEEDS_MOCK = USE_MOCK || layers.includes("l3") || RUN_ALL
 
 const MOCK_PORT = process.env.MOCK_BRIDGE_PORT || "8081"
 const FLOW_TIMEOUT = parseInt(process.env.MAESTRO_TIMEOUT || "120", 10) * 1000
@@ -170,7 +183,7 @@ async function runFlow(flowPath) {
 async function main() {
   // 1. Kill old bridge processes
   console.log(yellow("[Setup] 清理旧进程..."))
-  const oldPorts = ["8080", "8081", "8082"]
+  const oldPorts = ["8080", "8081", "8082", "18081"]
   for (const port of oldPorts) {
     try {
       const out = execSync(`netstat -ano | findstr :${port}`, { stdio: "pipe", timeout: 3000 }).toString()
@@ -196,8 +209,8 @@ async function main() {
   adb("shell am force-stop com.mobileagentbridge")
   adb("shell pm clear com.mobileagentbridge")
 
-  // 4. Start mock bridge if needed
-  if (USE_MOCK) {
+  // 4. Start mock bridge if needed (Layer 3 自动启用)
+  if (NEEDS_MOCK) {
     mockProcess = await startMockBridge()
     if (!mockProcess) {
       console.error(red("[FATAL] Mock Bridge 启动失败，退出"))

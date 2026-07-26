@@ -20,6 +20,7 @@ import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
+import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { useConfigStore } from '../stores/configStore'
 
 export const ChatScreen: React.FC = () => {
@@ -230,14 +231,18 @@ export const ChatScreen: React.FC = () => {
           isSystem && styles.systemBubble,
         ]}
       >
-        <Text
-          style={[
-            styles.messageText,
-            isSystem && styles.systemMessageText,
-          ]}
-        >
-          {item.content}
-        </Text>
+        {isAssistant ? (
+          <MarkdownRenderer content={item.content} />
+        ) : (
+          <Text
+            style={[
+              styles.messageText,
+              isSystem && styles.systemMessageText,
+            ]}
+          >
+            {item.content}
+          </Text>
+        )}
         {isAssistant && item.messageID && (
           <TouchableOpacity
             style={styles.revertBtn}

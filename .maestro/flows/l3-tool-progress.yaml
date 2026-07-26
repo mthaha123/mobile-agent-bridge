@@ -1,0 +1,46 @@
+appId: com.mobileagentbridge
+---
+# Layer 3 — ToolProgressCard: 发送 magic message 触发 tool.* → 进度卡片出现
+- launchApp:
+    stopApp: true
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "New Session"
+    timeout: 15000
+
+# 1. 发送 session.next.tool.called → 卡片出现
+- tapOn: "Type a message..."
+- inputText: '__push__:session.next.tool.called:{"callID":"call-1","sessionID":"mock_s1","tool":"writeFile","input":{"path":"test.ts","content":"hello"}}'
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible: "writeFile"
+    timeout: 10000
+
+# 2. 发送 session.next.tool.progress
+- tapOn: "Type a message..."
+- inputText: '__push__:session.next.tool.progress:{"callID":"call-1","content":["Writing file...\n"]}'
+- pressKey: Enter
+
+# 3. 发送 session.next.tool.success → 卡片消失
+- tapOn: "Type a message..."
+- inputText: '__push__:session.next.tool.success:{"callID":"call-1","content":"File written","result":{"ok":true}}'
+- pressKey: Enter
+
+- extendedWaitUntil:
+    notVisible: "writeFile"
+    timeout: 10000

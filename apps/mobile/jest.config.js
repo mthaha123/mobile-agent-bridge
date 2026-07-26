@@ -7,6 +7,7 @@ export default {
   moduleNameMapper: {
     '^react-native$': '<rootDir>/__mocks__/react-native.js',
     '^react-native/(.*)$': '<rootDir>/__mocks__/react-native.js',
+    '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
   },
   transform: {
     '^.+\\.tsx?$': [
