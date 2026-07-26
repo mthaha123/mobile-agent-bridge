@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useConfigStore } from '../stores/configStore'
 import { useUiStore } from '../stores/uiStore'
+import { useToolStore } from '../stores/toolStore'
 
 export const SettingsScreen: React.FC = () => {
   const client = useAuthStore((s) => s.client)
@@ -12,15 +13,31 @@ export const SettingsScreen: React.FC = () => {
   const logout = useAuthStore((s) => s.logout)
   const setScreen = useUiStore((s) => s.setScreen)
 
+  const savedRules = useToolStore((s) => s.savedRules)
+  const savedRulesLoading = useToolStore((s) => s.savedRulesLoading)
+  const fetchSavedRules = useToolStore((s) => s.fetchSavedRules)
+  const removeSavedRule = useToolStore((s) => s.removeSavedRule)
+
   const vcs = useConfigStore((s) => s.vcs) as Record<string, unknown> | null
   const vcsType = vcs?.type || vcs?.vcs || ''
   const vcsBranch = vcs?.branch || vcs?.currentBranch || ''
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; label?: string }>
   const providers = useConfigStore((s) => s.providers) as Array<{ name?: string; id?: string }>
 
+  useEffect(() => {
+    if (client) {
+      fetchSavedRules(client.call.bind(client))
+    }
+  }, [])
+
   const handleDisconnect = () => {
     logout()
     setScreen('connect')
+  }
+
+  const handleRemoveRule = async (id: string) => {
+    if (!client) return
+    await removeSavedRule(id, client.call.bind(client))
   }
 
   return (
@@ -81,6 +98,27 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.rowLabel}>{a.label || a.name || `Agent ${i + 1}`}</Text>
           </View>
         )) : (
+          <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Saved Permissions ({savedRules.length})</Text>
+        {savedRulesLoading ? (
+          <View style={styles.row}><Text style={styles.rowValue}>Loading...</Text></View>
+        ) : savedRules.length > 0 ? (
+          savedRules.slice(0, 10).map((rule: unknown, i: number) => {
+            const r = rule as Record<string, unknown>
+            return (
+              <View key={i} style={styles.row}>
+                <Text style={styles.rowLabel}>{String(r.tool || r.action || r.id || `Rule ${i + 1}`)}</Text>
+                <TouchableOpacity onPress={() => handleRemoveRule(String(r.id))}>
+                  <Text style={{ color: '#e74c3c', fontSize: 13 }}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          })
+        ) : (
           <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
         )}
       </View>

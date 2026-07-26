@@ -244,6 +244,14 @@ registerHandler("permission.reply", async (p) => {
     reply: reply as "once" | "always" | "reject",
   }))
 })
+registerHandler("permission.list", async () =>
+  sdkCall(() => sdk().v2.permission.request.list({})))
+registerHandler("permission.saved.list", async () =>
+  sdkCall(() => sdk().v2.permission.saved.list({})))
+registerHandler("permission.saved.remove", async (p) => {
+  if (!p.id) throw new Error("permission.saved.remove requires id parameter")
+  return sdkCall(() => sdk().v2.permission.saved.remove({ id: p.id as string }))
+})
 
 registerHandler("question.reply", async (p) => {
   if (!p.id) throw new Error("question.reply requires sessionId parameter")

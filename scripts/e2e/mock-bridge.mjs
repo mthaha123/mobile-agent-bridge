@@ -92,6 +92,9 @@ const MOCK_PAYLOADS = {
   "message.command": { ok: true },
 
   "permission.reply": { ok: true },
+  "permission.list": { requests: [] },
+  "permission.saved.list": { rules: [] },
+  "permission.saved.remove": { ok: true },
   "question.reply": { ok: true },
   "question.reject": { ok: true },
 

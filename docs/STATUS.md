@@ -1,6 +1,6 @@
 ﻿# 开发进度
 
-> 更新日期：2026-07-26 (v3 — session.children + 消息复制)
+> 更新日期：2026-07-26 (v4 — 权限管理 RPC + UI)
 
 ---
 
@@ -75,7 +75,7 @@
 
 | 类型 | 数量 | 状态 |
 |------|:----:|:----:|
-| Bridge 单元测试 | 110 | ✅ |
+| Bridge 单元测试 | 114 | ✅ |
 | Mobile 单元测试 | 561 | ✅ |
  | E2E (Bridge → SDK) | ~51 场景 | ✅ |
  | E2E (SSE 流式) | 2 场景 | ✅ |
@@ -113,9 +113,9 @@
 | `vcs.status` | `sdk().vcs.status()` | 获取未暂存文件列表 |
 | `vcs.diff` | `sdk().vcs.diff({ file })` | 获取文件详细 diff |
 | `vcs.apply` | `sdk().vcs.apply({ patch })` | 应用 patch |
-| `permission.list` | `sdk().v2.permission.request.list()` | 列出待审批权限 |
-| `permission.saved.list` | `sdk().v2.permission.saved.list()` | 列出已保存权限规则 |
-| `permission.saved.remove` | `sdk().v2.permission.saved.remove({ id })` | 删除保存的权限规则 |
+| `permission.list` | `sdk().v2.permission.request.list()` | 列出待审批权限 | ✅ |
+| `permission.saved.list` | `sdk().v2.permission.saved.list()` | 列出已保存权限规则 | ✅ |
+| `permission.saved.remove` | `sdk().v2.permission.saved.remove({ id })` | 删除保存的权限规则 | ✅ |
 | `tool.list` | `sdk().tool.list()` | 列出可用工具及其 schema |
 | `config.update` | `sdk().config.update({ ... })` | 更新项目级配置 |
 | `global.config.update` | `sdk().global.config.update({ ... })` | 更新全局配置 |
@@ -155,11 +155,11 @@
 
 ### P2 — 增强功能
 
-| 功能 | 相关 Store/RPC | 说明 |
-|------|---------------|------|
-| 会话 fork 树可视化 | `session.children` | 查看/导航 fork 关系 |
-| 权限规则管理 | `permission.saved.list/remove` | 查看/删除已保存的权限 |
-| 设置页增强 | `config.update` | 配置编辑（非只读） |
+| 功能 | 相关 Store/RPC | 说明 | 状态 |
+|------|---------------|------|:----:|
+| 会话 fork 树可视化 | `session.children` | 查看/导航 fork 关系 | ⏳ |
+| 权限规则管理 | `permission.saved.list/remove` | 查看/删除已保存的权限 | ✅ |
+| 设置页增强 | `config.update` | 配置编辑（非只读） | ⏳ |
 | 消息操作 (复制/删除) | `session.deleteMessage` | 长按消息弹出操作菜单 |
 | 断线重连状态指示 | `BridgeClient` 事件 | 显示连接状态 banner |
 | 后台保活 | 原生模块 | app 切后台时维持 WS 连接 |
@@ -201,8 +201,8 @@
 
 ### 当前接口状态
 
-- Bridge handler: **41 个** (router.ts)
-- Mobile `client.call()`: **36 个** (各 store + screens)
+- Bridge handler: **44 个** (router.ts)
+- Mobile `client.call()`: **38 个** (各 store + screens)
 - SSE 事件: **20+ 个** (AppProvider 全量覆盖)
 - 接口对齐: ✅ **完全对齐，零缺口**
 

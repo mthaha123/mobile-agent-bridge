@@ -60,6 +60,13 @@ function createMockSdk() {
     agent: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     provider: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     command: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+    permission: {
+      request: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+      saved: {
+        list: jest.fn<any>().mockResolvedValue({ data: [] }),
+        remove: jest.fn<any>().mockResolvedValue({ data: { ok: true } }),
+      },
+    },
   }
 
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, vcs: mockVcs } as any
@@ -258,6 +265,49 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(false)
     expect(messages[0].error).toContain("sessionId")
+  })
+
+  // ===== Permission management handlers =====
+
+  it("should call permission.list", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.permission.request.list).toHaveBeenCalledWith({})
+  })
+
+  it("should call permission.saved.list", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.saved.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.permission.saved.list).toHaveBeenCalledWith({})
+  })
+
+  it("should call permission.saved.remove with id", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.saved.remove",
+      params: { id: "rule_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.permission.saved.remove).toHaveBeenCalledWith({ id: "rule_123" })
+  })
+
+  it("should reject permission.saved.remove without id", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "permission.saved.remove", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("id")
   })
 
   it("should call session.create with agent/model params (string model resolved to object)", async () => {

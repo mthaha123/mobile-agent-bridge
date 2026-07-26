@@ -22,6 +22,9 @@ export interface ToolState {
   pendingApprovals: ToolApproval[]
   /** 是否显示审批界面 */
   visible: boolean
+  /** 已保存的 Always Allow 规则 */
+  savedRules: unknown[]
+  savedRulesLoading: boolean
 
   enqueue: (approval: ToolApproval) => void
   dequeue: (id: string) => void
@@ -29,11 +32,15 @@ export interface ToolState {
   approve: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
   reject: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
   alwaysAllow: (id: string, replyCall: (id: string, reply: 'once' | 'always' | 'reject') => Promise<void>) => Promise<void>
+  fetchSavedRules: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  removeSavedRule: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
 export const useToolStore = create<ToolState>((set, get) => ({
   pendingApprovals: [],
   visible: false,
+  savedRules: [],
+  savedRulesLoading: false,
 
   enqueue: (approval) => {
     set((state) => ({
@@ -67,5 +74,26 @@ export const useToolStore = create<ToolState>((set, get) => ({
   alwaysAllow: async (id, replyCall) => {
     await replyCall(id, 'always')
     get().dequeue(id)
+  },
+
+  fetchSavedRules: async (clientCall) => {
+    set({ savedRulesLoading: true })
+    try {
+      const result = await clientCall('permission.saved.list', {})
+      const rules = Array.isArray(result) ? result : ((result as Record<string, unknown>)?.rules as unknown[]) || []
+      set({ savedRules: rules, savedRulesLoading: false })
+    } catch {
+      set({ savedRulesLoading: false })
+    }
+  },
+
+  removeSavedRule: async (id, clientCall) => {
+    try {
+      await clientCall('permission.saved.remove', { id })
+      const remaining = get().savedRules.filter((r: unknown) => (r as Record<string, unknown>).id !== id)
+      set({ savedRules: remaining })
+    } catch (e: unknown) {
+      console.warn('removeSavedRule failed:', e instanceof Error ? e.message : e)
+    }
   },
 }))
