@@ -129,7 +129,7 @@
 | `session.summarize` | `sdk().session.summarize()` | AI 摘要 |
 | `session.compact` | `sdk().v2.session.compact()` | 压缩会话历史 |
 | `session.context` | `sdk().v2.session.context()` | 获取活跃上下文 |
-| `session.deleteMessage` | `sdk().session.deleteMessage()` | 删除单条消息 |
+| ~~`session.deleteMessage`~~ | ~~`sdk().session.deleteMessage()`~~ | 删除单条消息（已有 revert + 新会话，移动端不适用） |
 | `workspace.*` | `sdk().experimental.workspace.*` | 工作区管理 |
 | `mcp.*` | `sdk().mcp.*` | MCP 连接管理 |
 | `pty.*` | `sdk().pty.*` | 终端管理 |
@@ -160,7 +160,7 @@
 | 会话 fork 树可视化 | `session.children` | 查看/导航 fork 关系 | ⏳ |
 | 权限规则管理 | `permission.saved.list/remove` | 查看/删除已保存的权限 | ✅ |
 | 设置页增强 | `config.update` | 配置编辑（非只读） | ⏳ |
-| 消息操作 (复制/删除) | `session.deleteMessage` | 长按消息弹出操作菜单 |
+| 消息操作 (复制) | 已实现 Clipboard 复制 | 删除通过 revert + 新会话替代 | ✅ |
 | 断线重连状态指示 | `BridgeClient` 事件 | 显示连接状态 banner |
 | 后台保活 | 原生模块 | app 切后台时维持 WS 连接 |
 
