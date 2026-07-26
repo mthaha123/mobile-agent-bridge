@@ -66,6 +66,10 @@ export class BridgeClient {
   private emitter = new EventEmitter()
   private destroyed = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null
+  private keepaliveFailures = 0
+  private readonly KEEPALIVE_INTERVAL = 30000
+  private readonly KEEPALIVE_MAX_FAILURES = 3
 
   constructor(options: BridgeClientOptions) {
     this.url = options.url
@@ -119,6 +123,7 @@ export class BridgeClient {
           clearTimeout(connectTimer)
           console.log(`[${this.tag}] 已连接`)
           this.emit('connected')
+          this.startKeepalive()
           resolve()
         }
 
@@ -133,6 +138,7 @@ export class BridgeClient {
 
         this.ws.onclose = (event: WebSocketCloseEvent) => {
           console.log(`[${this.tag}] 断开 (code=${event.code})`)
+          this.stopKeepalive()
           // 拒绝所有待处理请求（避免用户等待 30s 超时）
           for (const [id, pending] of this.pending) {
             clearTimeout(pending.timer)
@@ -168,6 +174,7 @@ export class BridgeClient {
 
   disconnect(): void {
     this.destroyed = true
+    this.stopKeepalive()
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
@@ -219,6 +226,34 @@ export class BridgeClient {
     } else if (frame.type === 'notify') {
       this.emit('notification', frame.method, frame.payload)
     }
+  }
+
+  // ─── 保活 ──────────────────────────────────────────────
+
+  private startKeepalive(): void {
+    this.stopKeepalive()
+    this.keepaliveFailures = 0
+    this.keepaliveTimer = setInterval(async () => {
+      try {
+        await this.call('health.ping', {})
+        this.keepaliveFailures = 0
+      } catch {
+        this.keepaliveFailures++
+        if (this.keepaliveFailures >= this.KEEPALIVE_MAX_FAILURES) {
+          console.warn(`[${this.tag}] 保活失败 ${this.keepaliveFailures} 次，触发重连`)
+          this.disconnect()
+          this.scheduleReconnect()
+        }
+      }
+    }, this.KEEPALIVE_INTERVAL)
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer)
+      this.keepaliveTimer = null
+    }
+    this.keepaliveFailures = 0
   }
 
   // ─── 重连 ──────────────────────────────────────────────

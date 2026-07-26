@@ -25,9 +25,10 @@ export interface ConfigState {
   fetchCommands: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchModels: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchVcs: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
+  updateConfig: (updates: Record<string, unknown>, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
-export const useConfigStore = create<ConfigState>((set) => ({
+export const useConfigStore = create<ConfigState>((set, get) => ({
   config: null,
   providers: [],
   agents: [],
@@ -94,6 +95,15 @@ export const useConfigStore = create<ConfigState>((set) => ({
       set({ vcs: result, loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 VCS 失败' })
+    }
+  },
+
+  updateConfig: async (updates, clientCall) => {
+    try {
+      await clientCall('config.update', updates)
+      await get().fetchConfig(clientCall)
+    } catch (e: unknown) {
+      console.warn('updateConfig failed:', e instanceof Error ? e.message : e)
     }
   },
 }))

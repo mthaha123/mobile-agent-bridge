@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  ScrollView,
 } from 'react-native'
 import { useSessionStore } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
@@ -47,12 +48,18 @@ export const SessionsScreen: React.FC = () => {
   const deleteSession = useSessionStore((s) => s.deleteSession)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
+  const projects = useProjectStore((s) => s.projects)
   const switchProject = useProjectStore((s) => s.switchProject)
+  const listProjects = useProjectStore((s) => s.listProjects)
   const pushChat = useUiStore((s) => s.pushChat)
 
   const handleOpenSwitch = () => {
+    const client = useAuthStore.getState().client
     setSwitchDirInput(directory || '')
     setShowSwitchModal(true)
+    if (client) {
+      listProjects(client.call.bind(client))
+    }
   }
 
   const handleConfirmSwitch = async () => {
@@ -212,6 +219,25 @@ export const SessionsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Switch Project</Text>
+            {projects.length > 0 && (
+              <ScrollView style={styles.projectList}>
+                {projects.map((p: { directory: string; name?: string }, i: number) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.projectListItem, p.directory === directory && styles.projectListItemActive]}
+                    onPress={() => {
+                      setShowSwitchModal(false)
+                      switchProject(p.directory)
+                    }}
+                  >
+                    <Text style={styles.projectListItemName}>
+                      {p.name || p.directory.split('/').pop() || p.directory}
+                    </Text>
+                    <Text style={styles.projectListItemDir} numberOfLines={1}>{p.directory}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
             <TextInput
               style={styles.modalInput}
               value={switchDirInput}
@@ -387,6 +413,30 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  projectList: {
+    maxHeight: 200,
+    marginBottom: 12,
+  },
+  projectListItem: {
+    backgroundColor: '#0f3460',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 6,
+  },
+  projectListItemActive: {
+    borderWidth: 1,
+    borderColor: '#4a9eff',
+  },
+  projectListItemName: {
+    color: '#eee',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  projectListItemDir: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 2,
   },
   modalInput: {
     backgroundColor: '#0f3460',

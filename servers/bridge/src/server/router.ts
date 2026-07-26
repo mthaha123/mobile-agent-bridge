@@ -81,6 +81,7 @@ registerHandler("health.ping", () => ({ ok: true }))
 
 registerHandler("project.switch", async (params) => switchProject(params.directory))
 registerHandler("project.current", async () => getCurrentProject())
+registerHandler("project.list", async () => sdkCall(() => sdk().project.list({})))
 
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
 // SDK 内部使用 createOpencodeClient 时传入的 fetch，确保 tsx 兼容
@@ -274,6 +275,7 @@ registerHandler("question.reject", async (p) => {
 })
 
 registerHandler("config.get", async () => sdkCall(() => sdk().global.config.get()))
+registerHandler("config.update", async (p) => sdkCall(() => sdk().config.update(p)))
 registerHandler("config.agents", async () => sdkCall(() => sdk().v2.agent.list({})))
 registerHandler("config.providers", async () => sdkCall(() => sdk().config.providers({})))
 registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))

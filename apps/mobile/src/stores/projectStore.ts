@@ -5,21 +5,29 @@ export interface ProjectInfo {
   name?: string
 }
 
+export interface ProjectEntry {
+  directory: string
+  name?: string
+}
+
 export interface ProjectState {
   directory: string
   project: ProjectInfo | null
   switching: boolean
+  projects: ProjectEntry[]
 
   setDirectory: (dir: string) => void
   setProject: (info: { directory: string; project?: { name?: string } }) => void
   switchProject: (dir?: string) => Promise<void>
   fetchCurrentProject: () => Promise<void>
+  listProjects: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   directory: '',
   project: null,
   switching: false,
+  projects: [],
 
   setDirectory: (dir: string) => {
     set({ directory: dir })
@@ -72,6 +80,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
     } catch {
       // project.current may fail if no project is set
+    }
+  },
+
+  listProjects: async (clientCall) => {
+    try {
+      const result = await clientCall('project.list', {})
+      const list = Array.isArray(result)
+        ? result as ProjectEntry[]
+        : ((result as Record<string, unknown>)?.projects as ProjectEntry[]) || []
+      set({ projects: list })
+    } catch {
+      // not critical
     }
   },
 }))

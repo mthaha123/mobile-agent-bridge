@@ -48,7 +48,10 @@ function createMockSdk() {
     children: jest.fn<any>().mockResolvedValue({ data: [] }),
   }
   const mockGlobal = { config: { get: jest.fn<any>().mockResolvedValue({ data: {} }) }, dispose: jest.fn<any>().mockResolvedValue(undefined) }
-  const mockConfig = { providers: jest.fn<any>().mockResolvedValue({ data: [] }) }
+  const mockConfig = {
+    providers: jest.fn<any>().mockResolvedValue({ data: [] }),
+    update: jest.fn<any>().mockResolvedValue({ data: {} }),
+  }
   const mockVcs = { get: jest.fn<any>().mockResolvedValue({ data: {} }) }
   const mockV2 = {
     session: {
@@ -69,7 +72,7 @@ function createMockSdk() {
     },
   }
 
-  backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, vcs: mockVcs } as any
+  backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, vcs: mockVcs, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
   return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig, mockVcs }
 }
 
@@ -764,6 +767,17 @@ describe("RPC Router", () => {
     expect(mockGlobal.config.get).toHaveBeenCalled()
   })
 
+  it("should call config.update with params", async () => {
+    const { mockConfig } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "config.update",
+      params: { theme: "light" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockConfig.update).toHaveBeenCalledWith({ theme: "light" })
+  })
+
   it("should call config.agents", async () => {
     const { mockV2 } = createMockSdk()
     const { ws, messages } = createMockWs()
@@ -933,6 +947,24 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(messages[0].payload).toEqual({ directory: null, project: null })
+  })
+
+  it("should call project.list", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+  })
+
+  it("should error project.list without SDK", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("SDK not initialized")
   })
 
   it("should reject project.switch without directory", async () => {

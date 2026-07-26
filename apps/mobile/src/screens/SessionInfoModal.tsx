@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useTodoStore, TodoItem } from '../stores/todoStore'
 import { useSessionStore, Session } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
 
-type Tab = 'diff' | 'todo'
+type Tab = 'diff' | 'todo' | 'children'
 
 export const SessionInfoModal: React.FC<{
   visible: boolean
@@ -26,10 +26,19 @@ export const SessionInfoModal: React.FC<{
   const [renaming, setRenaming] = useState(false)
   const [newName, setNewName] = useState('')
 
+  const [children, setChildren] = useState<any[]>([])
   const diffs = useDiffStore((s) => (sessionId ? s.diffs[sessionId] ?? [] : []))
   const todos = useTodoStore((s) => (sessionId ? s.todos[sessionId] ?? [] : []))
   const sessions = useSessionStore((s) => s.sessions)
   const client = useAuthStore((s) => s.client)
+
+  useEffect(() => {
+    if (sessionId && client) {
+      useSessionStore.getState().getSessionChildren(sessionId, client.call.bind(client)).then(setChildren)
+    } else {
+      setChildren([])
+    }
+  }, [sessionId])
 
   const currentSession = sessions.find((s: Session) => s.id === sessionId)
   const sessionName = currentSession?.name || ''
@@ -167,6 +176,16 @@ export const SessionInfoModal: React.FC<{
                 Todos ({todos.length})
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, tab === 'children' && styles.tabActive]}
+              onPress={() => setTab('children')}
+            >
+              <Text
+                style={[styles.tabText, tab === 'children' && styles.tabTextActive]}
+              >
+                Children ({children.length})
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -203,6 +222,20 @@ export const SessionInfoModal: React.FC<{
                       {d.patch}
                     </Text>
                   ) : null}
+                </View>
+              ))}
+
+            {tab === 'children' && children.length === 0 && (
+              <Text style={styles.emptyText}>No child sessions</Text>
+            )}
+            {tab === 'children' &&
+              children.map((child: any, i: number) => (
+                <View key={i} style={styles.item}>
+                  <Text style={styles.fileName}>{child.name || child.id || `Session ${i + 1}`}</Text>
+                  <Text style={styles.childrenMeta}>
+                    {child.messageCount ?? 0} msgs
+                    {child.createdAt ? ` · ${formatTime(child.createdAt)}` : ''}
+                  </Text>
                 </View>
               ))}
 
@@ -391,6 +424,11 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 12,
     fontWeight: '600',
+  },
+  childrenMeta: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 4,
   },
   patch: {
     color: '#aaa',

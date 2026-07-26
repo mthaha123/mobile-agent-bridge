@@ -50,6 +50,11 @@ const MOCK_PAYLOADS = {
     directory: "/mock-project",
     project: { name: "mock-project", type: "node" },
   },
+  "project.list": {
+    projects: [
+      { directory: "/mock-project", name: "mock-project" },
+    ],
+  },
   "project.switch": {
     directory: "/mock-project",
     project: { name: "mock-project", type: "node" },
@@ -99,6 +104,7 @@ const MOCK_PAYLOADS = {
   "question.reject": { ok: true },
 
   "config.get": { config: { theme: "dark", language: "zh" } },
+  "config.update": { ok: true },
   "config.agents": {
     agents: [
       { name: "build", label: "Build Agent", id: "build" },
