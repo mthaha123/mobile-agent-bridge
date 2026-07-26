@@ -12,7 +12,12 @@
     "e2e:smoke": ".maestro\\maestro.cmd test .maestro\\flows\\smoke.yaml",
     "e2e:filebrowser": ".maestro\\maestro.cmd test .maestro\\flows\\file-browser-interaction.yaml",
     "e2e:chat": ".maestro\\maestro.cmd test .maestro\\flows\\chat-interaction.yaml",
-    "e2e:all": ".maestro\\maestro.cmd test .maestro\\flows\\smoke.yaml",
+    "e2e:all": "node scripts/e2e/run-layer.mjs --all --mock",
+    "e2e:l1": "node scripts/e2e/run-layer.mjs --layer=l1",
+    "e2e:l2": "node scripts/e2e/run-layer.mjs --layer=l2 --mock",
+    "e2e:l3": "node scripts/e2e/run-layer.mjs --layer=l3",
+    "e2e:l4": "node scripts/e2e/run-layer.mjs --layer=l4",
+    "e2e:mock": "node scripts/e2e/mock-bridge.mjs",
     "clean": "rm -rf servers/*/dist apps/*/node_modules"
   },
   "devDependencies": {
