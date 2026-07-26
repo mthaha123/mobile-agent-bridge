@@ -138,3 +138,52 @@ npm run e2e:all          # 全部测试（2 个流程）
 
 - **禁止在 tsx 环境下使用 SDK 的 `fetch` 通道**（`req.timeout = false` 在 tsx 下会导致 hang）。所有 OpenCode API 调用必须走 `opencodeFetch()`（基于 Node.js `http` 模块）。
 - 如果引入新的后端 HTTP 调用，必须使用 `http`/`https` 模块，禁止使用 `fetch`。
+
+---
+
+## 文件与目录约束
+
+### 新增文件必须放到合理目录，禁止散落在根目录
+
+| 文件类型 | 目标目录 |
+|---------|---------|
+| 业务代码/组件/Store | `apps/mobile/src/` 对应子目录 |
+| Bridge handler/store | `servers/bridge/src/` 对应子目录 |
+| 测试文件 | `apps/mobile/__tests__/` 或 `servers/bridge/__tests__/` |
+| E2E Maestro flow | `.maestro/flows/`（按 layer 子目录） |
+| E2E 测试脚本 | `scripts/e2e/` |
+| 构建/部署脚本 (ps1/bat) | `scripts/` |
+| 共享类型 | `packages/shared/src/` |
+| 文档 | `docs/` 或 `docs/plans/` |
+
+### 日志输出必须写入 `logs/build/`
+
+所有后台任务（APK 构建、E2E 测试、Mock Bridge）的日志输出文件必须使用 `logs/build/` 下路径：
+
+```powershell
+# ✅ 正确
+Out-File D:\code\mobile-agent-bridge\logs\build\build-rel.log
+Start-Process -ArgumentList '/c ... > D:\code\mobile-agent-bridge\logs\build\e2e.log 2>&1'
+
+# ❌ 错误 — 禁止
+Out-File build-rel.log               # 散落在根目录
+Start-Process -ArgumentList '... > mock-bridge.log 2>&1'
+```
+
+### 临时文件（adb dumps / 截图 / 调试输出）用完即删
+
+adb 获取 UI hierarchy、截图、调试 XML 等文件是**一次性调试产物**，用完后必须删除：
+
+```powershell
+# 获取 UI dump 后立即删除
+adb shell uiautomator dump /sdcard/ui.xml
+adb pull /sdcard/ui.xml
+adb shell rm /sdcard/ui.xml     # 清理设备端
+rm ui.xml                        # 清理本地
+```
+
+禁止将 adb dump、截图等临时文件提交到 git。如确需保留参考，放入 `logs/dumps/` 或 `logs/screenshots/`。
+
+### 提交前检查：无杂散文件
+
+提交前运行 `git status` 确认根目录无新增的 `.log`、`.xml`、`.png` 等杂散文件。新增的构建产物/测试产物应已通过 `.gitignore` 排除。
