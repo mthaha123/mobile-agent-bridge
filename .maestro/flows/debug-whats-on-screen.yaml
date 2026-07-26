@@ -1,0 +1,6 @@
+appId: com.mobileagentbridge
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 10000
