@@ -1,0 +1,57 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — File Browser: 连接 → Files 标签 → 搜索 → 文件阅读
+- launchApp
+
+# 连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Files"
+    timeout: 20000
+
+# 进入 Files 标签
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "Search files"
+    timeout: 15000
+
+# 校验点 1: 文件列表和搜索框
+- assertVisible: "Search files"
+- assertVisible: "Search"
+
+# 搜索
+- tapOn: "Search files"
+- inputText: "package"
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible: "package.json"
+    timeout: 10000
+
+# 校验点 2: 搜索结果
+- assertVisible: "package.json"
+
+# 清除搜索
+- tapOn: "✕"
+- extendedWaitUntil:
+    visible: "Search files"
+    timeout: 5000
+
+# 校验点 3: 退出搜索回到文件列表
+- assertVisible: "Search files"
+
+# 阅读 package.json
+- tapOn: "package.json"
+- extendedWaitUntil:
+    text: "name"
+    timeout: 10000
+
+# 校验点 4: 文件内容加载
+- assertVisible: "name"
+- assertVisible: "version"

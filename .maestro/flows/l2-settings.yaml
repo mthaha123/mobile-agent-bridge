@@ -1,0 +1,65 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — Settings: 连接 → Settings → 查看状态 → 查看配置 → 查看 Saved Rules → 断连
+- launchApp
+
+# 连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 20000
+
+# 进入 Settings
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Bridge URL"
+    timeout: 15000
+
+# 校验点 1: 连接状态
+- assertVisible: "Bridge URL"
+- assertVisible: "Connected"
+
+# 向下滚动查看更多配置
+- scroll:
+    direction: DOWN
+
+# 校验点 2: 配置区域可见
+# Server Config 区域
+- assertVisible: "Disconnect"
+
+# 校验点 3: Tab 切换
+- tapOn: "Chat"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000
+- assertVisible: "+ New"
+
+# 回到 Settings
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Bridge URL"
+    timeout: 10000
+
+# 断连
+- scroll:
+    direction: DOWN
+- extendedWaitUntil:
+    visible: "Disconnect"
+    timeout: 5000
+- tapOn: "Disconnect"
+
+# 校验点 4: 断连成功，回到 ConnectScreen
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 10000
+- assertVisible: "Mobile Agent Bridge"
+- assertNotVisible: "Chat"
+- assertNotVisible: "Files"
+- assertNotVisible: "Settings"

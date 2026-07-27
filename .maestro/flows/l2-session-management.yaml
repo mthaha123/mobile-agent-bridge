@@ -1,0 +1,65 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — Session Management: 创建 → 列表 → 切换 Project → 详情 → 重命名
+- launchApp
+
+# 连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 校验点 1: 会话列表加载
+- assertVisible: "+ New"
+
+# 创建 Session
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Back to sessions"
+    timeout: 15000
+
+# 校验点 2: 进入 ChatScreen
+- assertVisible: "Back to sessions"
+
+# 返回列表
+- tapOn: "Back to sessions"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000
+
+# 校验点 3: 切换 Project 弹窗
+- tapOn: "Switch"
+- assertVisible: "Cancel"
+- assertVisible: "Switch Project"
+- tapOn: "Cancel"
+- assertVisible: "+ New"
+
+# 打开 Session 详情
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Back to sessions"
+    timeout: 15000
+- tapOn: "📋"
+
+# 校验点 4: SessionInfoModal 弹出
+- extendedWaitUntil:
+    visible: "Edit"
+    timeout: 10000
+- assertVisible: "Edit"
+
+# 校验点 5: 重命名
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Session name"
+    timeout: 5000
+- eraseText: 50
+- inputText: "Renamed Session"
+- tapOn: "Save"
+- assertNotVisible: "Session name"

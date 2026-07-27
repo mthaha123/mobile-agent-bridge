@@ -1,0 +1,69 @@
+appId: com.mobileagentbridge
+---
+# Layer 3 — Core Chat: 连接 → 创建 Session → 发消息 → 流式文本 → 工具调用 → 最终回复
+- launchApp
+
+# Step 1: 连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+# 校验点 1: 连接成功，ConnectScreen 消失，Tab 栏出现
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 20000
+- assertNotVisible: "Connect"
+- assertVisible: "Files"
+- assertVisible: "Settings"
+
+# Step 2: 创建 Session
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+
+# 校验点 2: 输入框渲染，进入 ChatScreen
+- assertVisible: "Message"
+
+# Step 3: 发消息
+- tapOn: "Message"
+- inputText: "hello"
+- tapOn: "➤"
+
+# 校验点 3: 等待状态显示
+- extendedWaitUntil:
+    visible: "AI is thinking"
+    timeout: 10000
+
+# 校验点 4: 流式文本出现
+- extendedWaitUntil:
+    visible: "Hello|hello|Hi|hi"
+    timeout: 60000
+
+# Step 4: 发第二条消息触发工具
+- extendedWaitUntil:
+    notVisible: "AI is thinking"
+    timeout: 60000
+- tapOn: "Message"
+- inputText: "__push__:permission.v2.asked:{\"id\":\"req-t1\",\"action\":\"writeFile\",\"resources\":[{\"path\":\"test.ts\"}],\"sessionID\":\"mock_s1\"}"
+- tapOn: "➤"
+
+# 校验点 5: 权限弹窗出现并审批
+- extendedWaitUntil:
+    visible: "Tool Request"
+    timeout: 10000
+- assertVisible: "Approve"
+- assertVisible: "Always Allow"
+- assertVisible: "Reject"
+- tapOn: "Approve"
+
+# 校验点 6: 工具进度卡片
+- extendedWaitUntil:
+    notVisible: "Tool Request"
+    timeout: 10000
+- assertVisible: "writeFile"
