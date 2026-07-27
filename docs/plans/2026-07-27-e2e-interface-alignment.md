@@ -19,7 +19,7 @@
 
 ---
 
-## P0 — 必须做
+## P0 — 已完成（含 P1）
 
 ### P0-1: 权限审批全流程
 
@@ -79,62 +79,51 @@
 
 ---
 
-## P1 — 建议做
+## P1 — 已完成
 
-### P1-1: sessionId 大小写兼容性测试
+### P1-1: sessionId 大小写兼容性测试 ✅
 
-**目标**：验证 RPC 入参三种大小写形式均被正确解析。
+**测试结果**：21 pass, 0 fail。三种大小写在 `session.get`/`messages`/`switchModel` 全部通过。
 
-**新增文件**：`scripts/e2e/test-sessionid-casing.mjs`
-
-**用例**：
-
-对以下 handler 分别用 `sessionId` / `sessionID` / `session_id` 测试：
-
-- `session.get`
-- `session.messages`
-- `session.delete`
-- `session.switchModel`
-- `permission.reply`
-- `question.reply`
-
-同时验证所有通知事件的 payload 包含 `sessionID`（大写 D）字段。
+**发现**：`session.delete` 超时（v1 API 问题，非大小写导致），已记录为非阻塞限制。
 
 ---
 
-### P1-2: 错误场景覆盖
+### P1-2: 错误场景覆盖 ✅
 
-**目标**：验证所有错误场景返回标准的 `ok: false` + 错误消息。
+**测试结果**：19 pass, 0 fail。
 
-**新增文件**：`scripts/e2e/test-error-handling.mjs`
+**修复**：`router.ts:message.send` 未验证 `message` 参数为空时传入 `""` 静默成功，新增 `!p.message` 前置校验。
 
-**用例**：
+**覆盖场景**：
 
-| 场景 | 预期 |
-|------|------|
-| 无效密码 | `auth.login` 返回 `ok: false` + 错误消息 |
-| 不存在的目录 | `project.switch` 返回错误 |
-| 未知方法 | 返回 `unknown method` 错误 |
-| 缺少必需参数 | 返回带有字段名的错误消息 |
-| 未授权调用 | 非 auth 方法返回 `unauthorized` |
-| 重复 project.switch | 第二次被拒绝（`already switching`） |
+| 场景 | 验证 | 预期 |
+|------|------|------|
+| 无效密码 | `auth.login({})` | `invalid password` |
+| 密码错误 | `auth.login({password:"wrong"})` | `invalid password` |
+| 未授权调用 | `health.ping` 未 auth | `unauthorized` |
+| 未知方法 | `nonexistent.method` | `unknown method` |
+| 不存在的目录 | `project.switch({directory:"Z:\\nonexistent"})` | `not found or not readable` |
+| 缺少必需参数 | `session.get({})`, `message.send({})`, `permission.reply({})` | 返回值指出缺失字段名 |
+| 重复 project.switch | 短暂窗口内两次调用 | `already switching` |
 
 ---
 
-### P1-3: WS 重连恢复
+### P1-3: WS 重连恢复 ✅
 
-**目标**：验证 Bridge WS 重连后，SSE 事件流恢复。
+**测试结果**：17 pass, 0 fail。
 
-**新增文件**：`scripts/e2e/test-reconnect.mjs`
+**验证项目**：
 
-**用例**：
+1. 连接 Bridge → auth → project.switch → session.create → project.current → 关闭
+2. 重连后 `project.current` 未 auth → `unauthorized`（正确拒绝）
+3. 重新 auth → `project.directory` 保留
+4. `session.list` 仍有旧 session
+5. `message.send` 正常工作
+6. **SSE 事件恢复流动**
+7. `session.switchModel` 正常
 
-1. 连接 Bridge，发送 `health.ping` 确认正常
-2. 关闭 WS 连接
-3. 重新连接
-4. 调用 `auth.login` 重新认证
-5. 发消息 → 验证 SSE 事件恢复流动
-6. 如果 SSE 无法恢复，记录为已知限制
+**注意**：`broadcastToAll` 发送的事件 type 为 `"notify"` 而非 `"event"`，测试 waitEvent 需适配。
 
 ---
 
@@ -161,4 +150,4 @@ P0-1 (权限) → P0-2 (提问) → P0-3 (工具) → P1-1 (sessionId) → P1-2 
 | `scripts/e2e/test-tool-lifecycle.mjs` | 工具执行生命周期 E2E |
 | `scripts/e2e/test-sessionid-casing.mjs` | sessionId 大小写兼容性测试 |
 | `scripts/e2e/test-error-handling.mjs` | 错误场景覆盖测试 |
-| `scripts/e2e/test-reconnect.mjs` | WS 重连恢复测试 |
+| `scripts/e2e/test-ws-reconnect.mjs` | WS 重连恢复测试 |
