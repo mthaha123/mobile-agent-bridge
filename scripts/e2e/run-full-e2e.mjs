@@ -12,7 +12,7 @@
  *   OPENCODE_DIR — OpenCode 工作目录 (默认 D:\code\mobile-agent-bridge)
  *   OPENCODE_MODEL — 模型名 (默认 opencode-go/deepseek-v4-flash)
  */
-import { spawn } from "node:child_process"
+import { spawn, execSync } from "node:child_process"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createRequire } from "node:module"
@@ -57,18 +57,62 @@ function startProcess(name, cmd, args, opts) {
   return p
 }
 
+function killPort(port) {
+  try {
+    const out = execSync(`netstat -ano | findstr ":${port} "`, { stdio: "pipe", shell: true, timeout: 5000 }).toString()
+    const lines = out.trim().split("\n").filter(l => l.includes("LISTENING"))
+    for (const line of lines) {
+      const pid = line.trim().split(/\s+/).pop()
+      if (pid && pid !== "0") {
+        execSync(`taskkill /f /pid ${pid}`, { stdio: "pipe" })
+        console.log(`   🗑️ 释放端口 ${port} (PID ${pid})`)
+      }
+    }
+  } catch { /* port not in use */ }
+  // 验证已释放
+  try {
+    execSync(`netstat -ano | findstr ":${port} "`, { stdio: "pipe", shell: true, timeout: 3000 })
+    console.warn(`   ⚠️ 端口 ${port} 可能未完全释放`)
+  } catch { /* freed */ }
+}
+
 async function main() {
   console.log("═══ Full E2E: OpenCode → Bridge → Session → Message ═══\n")
   console.log(`工作目录: ${OPENCODE_DIR}`)
   console.log(`模型: ${MODEL}\n`)
 
-  // 1. 启动 OpenCode serve
+  // 清理残留进程
+  console.log("[Setup] 清理目标端口...")
+  killPort(OPENCODE_PORT)
+  killPort(BRIDGE_PORT)
+
+  // 1. 启动 OpenCode serve 并捕获实际端口
   console.log("1. 启动 OpenCode serve...")
-  const opencode = startProcess("opencode", "opencode.cmd", [
+  let opencodeOut = ""
+  const opencode = spawn("opencode.cmd", [
     "serve", "--port", String(OPENCODE_PORT), "--print-logs",
   ], { cwd: OPENCODE_DIR, shell: true, env: { ...process.env } })
-  await waitPort(OPENCODE_PORT, 60000)
-  console.log("   ✅ OpenCode 已就绪\n")
+  opencode.stdout.on("data", d => {
+    const text = d.toString()
+    process.stdout.write(`[opencode] ${text}`)
+    opencodeOut += text
+  })
+  opencode.stderr.on("data", d => process.stderr.write(`[opencode] ${d}`))
+
+  const actualOpenCodePort = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("OpenCode 未输出 listening 信息")), 60000)
+    const poll = () => {
+      const m = opencodeOut.match(/listening on http:\/\/[^:]+:(\d+)/)
+      if (m) { clearTimeout(timer); resolve(parseInt(m[1])) }
+      else setTimeout(poll, 200)
+    }
+    poll()
+  })
+  if (actualOpenCodePort !== OPENCODE_PORT) {
+    console.error(`   ❌ OpenCode 期望端口 ${OPENCODE_PORT}, 实际 ${actualOpenCodePort}`)
+    opencode.kill(); process.exit(1)
+  }
+  console.log(`   ✅ OpenCode 已就绪 (端口 ${actualOpenCodePort})\n`)
 
   // 2. 启动 Bridge
   console.log("2. 启动 Bridge...")
@@ -85,6 +129,13 @@ async function main() {
     cwd: resolve(ROOT, "servers/bridge"),
   })
   await waitPort(BRIDGE_PORT, 30000)
+  // 验证 Bridge 确实在期望端口监听
+  try {
+    execSync(`netstat -ano | findstr ":${BRIDGE_PORT} "`, { stdio: "pipe", shell: true, timeout: 5000 })
+  } catch {
+    console.error(`   ❌ Bridge 未在端口 ${BRIDGE_PORT} 监听`)
+    opencode.kill(); bridge.kill(); process.exit(1)
+  }
   console.log("   ✅ Bridge 已就绪\n")
 
   try {
