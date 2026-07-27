@@ -212,9 +212,10 @@ registerHandler("session.switchModel", async (p) => {
 registerHandler("message.send", async (p) => {
   const sid = resolveSessionId(p)
   if (!sid) throw new Error("message.send requires sessionId parameter")
+  if (!p.message) throw new Error("message.send requires message parameter")
   return sdkCall(() => sdk().v2.session.prompt({
     sessionID: sid,
-    prompt: { text: p.message || "" as string },
+    prompt: { text: p.message as string },
   }))
 })
 registerHandler("message.abort", async (p) => {
