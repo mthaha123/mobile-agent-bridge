@@ -127,17 +127,44 @@
 
 ---
 
-## 开发顺序
+## P2 — 已完成
+
+### P2-1: SSE 事件类型 E2E 覆盖率 ✅
+
+**测试结果**：10+ pass, 0 fail。单次 `message.send("hello")` 收集到 **20 种事件类型**。
+
+**已验证事件类型**：
+
+| 分类 | 事件类型 |
+|------|---------|
+| Session | `session.created` |
+| 基础设施 | `plugin.added`, `catalog.updated`, `reference.updated`, `integration.updated` |
+| Prompt 生命周期 | `session.next.prompt.admitted`, `session.next.prompted` |
+| Step 生命周期 | `session.next.step.started`, `session.next.step.ended` |
+| Reasoning | `session.next.reasoning.started` / `.delta` / `.ended` |
+| Tool input | `session.next.tool.input.started` / `.delta` / `.ended` |
+| Tool 执行 | `session.next.tool.called`, `session.next.tool.success` |
+| Text 输出 | `session.next.text.started` / `.delta` / `.ended` |
+
+**注意**：SDK v2 使用 `session.next.*` 命名空间事件，不再使用 `session.updated`。
+
+---
+
+### P2-2: v1→v2 SDK API 迁移（无需操作）✅
+
+**结论**：当前的 `sdk().session.*` 调用实际使用的是 `Session2` 类（v2 客户端的一部分）。`sdk().v2.*` 命名空间（Session3）虽然更新，但不完整——缺少 `delete`、`update`、`todo`、`diff`、`fork`、`children`、`shell`、`command` 等方法。**代码中不存在真实的 v1 API 调用**，无需迁移。
+
+`@opencode-ai/sdk` v1.18.5 的 API 层级：
 
 ```
-P0-1 (权限) → P0-2 (提问) → P0-3 (工具) → P1-1 (sessionId) → P1-2 (错误) → P1-3 (重连)
+sdk()  →  OpencodeClient (v2)
+ ├── session.*        ← Session2 类（当前使用，功能完整）
+ ├── config.*         ← Config2 类
+ ├── vcs.*            ← Vcs 类
+ ├── global.config.*  ← Config 类
+ ├── project.*        ← Project 类
+ └── v2.*             ← Session3 / 新世代 API（不完整）
 ```
-
-每个步骤：
-1. 先写 E2E 测试脚本（验证当前行为）
-2. 发现接口不对齐时修复代码
-3. 跑通测试
-4. 提交
 
 ---
 
@@ -145,9 +172,11 @@ P0-1 (权限) → P0-2 (提问) → P0-3 (工具) → P1-1 (sessionId) → P1-2 
 
 | 文件 | 用途 |
 |------|------|
-| `scripts/e2e/test-permission-flow.mjs` | 权限审批全流程 E2E |
-| `scripts/e2e/test-question-flow.mjs` | 提问审批全流程 E2E |
-| `scripts/e2e/test-tool-lifecycle.mjs` | 工具执行生命周期 E2E |
-| `scripts/e2e/test-sessionid-casing.mjs` | sessionId 大小写兼容性测试 |
-| `scripts/e2e/test-error-handling.mjs` | 错误场景覆盖测试 |
-| `scripts/e2e/test-ws-reconnect.mjs` | WS 重连恢复测试 |
+| `scripts/e2e/test-permission-flow.mjs` | 权限审批全流程 E2E (16/16) |
+| `scripts/e2e/test-question-flow.mjs` | 提问审批全流程 E2E (15/15) |
+| `scripts/e2e/test-tool-lifecycle.mjs` | 工具执行生命周期 E2E (11/11) |
+| `scripts/e2e/test-sessionid-casing.mjs` | sessionId 大小写兼容性测试 (21/21) |
+| `scripts/e2e/test-error-handling.mjs` | 错误场景覆盖测试 (19/19) |
+| `scripts/e2e/test-ws-reconnect.mjs` | WS 重连恢复测试 (17/17) |
+| `scripts/e2e/test-sse-coverage.mjs` | SSE 事件类型覆盖率 (10+/0) |
+| `scripts/e2e/run-full-e2e.mjs` | 全链路集成 E2E (7/7) |
