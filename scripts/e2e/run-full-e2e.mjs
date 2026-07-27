@@ -154,11 +154,19 @@ async function main() {
     function call(method, params, timeout = 15000) {
       return new Promise((resolve, reject) => {
         const id = reqId()
-        const t = setTimeout(() => reject(new Error(`timeout: ${method}`)), timeout)
-        ws.once("message", d => {
+        const handler = d => {
           const f = JSON.parse(d.toString())
-          if (f.id === id) { clearTimeout(t); f.ok ? resolve(f.payload) : reject(new Error(f.error)) }
-        })
+          if (f.id === id) {
+            clearTimeout(t)
+            ws.off("message", handler)
+            f.ok ? resolve(f.payload) : reject(new Error(f.error))
+          }
+        }
+        const t = setTimeout(() => {
+          ws.off("message", handler)
+          reject(new Error(`timeout: ${method}`))
+        }, timeout)
+        ws.on("message", handler)
         ws.send(JSON.stringify({ type: "req", id, method, params }))
       })
     }
@@ -176,7 +184,7 @@ async function main() {
 
     // 6. session.create
     console.log("   创建 session (超时 60s)...")
-    const session = await call("session.create", {}, 60000)
+    const session = await call("session.create", { model: MODEL }, 60000)
     const sessionId = session?.id || session?.sessionId || session?.sessionID || ""
     ok(`session.create -> ${sessionId.slice(0, 12)}...`)
 
@@ -200,20 +208,34 @@ async function main() {
     console.log(`   message.send 返回:`, JSON.stringify(sendResult).slice(0, 100) || "(void)")
 
     // 等待回复完成（最多 120s）
+    let sseTimeout = false
     await Promise.race([
       eventDone,
-      sleep(120000).then(() => { throw new Error("SSE 超时") }),
+      sleep(120000).then(() => { sseTimeout = true }),
     ])
-    ok(`收到 ${events.length} 个 SSE 事件`)
 
-    // 验证关键事件类型
+    // 即使超时也打印诊断信息
     const textDeltas = events.filter(e => e.method === "session.next.text.delta")
     const toolCalls = events.filter(e => e.method === "session.next.tool.called")
     const idle = events.filter(e => e.method === "session.idle")
     const error = events.filter(e => e.method === "session.error")
 
+    if (sseTimeout) {
+      console.log(`   ⏰ SSE 超时，已收到 ${events.length} 个事件`)
+      if (events.length > 0) {
+        const typeCounts = {}
+        for (const e of events) { typeCounts[e.method] = (typeCounts[e.method] || 0) + 1 }
+        for (const [type, count] of Object.entries(typeCounts)) {
+          console.log(`     ${type}: ${count}`)
+        }
+      }
+      fail(`SSE 超时（${events.length} 事件，模型未产生回复）`)
+    } else {
+      ok(`收到 ${events.length} 个 SSE 事件`)
+    }
+
     if (textDeltas.length > 0) ok(`streaming text.delta x ${textDeltas.length}`)
-    else fail("未收到流式文本")
+    else if (!sseTimeout) fail("未收到流式文本")
     if (toolCalls.length > 0) ok(`tool.called x ${toolCalls.length}`)
     if (idle.length > 0) ok("session.idle 收到，回复完成")
     if (error.length > 0) {
@@ -235,16 +257,6 @@ async function main() {
     if (fullText) {
       console.log(`\n   回复摘要 (${fullText.length} chars):`)
       console.log(`   ${fullText.slice(0, 300)}...`)
-    }
-
-    // 打印事件类型汇总
-    const typeCounts = {}
-    for (const e of events) {
-      typeCounts[e.method] = (typeCounts[e.method] || 0) + 1
-    }
-    console.log("\n   事件类型分布:")
-    for (const [type, count] of Object.entries(typeCounts)) {
-      console.log(`     ${type}: ${count}`)
     }
 
     ws.close()
