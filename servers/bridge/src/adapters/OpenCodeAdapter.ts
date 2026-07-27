@@ -40,6 +40,11 @@ export class OpenCodeBackend {
           timeout: 120000,
         }, (res) => {
           let streamCancelled = false
+          const statusCode = res.statusCode || 200
+          if (statusCode === 204) {
+            resolve(new Response(null, { status: 204, statusText: "No Content" }))
+            return
+          }
           const body = new ReadableStream({
             start(controller) {
               res.on("data", (chunk: Buffer) => {
@@ -58,7 +63,7 @@ export class OpenCodeBackend {
             },
           })
           resolve(new Response(body, {
-            status: res.statusCode || 200,
+            status: statusCode,
             statusText: res.statusMessage || "",
             headers: { "content-type": res.headers["content-type"] || "application/json" },
           }))

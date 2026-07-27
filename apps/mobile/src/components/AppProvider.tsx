@@ -189,9 +189,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
-      // 审批结果确认
+      // 审批结果确认（SDK 可能用 requestID 或 id）
       if (method === 'permission.v2.replied') {
-        useToolStore.getState().dequeue(payload?.id || '')
+        useToolStore.getState().dequeue(payload?.requestID || payload?.id || '')
       }
 
       // session 状态变更
