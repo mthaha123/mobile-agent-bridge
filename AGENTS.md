@@ -9,6 +9,7 @@
 项目 `.opencode/plugin/bash-timeout-guard.ts` 是一个 opencode plugin，自动拦截所有 bash 调用，强制限制 `timeout ≤ 180s`。这意味着：
 - 长后台任务（E2E 测试/APK 构建）**绝不传 timeout 或传很小的 timeout**（仅够启动进程本身），任务本身用 `Start-Process -WindowStyle Hidden` 或 `Start-Job` 启动
 - 日志查询/结果检查命令的 timeout 设 ≤ 15s，用短查询轮询取代长 sleep
+- **当插件拦截并抛出 timeout 超限错误时，立即切换到 fire-and-forget + 短查询轮询模式**，而不是试图增加 timeout 重试。插件的阻止是强制性的，调大 timeout 不会被放过。
 
 ---
 
