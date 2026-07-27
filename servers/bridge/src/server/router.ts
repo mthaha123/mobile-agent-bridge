@@ -86,10 +86,15 @@ registerHandler("project.list", async () => sdkCall(() => sdk().project.list({})
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
 // SDK 内部使用 createOpencodeClient 时传入的 fetch，确保 tsx 兼容
 
-/** 将字符串 model 转为 SDK 需要的 { id, providerID } 格式 */
+/** 将字符串 model 转为 SDK 需要的 { id, providerID } 格式
+ *  支持 "provider/model" 和 "provider/model/variant" 两种格式 */
 function resolveModel(model: unknown): { id: string; providerID: string; variant?: string } | undefined {
   if (!model) return undefined
-  if (typeof model === "string") return { id: model, providerID: model }
+  if (typeof model === "string") {
+    const parts = model.split("/")
+    if (parts.length >= 2) return { id: parts[1], providerID: parts[0], variant: parts[2] }
+    return { id: model, providerID: model }
+  }
   if (typeof model === "object" && model !== null) {
     const m = model as Record<string, unknown>
     if (typeof m.id === "string" && typeof m.providerID === "string") return { id: m.id, providerID: m.providerID, variant: m.variant as string | undefined }

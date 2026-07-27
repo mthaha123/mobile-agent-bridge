@@ -1223,11 +1223,11 @@ describe("RPC Router", () => {
     const listenerId = "sse-event-test"
     conns.set(listenerId, listener)
 
-    // SSE stream 产出三种 SDK 事件 (V2Event 格式: { id, type, properties })
+    // SSE stream 产出三种 SDK 事件 (V2Event 格式: { id, type, data })
     async function* eventStream() {
-      yield { type: "session.next.text.delta", properties: { sessionID: "s1", delta: "hi" } }
-      yield { type: "permission.v2.asked", properties: { id: "p1", action: "read", resources: ["."] } }
-      yield { type: "session.idle", properties: { sessionID: "s1" } }
+      yield { type: "session.next.text.delta", data: { sessionID: "s1", delta: "hi" } }
+      yield { type: "permission.v2.asked", data: { id: "p1", action: "read", resources: ["."] } }
+      yield { type: "session.idle", data: { sessionID: "s1" } }
     }
     const subscribeMock = jest.fn<any>().mockResolvedValue({ stream: eventStream() })
 

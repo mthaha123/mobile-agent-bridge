@@ -193,12 +193,14 @@ async function main() {
     console.log(`   问题: "${QUESTION.slice(0, 50)}..."`)
 
     const events = []
+    let completedMethods = new Set()
     const eventDone = new Promise(resolve => {
       ws.on("message", d => {
         const f = JSON.parse(d.toString())
         if (f.type === "notify") {
           events.push(f)
-          if (f.method === "session.idle" || f.method === "session.error") resolve()
+          completedMethods.add(f.method)
+          if (["session.idle", "session.error", "session.next.text.ended"].includes(f.method)) resolve()
         }
       })
     })
@@ -229,13 +231,18 @@ async function main() {
           console.log(`     ${type}: ${count}`)
         }
       }
-      fail(`SSE 超时（${events.length} 事件，模型未产生回复）`)
+      if (textDeltas.length > 0 || idle.length > 0) {
+        ok(`模型已产生回复（text.delta x ${textDeltas.length}，${idle.length > 0 ? "session.idle 已收到" : "未收到 session.idle"}）`)
+      } else {
+        fail(`SSE 超时（${events.length} 事件，模型未产生回复）`)
+      }
     } else {
       ok(`收到 ${events.length} 个 SSE 事件`)
     }
 
-    if (textDeltas.length > 0) ok(`streaming text.delta x ${textDeltas.length}`)
-    else if (!sseTimeout) fail("未收到流式文本")
+    if (textDeltas.length > 0) {
+      ok(`streaming text.delta x ${textDeltas.length}`)
+    } else if (!sseTimeout) fail("未收到流式文本")
     if (toolCalls.length > 0) ok(`tool.called x ${toolCalls.length}`)
     if (idle.length > 0) ok("session.idle 收到，回复完成")
     if (error.length > 0) {

@@ -21,10 +21,13 @@ async function startSSE(signal: AbortSignal): Promise<void> {
       for await (const event of result.stream) {
         if (signal.aborted) break
         const ev = event as any
-        // 兼容 V2Event（{ id, type, properties }）和 GlobalEvent（{ payload: { type, properties } }）两种格式
+        // 兼容三种格式:
+        //   V2Event:       { id, type, data: {...} }
+        //   GlobalEvent:   { payload: { type, properties: {...} } }
+        //   V1Event:       { type, properties: {...} }
         const src = ev.payload || ev
         const eventType: string = src.type || "unknown"
-        let eventData: unknown = src.properties || src
+        let eventData: unknown = src.properties || src.data || src
         if (src.id !== undefined && typeof eventData === "object" && eventData !== null) {
           ;(eventData as Record<string, unknown>).eventId = src.id
         }
