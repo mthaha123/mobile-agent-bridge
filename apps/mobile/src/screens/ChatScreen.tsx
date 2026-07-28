@@ -238,7 +238,9 @@ export const ChatScreen: React.FC = () => {
         ]}
       >
         {isAssistant ? (
-          <MarkdownRenderer content={item.content} />
+          <View accessible accessibilityLabel={item.content}>
+            <MarkdownRenderer content={item.content} />
+          </View>
         ) : (
           <Text
             style={[
