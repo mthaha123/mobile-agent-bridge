@@ -231,7 +231,7 @@ export const SessionsScreen: React.FC = () => {
                     }}
                   >
                     <Text style={styles.projectListItemName}>
-                      {p.name || p.directory.split('/').pop() || p.directory}
+                      {p.name || (p.directory || '').split('/').pop() || p.directory || '(none)'}
                     </Text>
                     <Text style={styles.projectListItemDir} numberOfLines={1}>{p.directory}</Text>
                   </TouchableOpacity>

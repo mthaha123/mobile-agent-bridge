@@ -1,3 +1,4 @@
+import path from "path"
 import fs from "fs"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { broadcastToAll } from "../server/ws.js"
@@ -56,10 +57,12 @@ async function startSSE(signal: AbortSignal): Promise<void> {
 export async function switchProject(directory: string): Promise<{ directory: string; project?: { name?: string } }> {
   if (isSwitching) throw new Error("already switching")
 
+  const resolvedDir = path.resolve(directory)
+
   try {
-    fs.accessSync(directory, fs.constants.F_OK | fs.constants.R_OK)
+    fs.accessSync(resolvedDir, fs.constants.F_OK | fs.constants.R_OK)
   } catch {
-    throw new Error(`directory not found or not readable: ${directory}`)
+    throw new Error(`directory not found or not readable: ${resolvedDir}`)
   }
 
   isSwitching = true
@@ -71,14 +74,14 @@ export async function switchProject(directory: string): Promise<{ directory: str
     sseLoop = null
 
     const backend = getBackend()
-    backend.createClient(directory)
-    activeDirectory = directory
+    backend.createClient(resolvedDir)
+    activeDirectory = resolvedDir
 
     const abort = new AbortController()
     sseAbort = abort
     sseLoop = startSSE(abort.signal)
 
-    const name = directory.split(/[/\\]/).filter(Boolean).pop() || "unknown"
+    const name = resolvedDir.split(/[/\\]/).filter(Boolean).pop() || "unknown"
     currentProject = { name }
 
     isSwitching = false

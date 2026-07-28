@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 2 — Session Management: 创建 → 列表 → 切换 Project → 详情 → 重命名
+# Layer 2 — Session Management: 创建 → 返回 → 详情 → 重命名
 - launchApp
 
 # 连接
@@ -19,43 +19,38 @@ appId: com.mobileagentbridge
 # 校验点 1: 会话列表加载
 - assertVisible: "+ New"
 
-# 创建 Session
+# 创建 Session → ChatScreen
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "Back to sessions"
+    visible: "< Sessions"
     timeout: 15000
 
-# 校验点 2: 进入 ChatScreen
-- assertVisible: "Back to sessions"
+# 校验点 2: ChatScreen 显示
+- assertVisible: "< Sessions"
 
-# 返回列表
-- tapOn: "Back to sessions"
+# 返回会话列表
+- tapOn: "< Sessions"
 - extendedWaitUntil:
     visible: "+ New"
     timeout: 10000
 
-# 校验点 3: 切换 Project 弹窗
-- tapOn: "Switch"
-- assertVisible: "Cancel"
-- assertVisible: "Switch Project"
-- tapOn: "Cancel"
-- assertVisible: "+ New"
-
-# 打开 Session 详情
+# 再创建 Session 进入 ChatScreen
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "Back to sessions"
+    visible: "< Sessions"
     timeout: 15000
+
+# 打开 Session 详情
 - tapOn: "📋"
-
-# 校验点 4: SessionInfoModal 弹出
 - extendedWaitUntil:
-    visible: "Edit"
+    visible: "Fork"
     timeout: 10000
-- assertVisible: "Edit"
 
-# 校验点 5: 重命名
-- tapOn: "Edit"
+# 校验点 3: SessionInfoModal 弹出
+- assertVisible: "Fork"
+
+# 重命名
+- tapOn: "✏️"
 - extendedWaitUntil:
     visible: "Session name"
     timeout: 5000

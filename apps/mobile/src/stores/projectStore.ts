@@ -86,9 +86,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   listProjects: async (clientCall) => {
     try {
       const result = await clientCall('project.list', {})
-      const list = Array.isArray(result)
-        ? result as ProjectEntry[]
-        : ((result as Record<string, unknown>)?.projects as ProjectEntry[]) || []
+      const raw = Array.isArray(result)
+        ? result
+        : ((result as Record<string, unknown>)?.projects as any[]) || []
+      const list: ProjectEntry[] = raw.map((p: any) => ({
+        directory: p.directory || p.worktree || '',
+        name: p.name || p.id,
+      }))
       set({ projects: list })
     } catch {
       // not critical

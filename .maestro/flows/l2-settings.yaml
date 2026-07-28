@@ -27,11 +27,11 @@ appId: com.mobileagentbridge
 - assertVisible: "Connected"
 
 # 向下滚动查看更多配置
-- scroll:
-    direction: DOWN
+- swipe:
+    direction: UP
+    amount: 100
 
 # 校验点 2: 配置区域可见
-# Server Config 区域
 - assertVisible: "Disconnect"
 
 # 校验点 3: Tab 切换
@@ -48,8 +48,9 @@ appId: com.mobileagentbridge
     timeout: 10000
 
 # 断连
-- scroll:
-    direction: DOWN
+- swipe:
+    direction: UP
+    amount: 100
 - extendedWaitUntil:
     visible: "Disconnect"
     timeout: 5000
