@@ -1,10 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 4 — Tool Execution: 连接 → 创建 Session → 发消息 → 验证回复
-#
-# 注意: OpenCode "steer" delivery 模式下工具自动审批（无 "Tool Request" 弹窗），
-# 且 Markdown 表格渲染的文件名字段不在 accessibility tree 中导致无法用 textRegex 匹配。
-# 本流程仅验证消息发送与回复到达，工具执行细节由协议层 E2E（flow1-core-chat.mjs）覆盖。
+# Layer 4 — Tool Permission: 连接 → 创建 Session → 发工具消息 → 验证结果
 - launchApp
 
 # Step 1: 连接
