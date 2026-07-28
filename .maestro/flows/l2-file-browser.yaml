@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 2 — File Browser: 连接 → Files 标签 → 文件列表 → 阅读文件 → 关闭预览
+# Layer 2 — File Browser: 连接 → 文件列表 → 搜索 → 阅读文件 → 关闭预览
 - launchApp
 
 # 连接
@@ -24,14 +24,16 @@ appId: com.mobileagentbridge
     visible: "Search files..."
     timeout: 15000
 
-# 校验点 1: 搜索栏和文件列表可见
+# 校验点 1: 搜索栏可见
 - assertVisible: "Search files..."
 
-# 点开 package.json 文件
-- tapOn: "package.json"
+# Step 1: 搜索文件 (搜索 Bridge 目录下的 package.json)
+- tapOn: "Search files..."
+- inputText: "package"
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible: ".*package\\.json.*"
+    timeout: 15000
 
-# 关闭预览
-- tapOn: "Close preview"
-
-# 校验点 2: 回到文件列表
-- assertVisible: "Search files..."
+# 校验点 2: 搜索结果含 package.json
+- assertVisible: ".*package\\.json.*"

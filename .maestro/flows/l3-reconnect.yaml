@@ -1,0 +1,66 @@
+appId: com.mobileagentbridge
+---
+# Layer 3 — Reconnect: 连接 → 断连 → 重连 → 验证连接恢复
+- launchApp
+
+# Step 1: 首次连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+# 校验点 1: 连接成功
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 20000
+- assertNotVisible: "Connect"
+- assertVisible: "Files"
+- assertVisible: "Settings"
+
+# Step 2: 进 Settings 断连
+- tapOn: "Settings"
+- extendedWaitUntil:
+    visible: "Connected"
+    timeout: 10000
+
+# 校验点 2: 已连接状态
+- assertVisible: "Connected"
+
+# 断连 (滑动到底部)
+- scrollUntilVisible:
+    element:
+      text: "Disconnect"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Disconnect"
+
+# 校验点 3: 断连成功，回到 ConnectScreen
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 10000
+- assertVisible: "ws://192.168.1.100:8080/ws"
+- assertNotVisible: "Chat"
+- assertNotVisible: "Files"
+- assertNotVisible: "Settings"
+
+# Step 3: 重新连接
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+# 校验点 4: 重连成功
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 20000
+- assertNotVisible: "Connect"
+- assertVisible: "Files"
+- assertVisible: "Settings"

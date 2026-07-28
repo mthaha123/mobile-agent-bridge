@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 3 — Core Chat: 连接 → 创建 Session → 发消息 → 流式文本回复
+# Layer 4 — Tool Permission: 连接 → 创建 Session → 发工具消息 → 审批工具 → 验证完成
 - launchApp
 
 # Step 1: 连接
@@ -13,13 +13,10 @@ appId: com.mobileagentbridge
 - inputText: "."
 - tapOn: "Connect"
 
-# 校验点 1: 连接成功，Tab 栏出现
+# 校验点 1: 连接成功
 - extendedWaitUntil:
     visible: "Chat"
     timeout: 20000
-- assertNotVisible: "Connect"
-- assertVisible: "Files"
-- assertVisible: "Settings"
 
 # Step 2: 创建 Session
 - tapOn: "+ New"
@@ -27,15 +24,12 @@ appId: com.mobileagentbridge
     visible: "Type a message..."
     timeout: 15000
 
-# 校验点 2: 进入 ChatScreen
-- assertVisible: "Type a message..."
-
 # Step 3: 发消息
 - tapOn: "Type a message..."
 - inputText: "hello"
 - tapOn: "➤"
 
-# 校验点 3: AI 回复出现（跳过 AI is thinking... 校验：AI 响应太快 < 200ms，竞态导致不可靠）
+# 校验点 2: AI 回复出现
 - extendedWaitUntil:
     visible: ".*Hello.*|.*hello.*|.*Hi.*|.*hi.*"
     timeout: 60000

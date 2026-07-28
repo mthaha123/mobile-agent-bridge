@@ -27,11 +27,13 @@ appId: com.mobileagentbridge
 - assertVisible: "Connected"
 
 # 向下滚动查看更多配置
-- swipe:
-    direction: UP
-    amount: 100
+- scrollUntilVisible:
+    element:
+      text: "Disconnect"
+    direction: DOWN
+    timeout: 15000
 
-# 校验点 2: 配置区域可见
+# 校验点 2: Disconnect 按钮可见
 - assertVisible: "Disconnect"
 
 # 校验点 3: Tab 切换
@@ -47,13 +49,12 @@ appId: com.mobileagentbridge
     visible: "Bridge URL"
     timeout: 10000
 
-# 断连
-- swipe:
-    direction: UP
-    amount: 100
-- extendedWaitUntil:
-    visible: "Disconnect"
-    timeout: 5000
+# 断连 (滑动到底部)
+- scrollUntilVisible:
+    element:
+      text: "Disconnect"
+    direction: DOWN
+    timeout: 15000
 - tapOn: "Disconnect"
 
 # 校验点 4: 断连成功，回到 ConnectScreen
