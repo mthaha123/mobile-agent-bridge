@@ -264,8 +264,11 @@ registerHandler("question.reply", async (p) => {
   if (!p.id) throw new Error("question.reply requires sessionId parameter")
   const sid = resolveSessionId(p)
   if (!sid) throw new Error("question.reply requires sessionId parameter")
-  const answers: string[][] = Array.isArray(p.answers)
-    ? (p.answers as string[]).map((a: string) => [a])
+  const rawAnswers = p.answers
+  const answers: string[][] = Array.isArray(rawAnswers)
+    ? rawAnswers.length > 0 && Array.isArray(rawAnswers[0])
+      ? (rawAnswers as string[][])
+      : (rawAnswers as string[]).map((a: string) => [a])
     : [[p.answer as string]]
   return sdkCall(() => sdk().v2.session.question.reply({
     sessionID: sid,

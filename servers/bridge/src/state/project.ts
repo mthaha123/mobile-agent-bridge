@@ -56,6 +56,7 @@ async function startSSE(signal: AbortSignal): Promise<void> {
 
 export async function switchProject(directory: string): Promise<{ directory: string; project?: { name?: string } }> {
   if (isSwitching) throw new Error("already switching")
+  if (!directory || typeof directory !== 'string') throw new Error("directory is required")
 
   const resolvedDir = path.resolve(directory)
 
