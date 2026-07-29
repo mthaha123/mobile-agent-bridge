@@ -24,12 +24,13 @@ appId: com.mobileagentbridge
     visible: "Type a message..."
     timeout: 15000
 
-# Step 3: 发消息
+# Step 3: 发消息（触发工具调用：列出文件）
 - tapOn: "Type a message..."
-- inputText: "hello"
+- inputText: "list files in the current directory"
 - tapOn: "➤"
 
-# 校验点 2: AI 回复出现（纯文本回复，accessibility tree 可捕获）
+# 校验点 2: AI 回复出现（assistant message 有 accessibilityLabel）
 - extendedWaitUntil:
-    visible: ".*Hello.*|.*hello.*|.*Hi.*|.*hi.*"
-    timeout: 180000
+    visible:
+      label: "package"
+    timeout: 60000

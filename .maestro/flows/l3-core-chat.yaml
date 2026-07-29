@@ -35,7 +35,8 @@ appId: com.mobileagentbridge
 - inputText: "hello"
 - tapOn: "➤"
 
-# 校验点 3: AI 回复出现（跳过 AI is thinking... 校验：AI 响应太快 < 200ms，竞态导致不可靠）
+# 校验点 3: AI 回复出现（匹配 assistant message 的 accessibilityLabel）
 - extendedWaitUntil:
-    visible: ".*Hello.*|.*hello.*|.*Hi.*|.*hi.*"
+    visible:
+      label: "Hello"
     timeout: 60000
