@@ -21,8 +21,12 @@ import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
-import { MarkdownRenderer } from '../components/MarkdownRenderer'
+import { PartBlock } from '../components/chat/PartBlock'
+import { RichMessage, Part } from '../types/message'
 import { useConfigStore } from '../stores/configStore'
+import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
+import { PermissionDock } from '../components/chat/PermissionDock'
+import { QuestionDock } from '../components/chat/QuestionDock'
 
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
@@ -227,6 +231,7 @@ export const ChatScreen: React.FC = () => {
     const isUser = item.role === 'user'
     const isSystem = item.role === 'system'
     const isAssistant = item.role === 'assistant'
+    const parts = (item as any).parts as Part[] | undefined
 
     return (
       <View
@@ -237,9 +242,19 @@ export const ChatScreen: React.FC = () => {
           isSystem ? styles.systemBubble : undefined,
         ]}
       >
-        {isAssistant ? (
+        {parts && parts.length > 0 ? (
+          // Part 模式渲染
+          parts.map((part) => (
+            <PartBlock
+              key={part.id}
+              part={part}
+              message={item as unknown as RichMessage}
+            />
+          ))
+        ) : isAssistant ? (
+          // 兼容旧版本：纯文本 assistant 消息
           <View accessible accessibilityLabel={item.content}>
-            <MarkdownRenderer content={item.content} />
+            <Text style={styles.messageText}>{item.content}</Text>
           </View>
         ) : (
           <Text
@@ -271,12 +286,7 @@ export const ChatScreen: React.FC = () => {
   const renderFooter = () => {
     return (
       <>
-        {waiting && (
-          <View style={styles.waitingContainer}>
-            <ActivityIndicator size="small" color="#888" />
-            <Text style={styles.waitingText}>AI is thinking...</Text>
-          </View>
-        )}
+        {waiting && <ThinkingShimmer />}
         <ToolProgressCard />
       </>
     )
@@ -326,6 +336,10 @@ export const ChatScreen: React.FC = () => {
         style={styles.messageListContainer}
       />
 
+      {/* Dock 区域：权限审批 / 问题面板 */}
+      <PermissionDock />
+      <QuestionDock />
+
       <View style={styles.inputContainer}>
         <TouchableOpacity style={styles.cmdButton} onPress={() => setSlashSheetVisible(true)} accessibilityLabel="Open commands">
           <Text style={styles.cmdButtonText}>⌘</Text>
@@ -344,7 +358,12 @@ export const ChatScreen: React.FC = () => {
           accessibilityLabel="Type a message..."
         />
         {waiting ? (
-          <TouchableOpacity style={styles.stopButton} onPress={handleAbort}>
+          <TouchableOpacity style={styles.stopButton} onPress={() => {
+            Alert.alert('停止生成', '确定要停止 AI 回复吗？', [
+              { text: '取消', style: 'cancel' },
+              { text: '停止', style: 'destructive', onPress: handleAbort },
+            ])
+          }}>
             <Text style={styles.stopButtonText}>■</Text>
           </TouchableOpacity>
         ) : (
