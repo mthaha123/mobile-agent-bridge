@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
+  TextInput,
 } from 'react-native'
 import { useConfigStore } from '../stores/configStore'
 
@@ -14,11 +15,31 @@ interface SlashSheetProps {
   onClose: () => void
   onSelect: (command: string) => void
   onSwitchAgent?: (agent: string) => void
+  filter?: string  // 输入前缀如 / 或 @，用于过滤
 }
 
-export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent }) => {
+export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent, filter }) => {
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
   const commands = useConfigStore((s) => s.commands) as Array<{ name?: string; command?: string; description?: string }>
+
+  const showCommands = !filter || filter === '/'
+  const showAgents = !filter || filter === '@'
+
+  const filteredCommands = useMemo(() => {
+    if (!filter || filter === '/') return commands
+    return commands.filter(c => {
+      const label = c.command || c.name || ''
+      return label.toLowerCase().includes(filter.slice(1).toLowerCase())
+    })
+  }, [commands, filter])
+
+  const filteredAgents = useMemo(() => {
+    if (!filter || filter === '@') return agents
+    return agents.filter(a => {
+      const label = a.label || a.name || a.id || ''
+      return label.toLowerCase().includes(filter.slice(1).toLowerCase())
+    })
+  }, [agents, filter])
 
   return (
     <Modal
@@ -37,13 +58,15 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
           activeOpacity={1}
           onPress={() => {}}
         >
-          <Text style={styles.title}>Commands & Agents</Text>
+          <Text style={styles.title}>
+            {filter === '@' ? '选择 Agent' : filter === '/' ? '选择命令' : '命令 & Agent'}
+          </Text>
 
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {commands.length > 0 && (
+            {showCommands && filteredCommands.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Commands</Text>
-                {commands.map((cmd, i) => {
+                {filteredCommands.map((cmd, i) => {
                   const label = cmd.command || cmd.name || ''
                   const desc = cmd.description || ''
                   return (
@@ -63,10 +86,10 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
               </>
             )}
 
-            {agents.length > 0 && (
+            {showAgents && filteredAgents.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Agents</Text>
-                {agents.map((agent, i) => {
+                {filteredAgents.map((agent, i) => {
                   const label = agent.label || agent.name || agent.id || ''
                   return (
                     <TouchableOpacity
@@ -81,7 +104,7 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
                         onClose()
                       }}
                     >
-                      <Text style={styles.itemIcon}>A</Text>
+                      <Text style={[styles.itemIcon, styles.agentIcon]}>@</Text>
                       <View style={styles.itemContent}>
                         <Text style={styles.itemLabel}>{label}</Text>
                         {onSwitchAgent ? <Text style={styles.itemDesc}>Switch agent</Text> : null}
@@ -92,8 +115,8 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
               </>
             )}
 
-            {agents.length === 0 && commands.length === 0 && (
-              <Text style={styles.emptyText}>No commands or agents loaded</Text>
+            {filteredCommands.length === 0 && filteredAgents.length === 0 && (
+              <Text style={styles.emptyText}>无匹配项</Text>
             )}
           </ScrollView>
         </TouchableOpacity>
@@ -145,6 +168,10 @@ const styles = StyleSheet.create({
     color: '#8ab4f8',
     width: 28,
     textAlign: 'center',
+    fontWeight: '700',
+  },
+  agentIcon: {
+    color: '#51cf66',
   },
   itemContent: {
     flex: 1,

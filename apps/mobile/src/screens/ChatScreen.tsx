@@ -27,10 +27,13 @@ import { useConfigStore } from '../stores/configStore'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
 import { PermissionDock } from '../components/chat/PermissionDock'
 import { QuestionDock } from '../components/chat/QuestionDock'
+import { AttachmentBar } from '../components/chat/AttachmentBar'
+import { useAttachmentStore } from '../stores/attachmentStore'
 
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
+  const [slashFilter, setSlashFilter] = useState<string | undefined>()
   const [modelPickerVisible, setModelPickerVisible] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
@@ -339,6 +342,7 @@ export const ChatScreen: React.FC = () => {
       {/* Dock 区域：权限审批 / 问题面板 */}
       <PermissionDock />
       <QuestionDock />
+      <AttachmentBar />
 
       <View style={styles.inputContainer}>
         <TouchableOpacity style={styles.cmdButton} onPress={() => setSlashSheetVisible(true)} accessibilityLabel="Open commands">
@@ -348,7 +352,14 @@ export const ChatScreen: React.FC = () => {
           ref={inputRef}
           style={styles.input}
           value={inputText}
-          onChangeText={setInputText}
+          onChangeText={(t) => {
+            setInputText(t)
+            if (t.endsWith('/')) { setSlashFilter('/'); setSlashSheetVisible(true) }
+            else if (t.endsWith('@')) { setSlashFilter('@'); setSlashSheetVisible(true) }
+            else if (slashSheetVisible && !t.endsWith('/') && !t.endsWith('@')) {
+              // keep filtering as user types after /
+            }
+          }}
           placeholder="Type a message..."
           placeholderTextColor="#666"
           multiline={false}
@@ -384,9 +395,10 @@ export const ChatScreen: React.FC = () => {
       />
       <SlashSheet
         visible={slashSheetVisible}
-        onClose={() => setSlashSheetVisible(false)}
+        onClose={() => { setSlashSheetVisible(false); setSlashFilter(undefined) }}
         onSelect={handleSlashSelect}
         onSwitchAgent={handleSwitchAgent}
+        filter={slashFilter}
       />
 
       <Modal

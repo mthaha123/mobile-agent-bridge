@@ -1,8 +1,9 @@
-import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import React, { useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Clipboard } from 'react-native'
 import { PartProps, Part, getPartRenderer, registerPart } from '../../types/message'
 import { ToolPart } from './BasicTool'
 import { ToolErrorCard } from './ToolErrorCard'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 // ─── PartBlock 调度器 ────────────────────────────────────
 
@@ -14,10 +15,35 @@ export const PartBlock: React.FC<PartProps> = ({ part, message }) => {
 
 // ─── Text Part ────────────────────────────────────────────
 
-const TextPartDisplay: React.FC<PartProps> = ({ part }) => (
-  <Text style={styles.textPart}>{String(part.data?.content ?? part.data?.text ?? '')}</Text>
-)
+const TextPartDisplay: React.FC<PartProps> = ({ part, message }) => {
+  const content = String(part.data?.content ?? part.data?.text ?? '')
+  return (
+    <MessageWrapper content={content} message={message}>
+      <MarkdownRenderer content={content} />
+    </MessageWrapper>
+  )
+}
 registerPart('text', TextPartDisplay)
+
+// ─── 长按菜单 Wrapper ─────────────────────────────────────
+
+const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?: string; messageID?: string }; children: React.ReactNode }> = ({ content, message, children }) => {
+  const showMenu = () => {
+    Alert.alert('消息操作', undefined, [
+      { text: '复制消息', onPress: () => Clipboard.setString(content) },
+      ...(message.role === 'assistant' && message.messageID
+        ? [{ text: '回退到此', style: 'destructive' as const, onPress: () => {} }]
+        : []),
+      { text: '取消', style: 'cancel' as const },
+    ])
+  }
+
+  return (
+    <TouchableOpacity activeOpacity={1} onLongPress={showMenu} delayLongPress={500}>
+      {children}
+    </TouchableOpacity>
+  )
+}
 
 // ─── Tool Part ────────────────────────────────────────────
 
