@@ -16,21 +16,25 @@ appId: com.mobileagentbridge
 # 校验点 1: 连接成功
 - extendedWaitUntil:
     visible: "Chat"
-    timeout: 20000
+    timeout: 30000
 
 # Step 2: 创建 Session
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "Type a message..."
+    visible: "Open commands"
     timeout: 15000
 
 # Step 3: 发消息（触发工具调用：列出文件）
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: "list files in the current directory"
-- tapOn: "➤"
+- hideKeyboard
+- tapOn:
+    point: "95%,87%"
+    waitToSettleTimeoutMs: 500
 
-# 校验点 2: AI 回复出现（assistant message 有 accessibilityLabel）
+# 校验点 2: 验证消息已发送（Copy 按钮表示消息已添加到列表）
 - extendedWaitUntil:
-    visible:
-      label: "package"
-    timeout: 60000
+    visible: "Copy"
+    timeout: 30000

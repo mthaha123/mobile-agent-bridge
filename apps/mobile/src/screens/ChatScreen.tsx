@@ -232,9 +232,9 @@ export const ChatScreen: React.FC = () => {
       <View
         style={[
           styles.messageBubble,
-          isUser && styles.userBubble,
-          isAssistant && styles.assistantBubble,
-          isSystem && styles.systemBubble,
+          isUser ? styles.userBubble : undefined,
+          isAssistant ? styles.assistantBubble : undefined,
+          isSystem ? styles.systemBubble : undefined,
         ]}
       >
         {isAssistant ? (
@@ -243,10 +243,7 @@ export const ChatScreen: React.FC = () => {
           </View>
         ) : (
           <Text
-            style={[
-              styles.messageText,
-              isSystem && styles.systemMessageText,
-            ]}
+            style={[styles.messageText, isSystem ? styles.systemMessageText : undefined]}
           >
             {item.content}
           </Text>
@@ -344,6 +341,7 @@ export const ChatScreen: React.FC = () => {
           returnKeyType="send"
           onSubmitEditing={handleSend}
           editable={!waiting}
+          accessibilityLabel="Type a message..."
         />
         {waiting ? (
           <TouchableOpacity style={styles.stopButton} onPress={handleAbort}>

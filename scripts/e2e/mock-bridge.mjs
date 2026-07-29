@@ -17,6 +17,20 @@
  * Push API: POST http://localhost:{MOCK_PUSH_PORT}/push
  */
 
+// 强制 stdout/stderr 行缓冲（避免 Start-Process -RedirectStandardOutput 延迟）
+if (process.stdout.isTTY === undefined) {
+  console.log = (...args) => { process.stdout.write(args.join(" ") + "\n") }
+  console.error = (...args) => { process.stderr.write(args.join(" ") + "\n") }
+}
+
+// 全局异常处理：不崩溃，记录日志继续运行
+process.on("uncaughtException", (err) => {
+  console.error(`[MockBridge] UNCAUGHT: ${err.message}`)
+})
+process.on("unhandledRejection", (err) => {
+  console.error(`[MockBridge] UNHANDLED REJECTION: ${err}`)
+})
+
 import { createRequire } from "node:module"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -223,13 +237,25 @@ const pushServer = http.createServer((req, res) => {
   })
 })
 
+pushServer.on("error", (err) => {
+  console.error(`[MockBridge] Push API 启动失败 (port ${PUSH_PORT}): ${err.message}，WS 服务继续运行`)
+})
 pushServer.listen(PUSH_PORT, () => {
   console.log(`[MockBridge] Push API 启动于 http://localhost:${PUSH_PORT}/push`)
 })
 
 // ─── WS Server ──────────────────────────────────────────────────
 
-const wss = new WebSocketServer({ port: PORT })
+let wss
+try {
+  wss = new WebSocketServer({ port: PORT })
+} catch (err) {
+  console.error(`[MockBridge] WS 启动失败: ${err.message}`)
+  process.exit(1)
+}
+wss.on("error", (err) => {
+  console.error(`[MockBridge] WS Server 错误: ${err.message}`)
+})
 
 wss.on("connection", (ws) => {
   clients.add(ws)
@@ -277,6 +303,10 @@ wss.on("connection", (ws) => {
     const delay = Math.random() * 50
     setTimeout(() => {
       ws.send(JSON.stringify({ type: "res", id, ok: true, payload }))
+      // message.send 成功后发送 step.ended 通知，使 app 退出 waiting 状态
+      if (method === "message.send" && !frame.params?.message?.startsWith("__push__:")) {
+        ws.send(JSON.stringify({ type: "notify", method: "session.next.step.ended", payload: {} }))
+      }
     }, delay)
   })
 

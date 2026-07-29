@@ -178,6 +178,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         useChatStore.getState().setWaiting(false)
       }
 
+      // 步骤失败
+      if (method === 'session.next.step.failed') {
+        useChatStore.getState().setWaiting(false)
+        const errorMsg = payload?.error?.message || payload?.error || 'Unknown error'
+        useChatStore.getState().addMessage({
+          role: 'system',
+          content: `AI step failed: ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`,
+        })
+      }
+
       // 工具审批请求 v2
       if (method === 'permission.v2.asked') {
         useToolStore.getState().enqueue({
@@ -221,6 +231,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         useChatStore.getState().addMessage({
           role: 'system',
           content: `Error: ${errorMsg}`,
+        })
+      }
+
+      // ─── 通用 fallback：未单独处理的 *.failed / *.error 事件 ───
+      // 防止新的事件类型导致 UI 死锁（waiting 停不下来）
+      if (
+        (method.endsWith('.failed') || method.endsWith('.error')) &&
+        method !== 'session.next.tool.failed' &&
+        method !== 'session.next.step.failed' &&
+        method !== 'session.error'
+      ) {
+        useChatStore.getState().setWaiting(false)
+        const errorMsg =
+          payload?.error?.message ||
+          payload?.error ||
+          payload?.message ||
+          `${method} (no details)`
+        useChatStore.getState().addMessage({
+          role: 'system',
+          content: `${method}: ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`,
         })
       }
 

@@ -22,9 +22,11 @@ appId: com.mobileagentbridge
     timeout: 15000
 
 # 发送 magic message 触发 permission.v2.asked push 通知
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: '__push__:permission.v2.asked:{"id":"req-1","action":"writeFile","resources":[{"path":"test.ts"}],"sessionID":"mock_s1"}'
-- tapOn: "➤"
+- pressKey: Enter
 
 - extendedWaitUntil:
     visible: "Tool Request"

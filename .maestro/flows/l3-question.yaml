@@ -22,9 +22,11 @@ appId: com.mobileagentbridge
     timeout: 15000
 
 # 发送 magic message 触发 question.v2.asked push 通知
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: '__push__:question.v2.asked:{"id":"q-1","sessionID":"mock_s1","questions":[{"question":"Allow this operation?","options":[{"label":"Yes"},{"label":"No"}],"multiple":false}]}'
-- tapOn: "➤"
+- pressKey: Enter
 
 - extendedWaitUntil:
     visible: "Question"

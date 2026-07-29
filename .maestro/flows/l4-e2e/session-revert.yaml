@@ -15,8 +15,11 @@ tags:
     timeout: 30000
 
 # 发送消息
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: "write a simple hello world function in python"
+- hideKeyboard
 - tapOn: "Send"
 
 # 等待 AI 回复完成

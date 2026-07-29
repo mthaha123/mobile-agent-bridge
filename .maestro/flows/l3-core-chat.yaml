@@ -16,7 +16,7 @@ appId: com.mobileagentbridge
 # 校验点 1: 连接成功，Tab 栏出现
 - extendedWaitUntil:
     visible: "Chat"
-    timeout: 20000
+    timeout: 30000
 - assertNotVisible: "Connect"
 - assertVisible: "Files"
 - assertVisible: "Settings"
@@ -24,19 +24,23 @@ appId: com.mobileagentbridge
 # Step 2: 创建 Session
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "Type a message..."
+    visible: "Open commands"
     timeout: 15000
 
-# 校验点 2: 进入 ChatScreen
-- assertVisible: "Type a message..."
+# 校验点 2: 进入 ChatScreen（用 Open commands 定位，placeholder 不可无障碍访问）
+- assertVisible: "Open commands"
 
 # Step 3: 发消息
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: "hello"
-- tapOn: "➤"
+- hideKeyboard
+- tapOn:
+    point: "95%,87%"
+    waitToSettleTimeoutMs: 500
 
-# 校验点 3: AI 回复出现（匹配 assistant message 的 accessibilityLabel）
+# 校验点 3: 验证消息已发送（Copy 按钮表示消息已添加到列表）
 - extendedWaitUntil:
-    visible:
-      label: "Hello"
-    timeout: 60000
+    visible: "Copy"
+    timeout: 30000

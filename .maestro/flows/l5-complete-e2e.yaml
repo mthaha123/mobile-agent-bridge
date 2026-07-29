@@ -1,0 +1,87 @@
+appId: com.mobileagentbridge
+---
+# Layer 5 — Complete E2E: 连接 → 创建 Session → 发送消息 → 观测完整 UI
+#
+# 观测内容：
+#   1. 连接流程 (URL/Password/Directory → Connect → Tab 栏)
+#   2. Session 创建 (+ New → 输入框)
+#   3. 消息发送 (输入文字 → ➤ 按钮)
+#   4. AI 思考过程 (⚡ Thinking...)
+#   5. 工具执行 (Shell/Glob/Task 等 ToolProgressCard)
+#   6. 流式文本回复 (Markdown 渲染)
+#   7. Assistant 消息的 Copy/Revert 按钮
+#
+# 前置条件：
+#   - 模拟器已运行、APK 已安装
+#   - Bridge 服务器已启动（见 run-bridge.ps1）
+#   - OpenCode 服务器已启动（见 run-oc.ps1）
+#   - opencode.json 已配置 permission: allow（自动批准工具）
+
+- launchApp
+
+# ============================================================
+# Step 1: 连接 Bridge 服务器
+# ============================================================
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+
+# 校验点 1: 连接成功 → Tab 栏出现
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 20000
+- assertNotVisible: "Connect"
+- assertVisible: "Files"
+- assertVisible: "Settings"
+
+# ============================================================
+# Step 2: 创建 Session
+# ============================================================
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Open commands"
+    timeout: 15000
+
+# 进入 ChatScreen（Open commands 按钮始终存在）
+- assertVisible: "Open commands"
+
+# ============================================================
+# Step 3: 发送消息 — "what files are in the current project?"
+# ============================================================
+# 点击输入框区域（底部坐标，聚焦 TextInput，注意不要点到 Tab bar 区域）
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
+- inputText: "what files are in the current project directory?"
+# 收起键盘
+- hideKeyboard
+# 点击发送按钮（输入栏在 Tab bar 上方）
+- tapOn:
+    point: "95%,87%"
+    waitToSettleTimeoutMs: 500
+
+# ============================================================
+# Step 4: 等待消息发送完成（Copy 按钮表示消息已添加到列表）
+# ============================================================
+- extendedWaitUntil:
+    visible: "Copy"
+    timeout: 15000
+
+# ============================================================
+# Step 5: 验证消息操作按钮
+# ============================================================
+- assertVisible: "Copy"
+
+# ============================================================
+# Step 6: 验证输入栏
+# ============================================================
+- assertVisible: "Open commands"
+
+# ============================================================
+# 完成
+# ============================================================

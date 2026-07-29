@@ -15,8 +15,11 @@ tags:
     timeout: 30000
 
 # 发送会触发工具调用的消息（读取文件）
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: "read package.json"
+- hideKeyboard
 - tapOn: "Send"
 
 # 等待工具审批 Sheet 弹出

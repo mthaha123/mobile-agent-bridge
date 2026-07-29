@@ -12,9 +12,11 @@ appId: com.mobileagentbridge
 - tapOn: "project directory (e.g. /home/user/project)"
 - inputText: "."
 - tapOn: "Connect"
+
+# 连接成功后页面跳转，键盘自动关闭
 - extendedWaitUntil:
-    visible: "Settings"
-    timeout: 20000
+    visible: "Files"
+    timeout: 30000
 
 # 进入 Settings
 - tapOn: "Settings"

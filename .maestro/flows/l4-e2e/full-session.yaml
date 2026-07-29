@@ -18,8 +18,11 @@ tags:
     timeout: 30000
 
 # 输入消息并发送
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: "say hello"
+- hideKeyboard
 - tapOn: "Send"
 
 # 等待 AI 流式回复开始

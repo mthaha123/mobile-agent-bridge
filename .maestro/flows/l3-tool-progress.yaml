@@ -23,7 +23,9 @@ appId: com.mobileagentbridge
     timeout: 15000
 
 # 1. 发送 session.next.tool.called → 卡片出现
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: '__push__:session.next.tool.called:{"callID":"call-1","sessionID":"mock_s1","tool":"writeFile","input":{"path":"test.ts","content":"hello"}}'
 - pressKey: Enter
 
@@ -32,12 +34,16 @@ appId: com.mobileagentbridge
     timeout: 10000
 
 # 2. 发送 session.next.tool.progress
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: '__push__:session.next.tool.progress:{"callID":"call-1","content":["Writing file...\n"]}'
 - pressKey: Enter
 
 # 3. 发送 session.next.tool.success → 卡片消失
-- tapOn: "Type a message..."
+- tapOn:
+    point: "50%,87%"
+    waitToSettleTimeoutMs: 500
 - inputText: '__push__:session.next.tool.success:{"callID":"call-1","content":"File written","result":{"ok":true}}'
 - pressKey: Enter
 
