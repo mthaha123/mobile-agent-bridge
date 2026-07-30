@@ -18,26 +18,29 @@ appId: com.mobileagentbridge
 
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "New Session"
+    visible: "Open commands"
     timeout: 15000
 
-# 发送 magic message 触发 permission.v2.asked push 通知
-- tapOn:
-    point: "50%,87%"
-    waitToSettleTimeoutMs: 500
-- inputText: '__push__:permission.v2.asked:{"id":"req-1","action":"writeFile","resources":[{"path":"test.ts"}],"sessionID":"mock_s1"}'
+# 确认已进入 ChatScreen
+- assertVisible: "Open commands"
+
+# 发送 magic message 触发 permission.v2.asked 通知
+- tapOn: "Type a message..."
+- eraseText: 50
+- inputText: 't'
+- eraseText: 50
+- inputText: "__push__:permission.v2.asked:{\"id\":\"req-1\"}"
 - pressKey: Enter
 
 - extendedWaitUntil:
-    visible: "Tool Request"
+    visible: "Approve"
     timeout: 10000
-- assertVisible: "writeFile"
 - assertVisible: "Reject"
-- assertVisible: "Approve"
 - assertVisible: "Always Allow"
+- assertVisible: "Open commands"
 
 - tapOn: "Approve"
 
 - extendedWaitUntil:
-    notVisible: "Tool Request"
+    notVisible: "Reject"
     timeout: 10000

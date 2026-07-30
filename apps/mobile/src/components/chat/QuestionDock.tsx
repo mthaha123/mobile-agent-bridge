@@ -82,14 +82,14 @@ const QuestionItem: React.FC<QuestionItemProps> = ({ question, onReject, onSubmi
           </View>
         ))}
       </View>
-      <View style={styles.dockFooter}>
-        <TouchableOpacity style={styles.rejectBtn} onPress={onReject}>
-          <Text style={styles.btnText}>拒绝</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-          <Text style={styles.btnText}>提交</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.dockFooter}>
+            <TouchableOpacity style={styles.rejectBtn} onPress={onReject}>
+              <Text style={styles.btnText}>Reject</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+              <Text style={styles.btnText}>Submit</Text>
+            </TouchableOpacity>
+          </View>
     </View>
   )
 }

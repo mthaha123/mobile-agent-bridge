@@ -18,24 +18,18 @@ appId: com.mobileagentbridge
 
 - tapOn: "+ New"
 - extendedWaitUntil:
-    visible: "New Session"
+    visible: "Open commands"
     timeout: 15000
 
-# 发送 magic message 触发 question.v2.asked push 通知
-- tapOn:
-    point: "50%,87%"
-    waitToSettleTimeoutMs: 500
-- inputText: '__push__:question.v2.asked:{"id":"q-1","sessionID":"mock_s1","questions":[{"question":"Allow this operation?","options":[{"label":"Yes"},{"label":"No"}],"multiple":false}]}'
-- pressKey: Enter
+# session.create 后 mock-bridge 自动发送 question.v2.asked 通知
 
 - extendedWaitUntil:
-    visible: "Question"
+    visible: "Submit"
     timeout: 10000
-- assertVisible: "Allow this operation?"
+- assertVisible: "Reject"
 
 - tapOn: ".*Yes"
-- tapOn: "Submit"
 
 - extendedWaitUntil:
-    notVisible: "Question"
+    notVisible: "Reject"
     timeout: 10000

@@ -3,8 +3,7 @@ import { SafeAreaView, StatusBar, StyleSheet } from 'react-native'
 import { AppProvider } from './src/components/AppProvider'
 import { MainLayout } from './src/components/MainLayout'
 import { ConnectScreen } from './src/screens/ConnectScreen'
-import { ToolApprovalSheet } from './src/screens/ToolApprovalSheet'
-import { QuestionSheet } from './src/screens/QuestionSheet'
+
 import { useAuthStore } from './src/stores/authStore'
 import { useUiStore } from './src/stores/uiStore'
 
@@ -29,8 +28,6 @@ const App: React.FC = () => {
         {screen === 'connect' && <ConnectScreen />}
         {screen === 'main' && <MainLayout />}
 
-        <ToolApprovalSheet />
-        <QuestionSheet />
       </SafeAreaView>
     </AppProvider>
   )

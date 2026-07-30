@@ -27,13 +27,13 @@ export const PermissionDock: React.FC = () => {
           </View>
           <View style={styles.dockFooter}>
             <TouchableOpacity style={styles.rejectBtn} onPress={() => reject(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>拒绝</Text>
+              <Text style={styles.btnText}>Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.approveBtn} onPress={() => approve(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>批准一次</Text>
+              <Text style={styles.btnText}>Approve</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.alwaysBtn} onPress={() => alwaysAllow(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>始终允许</Text>
+              <Text style={styles.btnText}>Always Allow</Text>
             </TouchableOpacity>
           </View>
         </View>
