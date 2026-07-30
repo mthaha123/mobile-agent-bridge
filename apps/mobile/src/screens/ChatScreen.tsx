@@ -236,17 +236,14 @@ export const ChatScreen: React.FC = () => {
     const isAssistant = item.role === 'assistant'
     const parts = (item as any).parts as Part[] | undefined
 
+    // 用户消息 → 右对齐气泡
+    // 助手/系统消息 → 无气泡，全宽左对齐（OpenCode Web 样式）
     return (
-      <View
-        style={[
-          styles.messageBubble,
-          isUser ? styles.userBubble : undefined,
-          isAssistant ? styles.assistantBubble : undefined,
-          isSystem ? styles.systemBubble : undefined,
-        ]}
-      >
+      <View style={isUser ? styles.userBubble : styles.nonUserBlock}>
+        {!isUser && item.agent ? (
+          <Text style={styles.messageMeta}>{item.agent}</Text>
+        ) : null}
         {parts && parts.length > 0 ? (
-          // Part 模式渲染
           parts.map((part) => (
             <PartBlock
               key={part.id}
@@ -255,18 +252,15 @@ export const ChatScreen: React.FC = () => {
             />
           ))
         ) : isAssistant ? (
-          // 兼容旧版本：纯文本 assistant 消息
           <View accessible accessibilityLabel={item.content}>
-            <Text style={styles.messageText}>{item.content}</Text>
+            <Text style={styles.assistantText}>{item.content}</Text>
           </View>
+        ) : isUser ? (
+          <Text style={styles.userText}>{item.content}</Text>
         ) : (
-          <Text
-            style={[styles.messageText, isSystem ? styles.systemMessageText : undefined]}
-          >
-            {item.content}
-          </Text>
+          <Text style={styles.systemMessageText}>{item.content}</Text>
         )}
-        <View style={styles.messageActions}>
+        <View style={isUser ? styles.userActions : styles.nonUserActions}>
           <TouchableOpacity
             style={styles.copyBtn}
             onPress={() => handleCopyMessage(item.content)}
@@ -511,37 +505,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  messageBubble: {
+  // 用户消息 → 气泡（右对齐）
+  userBubble: {
     maxWidth: '80%',
+    backgroundColor: '#0f3460',
     borderRadius: 12,
+    borderBottomRightRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 14,
     marginVertical: 4,
-  },
-  userBubble: {
-    backgroundColor: '#0f3460',
     alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
   },
-  assistantBubble: {
-    backgroundColor: '#16213e',
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
+  // 助手/系统消息 → 无气泡（全宽左对齐，OpenCode Web 样式）
+  nonUserBlock: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginVertical: 2,
   },
-  systemBubble: {
-    backgroundColor: 'transparent',
-    alignSelf: 'center',
-  },
-  messageText: {
+  userText: {
     color: '#eee',
     fontSize: 15,
     lineHeight: 21,
+  },
+  assistantText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    lineHeight: 22,
   },
   systemMessageText: {
     color: '#888',
     fontSize: 13,
     fontStyle: 'italic',
     textAlign: 'center',
+    paddingVertical: 8,
+  },
+  messageMeta: {
+    color: '#888',
+    fontSize: 11,
+    marginBottom: 4,
   },
   waitingContainer: {
     flexDirection: 'row',
@@ -613,13 +614,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  messageActions: {
+  userActions: {
     flexDirection: 'row',
-    marginTop: 8,
-    gap: 8,
+    marginTop: 6,
+    gap: 6,
+  },
+  nonUserActions: {
+    flexDirection: 'row',
+    marginTop: 4,
+    gap: 6,
   },
   copyBtn: {
-    alignSelf: 'flex-start',
     backgroundColor: '#1a3a1a',
     borderRadius: 6,
     paddingHorizontal: 10,
@@ -631,7 +636,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   revertBtn: {
-    alignSelf: 'flex-start',
     backgroundColor: '#3a1a1a',
     borderRadius: 6,
     paddingHorizontal: 10,
