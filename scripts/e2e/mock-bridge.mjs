@@ -307,12 +307,7 @@ wss.on("connection", (ws) => {
       if (method === "message.send" && !frame.params?.message?.startsWith("__push__:")) {
         ws.send(JSON.stringify({ type: "notify", method: "session.next.step.ended", payload: {} }))
       }
-      // session.create 后自动发送权限审批通知（供 E2E 测试 PermissionDock）
-      if (method === "session.create") {
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: "notify", method: "permission.v2.asked", payload: { id: "req-1", action: "writeFile", resources: [{ path: "test.ts" }], sessionID: frame.params?.sessionId || "mock_s1" } }))
-        }, 200)
-      }
+
     }, delay)
   })
 

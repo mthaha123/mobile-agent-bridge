@@ -40,7 +40,7 @@ appId: com.mobileagentbridge
     point: "95%,87%"
     waitToSettleTimeoutMs: 500
 
-# 校验点 3: 验证消息已发送（Copy 按钮表示消息已添加到列表）
+# 校验点 3: 验证消息已发送（消息文本出现在聊天列表中）
 - extendedWaitUntil:
-    visible: "Copy"
+    visible: "hello"
     timeout: 30000

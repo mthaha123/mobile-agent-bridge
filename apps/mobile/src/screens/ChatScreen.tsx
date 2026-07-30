@@ -225,11 +225,6 @@ export const ChatScreen: React.FC = () => {
     }
   }
 
-  const handleCopyMessage = (content: string) => {
-    Clipboard.setString(content)
-    Alert.alert('Copied', 'Message content copied to clipboard')
-  }
-
   const renderMessage = ({ item }: { item: import('../stores/chatStore').ChatMessage }) => {
     const isUser = item.role === 'user'
     const isSystem = item.role === 'system'
@@ -260,22 +255,7 @@ export const ChatScreen: React.FC = () => {
         ) : (
           <Text style={styles.systemMessageText}>{item.content}</Text>
         )}
-        <View style={isUser ? styles.userActions : styles.nonUserActions}>
-          <TouchableOpacity
-            style={styles.copyBtn}
-            onPress={() => handleCopyMessage(item.content)}
-          >
-            <Text style={styles.copyBtnText}>Copy</Text>
-          </TouchableOpacity>
-          {isAssistant && item.messageID && (
-            <TouchableOpacity
-              style={styles.revertBtn}
-              onPress={() => handleRevert(item.messageID!, item.partID)}
-            >
-              <Text style={styles.revertBtnText}>Revert</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Copy/Revert 通过长按菜单触发，不显示固定按钮 */}
       </View>
     )
   }
@@ -614,38 +594,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  userActions: {
-    flexDirection: 'row',
-    marginTop: 6,
-    gap: 6,
-  },
-  nonUserActions: {
-    flexDirection: 'row',
-    marginTop: 4,
-    gap: 6,
-  },
-  copyBtn: {
-    backgroundColor: '#1a3a1a',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  copyBtnText: {
-    color: '#6bff6b',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  revertBtn: {
-    backgroundColor: '#3a1a1a',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  revertBtnText: {
-    color: '#ff6b6b',
-    fontSize: 12,
-    fontWeight: '600',
-  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
