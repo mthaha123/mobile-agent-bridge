@@ -53,30 +53,20 @@ appId: com.mobileagentbridge
 # ============================================================
 # Step 3: 发送消息 — "what files are in the current project?"
 # ============================================================
-# 点击输入框区域（底部坐标，聚焦 TextInput，注意不要点到 Tab bar 区域）
-- tapOn:
-    point: "50%,87%"
-    waitToSettleTimeoutMs: 500
+# 点击输入框（通过 accessibilityLabel）
+- tapOn: "Type a message..."
 - inputText: "what files are in the current project directory?"
-# 收起键盘
-- hideKeyboard
-# 点击发送按钮（输入栏在 Tab bar 上方）
-- tapOn:
-    point: "95%,87%"
-    waitToSettleTimeoutMs: 500
+# 点击发送按钮（通过 accessibilityLabel）
+- tapOn: "Send message"
 
 # ============================================================
 # Step 4: 验证消息已发送（消息文本出现在聊天列表中）
 # ============================================================
 - extendedWaitUntil:
-    visible: "what files"
+    visible: "what files are in the current project directory?"
     timeout: 15000
 
 # ============================================================
 # Step 5: 验证输入栏
 # ============================================================
 - assertVisible: "Open commands"
-
-# ============================================================
-# 完成
-# ============================================================

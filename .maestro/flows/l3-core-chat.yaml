@@ -31,16 +31,15 @@ appId: com.mobileagentbridge
 - assertVisible: "Open commands"
 
 # Step 3: 发消息
-- tapOn:
-    point: "50%,87%"
-    waitToSettleTimeoutMs: 500
+- tapOn: "Type a message..."
 - inputText: "hello"
-- hideKeyboard
-- tapOn:
-    point: "95%,87%"
-    waitToSettleTimeoutMs: 500
+- tapOn: "Send message"
 
 # 校验点 3: 验证消息已发送（消息文本出现在聊天列表中）
 - extendedWaitUntil:
     visible: "hello"
     timeout: 30000
+
+# ============================================================
+# 完成
+# ============================================================

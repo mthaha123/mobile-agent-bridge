@@ -251,9 +251,13 @@ export const ChatScreen: React.FC = () => {
             <Text style={styles.assistantText}>{item.content}</Text>
           </View>
         ) : isUser ? (
-          <Text style={styles.userText}>{item.content}</Text>
+          <View accessible accessibilityLabel={item.content}>
+            <Text style={styles.userText}>{item.content}</Text>
+          </View>
         ) : (
-          <Text style={styles.systemMessageText}>{item.content}</Text>
+          <View accessible accessibilityLabel={item.content}>
+            <Text style={styles.systemMessageText}>{item.content}</Text>
+          </View>
         )}
         {/* Copy/Revert 通过长按菜单触发，不显示固定按钮 */}
       </View>
@@ -356,6 +360,7 @@ export const ChatScreen: React.FC = () => {
             style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
             onPress={handleSend}
             disabled={!inputText.trim()}
+            accessibilityLabel="Send message"
           >
             <Text style={styles.sendButtonText}>➤</Text>
           </TouchableOpacity>

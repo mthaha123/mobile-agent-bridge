@@ -25,16 +25,11 @@ appId: com.mobileagentbridge
     timeout: 15000
 
 # Step 3: 发消息（触发工具调用：列出文件）
-- tapOn:
-    point: "50%,87%"
-    waitToSettleTimeoutMs: 500
+- tapOn: "Type a message..."
 - inputText: "list files in the current directory"
-- hideKeyboard
-- tapOn:
-    point: "95%,87%"
-    waitToSettleTimeoutMs: 500
+- tapOn: "Send message"
 
 # 校验点 2: 验证消息已发送（消息文本出现在聊天列表中）
 - extendedWaitUntil:
-    visible: "list files in the current"
+    visible: "list files in the current directory"
     timeout: 30000
