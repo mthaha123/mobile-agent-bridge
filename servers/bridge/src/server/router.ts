@@ -73,6 +73,15 @@ function resolveSessionIdOrId(p: Record<string, unknown>): string {
   return (p.sessionId || p.sessionID || p.id || p.session_id || "") as string
 }
 
+/** SDK 对 list/get 类接口返回 { data, cursor } 包裹，统一解包为裸数组/裸对象
+ *  让 WS payload 契约稳定：session.list → Session[]、session.messages → 事件对象[]、session.get → Session */
+function unwrapData<T>(result: any): T {
+  if (result && typeof result === "object" && !Array.isArray(result) && "data" in result) {
+    return result.data as T
+  }
+  return result as T
+}
+
 registerHandler("auth.login", (params) => handleLogin(params))
 registerHandler("auth.refresh", () => handleRefresh())
 registerHandler("auth.logout", () => handleLogout())
@@ -119,18 +128,18 @@ registerHandler("session.list", async (p) => {
   if (p.search) params.search = p.search
   if (p.limit) params.limit = p.limit
   if (p.cursor) params.cursor = p.cursor
-  return sdkCall(() => sdk().v2.session.list(params))
+  return unwrapData(await sdkCall(() => sdk().v2.session.list(params)))
 })
 
 registerHandler("session.get", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.get requires sessionId parameter")
-  return sdkCall(() => sdk().v2.session.get({ sessionID: id }))
+  return unwrapData(await sdkCall(() => sdk().v2.session.get({ sessionID: id })))
 })
 registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.messages requires sessionId parameter")
-  return sdkCall(() => sdk().v2.session.messages({ sessionID: id }))
+  return unwrapData(await sdkCall(() => sdk().v2.session.messages({ sessionID: id })))
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))

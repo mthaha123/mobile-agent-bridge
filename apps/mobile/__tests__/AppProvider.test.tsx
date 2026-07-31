@@ -346,6 +346,22 @@ describe('session.next.reasoning.delta handler', () => {
     expect(spy).toHaveBeenCalledWith('msg-1', 'Thinking...', 1)
     spy.mockRestore()
   })
+
+  it('routes string eventId (SDK v3 evt_) to appendAssistantDelta', () => {
+    const { notifyHandler } = mockClientAndRender()
+    const spy = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.text.delta', {
+        assistantMessageID: 'msg-1',
+        delta: 'Hello ',
+        eventId: 'evt_fb6f255e9001TJs7iVnFH5LJz9',
+      })
+    })
+
+    expect(spy).toHaveBeenCalledWith('msg-1', 'Hello ', 'evt_fb6f255e9001TJs7iVnFH5LJz9')
+    spy.mockRestore()
+  })
 })
 
 describe('createReplyCall with invalid id', () => {

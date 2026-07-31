@@ -324,6 +324,27 @@ describe('appendAssistantDelta', () => {
     expect(msgs[0].role).toBe('assistant')
     expect(msgs[0].content).toBe('first')
   })
+
+  it('appends string eventId deltas in arrival order (SDK v3 evt_)', () => {
+    useChatStore.getState().appendAssistantDelta('msg-1', 'Hello ', 'evt_a')
+    useChatStore.getState().appendAssistantDelta('msg-1', 'world', 'evt_b')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('assistant')
+    expect(msgs[0].content).toBe('Hello world')
+    expect(msgs[0].messageID).toBe('msg-1')
+  })
+
+  it('advanceStreamId ignores string eventId (no numeric ordering possible)', () => {
+    useChatStore.getState().appendAssistantDelta('msg-1', 'A', 0)
+    useChatStore.getState().appendAssistantDelta('msg-1', 'C', 2)
+
+    useChatStore.getState().advanceStreamId('msg-1', 'evt_x')
+
+    // 字符串无法推进数值序列 → 不 flush，buffer 保留
+    expect(useChatStore.getState().messages[0].content).toBe('A')
+  })
 })
 
 // ---------------------------------------------------------------------------

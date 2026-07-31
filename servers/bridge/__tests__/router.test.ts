@@ -499,6 +499,43 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.list).toHaveBeenCalledWith({})
+    // SDK { data: [...] } 包裹被解包为裸数组
+    expect(Array.isArray(messages[0].payload)).toBe(true)
+  })
+
+  it("should unwrap double-wrapped data in session.list", async () => {
+    const { mockV3Session } = createMockSdk()
+    mockV3Session.list.mockResolvedValueOnce({ data: { data: [{ id: "s1", title: "T" }], cursor: {} } })
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toEqual([{ id: "s1", title: "T" }])
+  })
+
+  it("should unwrap { data } in session.messages", async () => {
+    const { mockV3Session } = createMockSdk()
+    mockV3Session.messages.mockResolvedValueOnce({ data: { data: [{ id: "m1", type: "user", text: "hi" }], cursor: {} } })
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.messages",
+      params: { sessionID: "sess_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toEqual([{ id: "m1", type: "user", text: "hi" }])
+  })
+
+  it("should unwrap { data } in session.get", async () => {
+    const { mockV3Session } = createMockSdk()
+    mockV3Session.get.mockResolvedValueOnce({ data: { data: { id: "sess_123", title: "T" } } })
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.get",
+      params: { id: "sess_123" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toEqual({ id: "sess_123", title: "T" })
   })
 
   it("should pass search/limit to session.list", async () => {
@@ -542,6 +579,8 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.messages).toHaveBeenCalledWith({ sessionID: "sess_123" })
+    // SDK { data: [...] } 包裹被解包为裸数组
+    expect(Array.isArray(messages[0].payload)).toBe(true)
   })
 
   it("should reject session.messages without id", async () => {

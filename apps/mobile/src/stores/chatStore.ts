@@ -24,8 +24,8 @@ export interface ChatState {
   setActiveSession: (sessionId: string | null) => void
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   updateLastAssistant: (text: string) => void
-  appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number) => void
-  advanceStreamId: (assistantMessageId: string, eventId: number) => void
+  appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number | string) => void
+  advanceStreamId: (assistantMessageId: string, eventId: number | string) => void
   finalizeAssistantContent: (assistantMessageId: string, fullText: string) => void
   setInputText: (text: string) => void
   setWaiting: (w: boolean) => void
@@ -87,7 +87,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
-  appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number) => {
+  appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number | string) => {
+    // SDK v3 SSE 事件顺序到达、eventId 为 evt_ 字符串，无法数值排序 → 按到达顺序追加
+    if (typeof eventId !== 'number') {
+      set((state) => ({
+        messages: appendToLastAssistant(state.messages, delta, assistantMessageId),
+      }))
+      return
+    }
     set((state) => {
       const track: TextStreamState = state.streamStates[assistantMessageId] ?? { lastAppliedId: -1, buffer: {} }
 
@@ -122,7 +129,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  advanceStreamId: (assistantMessageId: string, eventId: number) => {
+  advanceStreamId: (assistantMessageId: string, eventId: number | string) => {
+    // 字符串 eventId 无法做顺序推进，且 SSE 本身有序 → 无需处理
+    if (typeof eventId !== 'number') {
+      return
+    }
     set((state) => {
       const track: TextStreamState = state.streamStates[assistantMessageId] ?? { lastAppliedId: -1, buffer: {} }
 

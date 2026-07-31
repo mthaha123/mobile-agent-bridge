@@ -76,12 +76,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     useConfigStore.getState().fetchConfig(call)
 
     client.on('notification', (method: string, payload: any) => {
-      // 流式文本增量（带 eventId 排序重组）
+      // 流式文本增量（带 eventId 排序重组；SDK v3 的 eventId 是 evt_ 字符串 → 走到达顺序）
       if (method === 'session.next.text.delta') {
         const delta = payload?.delta || ''
         const msgId = payload?.assistantMessageID || ''
         const eventId = payload?.eventId
-        if (delta && msgId && typeof eventId === 'number') {
+        if (delta && msgId && eventId != null) {
           useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
         } else if (delta) {
           useChatStore.getState().updateLastAssistant(delta)
@@ -93,7 +93,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         const delta = payload?.data?.delta || payload?.delta || ''
         const msgId = payload?.assistantMessageID || payload?.data?.assistantMessageID || ''
         const eventId = payload?.eventId
-        if (delta && msgId && typeof eventId === 'number') {
+        if (delta && msgId && eventId != null) {
           useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
         } else if (delta) {
           useChatStore.getState().updateLastAssistant(delta)
@@ -115,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         const delta = payload?.delta || ''
         const msgId = payload?.assistantMessageID || ''
         const eventId = payload?.eventId
-        if (delta && msgId && typeof eventId === 'number') {
+        if (delta && msgId && eventId != null) {
           useChatStore.getState().appendAssistantDelta(msgId, delta, eventId)
         } else if (delta) {
           useChatStore.getState().updateLastAssistant(delta)
@@ -126,7 +126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (method === 'session.next.reasoning.ended') {
         const msgId = payload?.assistantMessageID || ''
         const eventId = payload?.eventId
-        if (msgId && typeof eventId === 'number') {
+        if (msgId && eventId != null) {
           useChatStore.getState().advanceStreamId(msgId, eventId)
         }
         useChatStore.getState().setWaiting(false)

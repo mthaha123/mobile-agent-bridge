@@ -15,7 +15,7 @@ async function startSSE(signal: AbortSignal): Promise<void> {
   while (true) {
     if (signal.aborted) break
     try {
-      const result = await backend.sdk!.event.subscribe({
+      const result = await backend.sdk!.v2.event.subscribe({
         signal,
         sseMaxRetryAttempts: 0,
       } as any)

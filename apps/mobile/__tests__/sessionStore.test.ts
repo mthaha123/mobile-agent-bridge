@@ -108,6 +108,23 @@ describe('fetchSessions', () => {
     expect(state.error).toBeNull()
   })
 
+  it('maps SDK session shape (title/time) into app Session', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { id: 'sdk-1', title: 'REAL-E2E-OK', time: { created: 1785480695714, updated: 1785480700000 } },
+    ])
+
+    await useSessionStore.getState().fetchSessions(clientCall)
+
+    const sessions = useSessionStore.getState().sessions
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].id).toBe('sdk-1')
+    expect(sessions[0].name).toBe('REAL-E2E-OK')
+    expect(sessions[0].createdAt).toBe('2026-07-31T06:51:35.714Z')
+    expect(sessions[0].updatedAt).toBe('2026-07-31T06:51:40.000Z')
+    expect(sessions[0].messageCount).toBe(0)
+  })
+
   it('handles v1 { sessions } response', async () => {
     const clientCall = mockClientCall()
     clientCall.mockResolvedValue({ sessions: [mockSession] })
@@ -173,6 +190,17 @@ describe('createSession', () => {
 
     expect(id).toBeNull()
     expect(useSessionStore.getState().error).toBe('create failed')
+  })
+
+  it('maps SDK session title to app Session name on create', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({ id: 'sdk-new', title: 'New Session', time: { created: 1785480695714, updated: 1785480695714 } })
+
+    const id = await useSessionStore.getState().createSession(clientCall)
+
+    expect(id).toBe('sdk-new')
+    const session = useSessionStore.getState().sessions[0]
+    expect(session.name).toBe('New Session')
   })
 })
 
@@ -258,7 +286,10 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionId: 'sess-1' })
-    expect(result).toEqual(messages)
+    expect(result).toEqual([
+      { id: 'm1', role: 'user', content: 'hi', text: 'hi' },
+      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello' },
+    ])
   })
 
   it('handles v1 { messages } response', async () => {
@@ -267,7 +298,42 @@ describe('getSessionMessages', () => {
 
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
-    expect(result).toEqual(messages)
+    expect(result).toEqual([
+      { id: 'm1', role: 'user', content: 'hi', text: 'hi' },
+      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello' },
+    ])
+  })
+
+  it('maps SDK event-format messages (type/text/content, newest first) and reverses to chronological', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      {
+        id: 'msg_a1', type: 'assistant',
+        content: [{ type: 'reasoning', text: 'think' }, { type: 'text', text: 'Answer here' }],
+      },
+      { id: 'msg_u1', type: 'user', text: 'Hello?' },
+    ])
+
+    const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
+
+    expect(result).toEqual([
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?' },
+      { id: 'msg_a1', role: 'assistant', content: 'Answer here', text: 'Answer here' },
+    ])
+  })
+
+  it('drops non-user/assistant event types', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { id: 'msg_sys', type: 'system', text: 'sys' },
+      { id: 'msg_a1', type: 'assistant', text: 'reply' },
+    ])
+
+    const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
+
+    expect(result).toEqual([
+      { id: 'msg_a1', role: 'assistant', content: 'reply', text: 'reply' },
+    ])
   })
 
   it('returns empty array on error and sets error', async () => {

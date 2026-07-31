@@ -23,6 +23,34 @@ function normalizeItem<T>(result: unknown, key: string): T | null {
   return result as T ?? null
 }
 
+/** 将 SDK Session（title / time.created / time.updated）映射为 App Session（name / createdAt / updatedAt） */
+function mapSession(raw: any): Session {
+  if (!raw || typeof raw !== 'object') {
+    return { id: '', name: '', createdAt: '', updatedAt: '', messageCount: 0 }
+  }
+  const time = raw.time || {}
+  return {
+    id: raw.id || '',
+    name: raw.name || raw.title || `Session ${String(raw.id || '').slice(0, 8)}`,
+    createdAt: raw.createdAt || (time.created ? new Date(time.created).toISOString() : ''),
+    updatedAt: raw.updatedAt || (time.updated ? new Date(time.updated).toISOString() : ''),
+    messageCount: typeof raw.messageCount === 'number' ? raw.messageCount : 0,
+  }
+}
+
+/** 从 SDK 消息事件对象提取纯文本：content 数组取 text part，否则用 text/content 字符串 */
+function extractMessageText(m: any): string {
+  if (Array.isArray(m.content)) {
+    return m.content
+      .filter((p: any) => p && p.type === 'text' && typeof p.text === 'string')
+      .map((p: any) => p.text)
+      .join('')
+  }
+  if (typeof m.text === 'string') return m.text
+  if (typeof m.content === 'string') return m.content
+  return ''
+}
+
 export interface Session {
   id: string
   name: string
@@ -87,7 +115,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const result = await clientCall('session.list', {})
-      const sessions = normalizeArray<Session>(result, 'sessions')
+      const sessions = normalizeArray<Session>(result, 'sessions').map(mapSession)
       set({ sessions, loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取会话列表失败' })
@@ -98,7 +126,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ error: null })
     try {
       const result = await clientCall('session.create', {})
-      const session = normalizeItem<Session>(result, 'session')
+      const session = mapSession(normalizeItem<Session>(result, 'session'))
       if (session?.id) {
         get().addSession(session)
         return session.id
@@ -128,7 +156,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ error: null })
     try {
       const result = await clientCall('session.get', { sessionId: id })
-      const session = normalizeItem<Session>(result, 'session')
+      const session = mapSession(normalizeItem<Session>(result, 'session'))
       return session?.id ? session : null
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '获取会话失败' })
@@ -140,7 +168,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ error: null })
     try {
       const result = await clientCall('session.messages', { sessionId: id })
-      return normalizeArray<any>(result, 'messages')
+      const raw = normalizeArray<any>(result, 'messages')
+      const mapped = raw
+        .filter((m) => m && typeof m === 'object')
+        .map((m) => {
+          const role = m.role || m.type
+          const content = extractMessageText(m)
+          return { id: m.id, role, content, text: content }
+        })
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+      // 真实 SDK 返回最新在前的事件对象（带 type 字段），ChatScreen 按时间正序渲染 → 反转
+      const isSdkEventFormat = raw.some((m) => m && typeof m.type === 'string')
+      return isSdkEventFormat ? mapped.reverse() : mapped
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '获取会话消息失败' })
       return []
