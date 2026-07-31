@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 3 — QuestionSheet: 发送 magic message → 提问面板弹出 → 选择选项 → Submit
+# Layer 3 — QuestionDock: 发送 magic message → 提问面板弹出 → 选择选项 → Submit
 - launchApp
 
 - tapOn: "ws://192.168.1.100:8080/ws"
@@ -21,14 +21,29 @@ appId: com.mobileagentbridge
     visible: "Open commands"
     timeout: 15000
 
-# session.create 后 mock-bridge 自动发送 question.v2.asked 通知
+# 确认已进入 ChatScreen
+- assertVisible: "Open commands"
 
+# 发送 magic message 触发 question.v2.asked 通知
+- tapOn: "Type a message..."
+- eraseText: 50
+- inputText: "t"
+- eraseText: 50
+- inputText: '__push__:question.v2.asked:{"id":"q-1","sessionID":"mock_s1","questions":[{"question":"Continue with this change?","header":"","options":[{"label":"Yes","description":""},{"label":"No","description":""}]}]}'
+- pressKey: Enter
+
+# 校验: QuestionDock 弹出（问题文本 + Submit/Reject 按钮）
 - extendedWaitUntil:
-    visible: "Submit"
+    visible: "Continue with this change?"
     timeout: 10000
+- assertVisible: "Submit"
 - assertVisible: "Reject"
 
+# 选择 Yes 选项
 - tapOn: ".*Yes"
+
+# 提交 → Dock 关闭（Reject 消失）
+- tapOn: "Submit"
 
 - extendedWaitUntil:
     notVisible: "Reject"

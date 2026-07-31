@@ -304,10 +304,10 @@ wss.on("connection", (ws) => {
     setTimeout(() => {
       ws.send(JSON.stringify({ type: "res", id, ok: true, payload }))
       // message.send 成功后发送 step.ended 通知，使 app 退出 waiting 状态
-      if (method === "message.send" && !frame.params?.message?.startsWith("__push__:")) {
+      // magic message（__push__:）同样需要，否则 app 一直处于 waiting，输入框被禁用
+      if (method === "message.send") {
         ws.send(JSON.stringify({ type: "notify", method: "session.next.step.ended", payload: {} }))
       }
-
     }, delay)
   })
 
