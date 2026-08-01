@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { Part } from '../types/message'
 
 export interface ChatMessage {
   id: string
@@ -7,6 +8,8 @@ export interface ChatMessage {
   timestamp: number
   messageID?: string
   partID?: string
+  parts?: Part[]
+  agent?: string
 }
 
 interface TextStreamState {
@@ -27,6 +30,8 @@ export interface ChatState {
   appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number | string) => void
   advanceStreamId: (assistantMessageId: string, eventId: number | string) => void
   finalizeAssistantContent: (assistantMessageId: string, fullText: string) => void
+  addToolPart: (part: Part) => void
+  updateToolPart: (callID: string, updates: Partial<Part['data']>) => void
   setInputText: (text: string) => void
   setWaiting: (w: boolean) => void
   clearMessages: () => void
@@ -84,6 +89,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateLastAssistant: (text: string) => {
     set((state) => ({
       messages: appendToLastAssistant(state.messages, text),
+    }))
+  },
+
+  addToolPart: (part) => {
+    set((state) => {
+      const messages = [...state.messages]
+      let lastIdx = messages.length - 1
+      // 确保工具 part 归属最后一条 assistant 消息；若无则新建
+      if (lastIdx < 0 || messages[lastIdx].role !== 'assistant') {
+        messages.push({
+          id: `msg_${++msgCounter}_${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+        })
+        lastIdx = messages.length - 1
+      }
+      const existing = messages[lastIdx].parts ?? []
+      if (existing.some((p) => p.id === part.id)) return state
+      messages[lastIdx] = { ...messages[lastIdx], parts: [...existing, part] }
+      return { messages }
+    })
+  },
+
+  updateToolPart: (callID, updates) => {
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (!m.parts || m.parts.length === 0) return m
+        const parts = m.parts.map((p) =>
+          p.id === callID ? { ...p, data: { ...p.data, ...updates } } : p,
+        )
+        return { ...m, parts }
+      }),
     }))
   },
 

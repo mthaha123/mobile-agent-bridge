@@ -140,6 +140,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           tool: payload?.tool || '',
           input: payload?.input || {},
         })
+        useChatStore.getState().addToolPart({
+          id: payload?.callID || '',
+          type: 'tool',
+          data: {
+            tool: payload?.tool || '',
+            input: payload?.input || {},
+            status: 'called',
+          },
+        })
       }
 
       // 工具执行进度
@@ -158,6 +167,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           payload?.result,
           payload?.outputPaths,
         )
+        useChatStore.getState().updateToolPart(payload?.callID || '', {
+          status: 'success',
+          result: payload?.structured ?? payload?.content ?? payload?.result,
+        })
       }
 
       // 工具失败
@@ -166,6 +179,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           payload?.callID || '',
           payload?.error,
         )
+        useChatStore.getState().updateToolPart(payload?.callID || '', {
+          status: 'failed',
+          error: payload?.error,
+        })
       }
 
       // 步骤开始

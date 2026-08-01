@@ -287,8 +287,8 @@ describe('getSessionMessages', () => {
 
     expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionId: 'sess-1' })
     expect(result).toEqual([
-      { id: 'm1', role: 'user', content: 'hi', text: 'hi' },
-      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello' },
+      { id: 'm1', role: 'user', content: 'hi', text: 'hi', rawContent: 'hi' },
+      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello', rawContent: 'hello' },
     ])
   })
 
@@ -299,8 +299,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result).toEqual([
-      { id: 'm1', role: 'user', content: 'hi', text: 'hi' },
-      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello' },
+      { id: 'm1', role: 'user', content: 'hi', text: 'hi', rawContent: 'hi' },
+      { id: 'm2', role: 'assistant', content: 'hello', text: 'hello', rawContent: 'hello' },
     ])
   })
 
@@ -317,8 +317,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result).toEqual([
-      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?' },
-      { id: 'msg_a1', role: 'assistant', content: 'Answer here', text: 'Answer here' },
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: 'Hello?' },
+      { id: 'msg_a1', role: 'assistant', content: 'Answer here', text: 'Answer here', rawContent: [{ type: 'reasoning', text: 'think' }, { type: 'text', text: 'Answer here' }] },
     ])
   })
 
@@ -332,7 +332,7 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result).toEqual([
-      { id: 'msg_a1', role: 'assistant', content: 'reply', text: 'reply' },
+      { id: 'msg_a1', role: 'assistant', content: 'reply', text: 'reply', rawContent: 'reply' },
     ])
   })
 

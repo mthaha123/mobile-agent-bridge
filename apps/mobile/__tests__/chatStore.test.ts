@@ -426,3 +426,99 @@ describe('finalizeAssistantContent', () => {
     expect(useChatStore.getState().streamStates['msg-1']).toBeUndefined()
   })
 })
+
+// ---------------------------------------------------------------------------
+// addToolPart / updateToolPart
+// ---------------------------------------------------------------------------
+
+describe('addToolPart', () => {
+  it('appends tool part to last assistant message', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', content: 'q', timestamp: 1 },
+        { id: 'm2', role: 'assistant', content: '', timestamp: 2 },
+      ],
+    })
+
+    useChatStore.getState().addToolPart({
+      id: 'call_1',
+      type: 'tool',
+      data: { tool: 'read', input: { path: 'a.txt' }, status: 'called' },
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[1].parts).toEqual([
+      { id: 'call_1', type: 'tool', data: { tool: 'read', input: { path: 'a.txt' }, status: 'called' } },
+    ])
+  })
+
+  it('creates assistant message when last message is user', () => {
+    useChatStore.setState({
+      messages: [{ id: 'm1', role: 'user', content: 'q', timestamp: 1 }],
+    })
+
+    useChatStore.getState().addToolPart({
+      id: 'call_1',
+      type: 'tool',
+      data: { tool: 'bash', input: { command: 'ls' }, status: 'called' },
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[1].role).toBe('assistant')
+    expect(msgs[1].parts).toHaveLength(1)
+    expect(msgs[1].parts![0].id).toBe('call_1')
+  })
+
+  it('does not duplicate a part with the same id', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm2', role: 'assistant', content: '', timestamp: 2, parts: [
+          { id: 'call_1', type: 'tool', data: { tool: 'bash', input: {}, status: 'called' } },
+        ] },
+      ],
+    })
+
+    useChatStore.getState().addToolPart({
+      id: 'call_1',
+      type: 'tool',
+      data: { tool: 'bash', input: {}, status: 'called' },
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs[0].parts).toHaveLength(1)
+  })
+})
+
+describe('updateToolPart', () => {
+  it('updates part data by callID', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm2', role: 'assistant', content: '', timestamp: 2, parts: [
+          { id: 'call_1', type: 'tool', data: { tool: 'bash', input: {}, status: 'called' } },
+        ] },
+      ],
+    })
+
+    useChatStore.getState().updateToolPart('call_1', { status: 'success', result: 'ok' })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs[0].parts![0].data).toMatchObject({ status: 'success', result: 'ok' })
+  })
+
+  it('leaves messages unchanged when no part matches', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm2', role: 'assistant', content: '', timestamp: 2, parts: [
+          { id: 'call_1', type: 'tool', data: { tool: 'bash', input: {}, status: 'called' } },
+        ] },
+      ],
+    })
+
+    useChatStore.getState().updateToolPart('call_unknown', { status: 'success' })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs[0].parts![0].data.status).toBe('called')
+  })
+})

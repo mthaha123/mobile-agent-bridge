@@ -174,7 +174,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         .map((m) => {
           const role = m.role || m.type
           const content = extractMessageText(m)
-          return { id: m.id, role, content, text: content }
+          return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)) }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
       // 真实 SDK 返回最新在前的事件对象（带 type 字段），ChatScreen 按时间正序渲染 → 反转

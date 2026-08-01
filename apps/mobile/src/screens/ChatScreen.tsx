@@ -22,6 +22,7 @@ import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
 import { PartBlock } from '../components/chat/PartBlock'
+import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
 import { RichMessage, Part } from '../types/message'
 import { useConfigStore } from '../stores/configStore'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
@@ -78,18 +79,38 @@ export const ChatScreen: React.FC = () => {
           const msgId = msg.id || undefined
           let partId: string | undefined
           let text = msg.content || msg.text || ''
-          if (Array.isArray(msg.content)) {
-            const textPart = msg.content.find((p: any) => p.type === 'text')
-            if (textPart) {
-              text = textPart.text || text
-              partId = textPart.id || undefined
-            }
+          const rawContent = msg.rawContent
+          const parts: import('../types/message').Part[] = []
+          if (Array.isArray(rawContent)) {
+            rawContent.forEach((p: any) => {
+              if (p.type === 'text') {
+                text = p.text || text
+                partId = p.id || undefined
+                parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } })
+              } else if (p.type === 'tool') {
+                parts.push({
+                  id: p.id || p.callID || `tool_${Date.now()}`,
+                  type: 'tool',
+                  data: {
+                    tool: p.name || p.tool || '',
+                    input: p.state?.input ?? {},
+                    status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
+                    result: p.state?.output ?? undefined,
+                    error: p.state?.error ?? undefined,
+                    title: p.state?.title ?? undefined,
+                  },
+                })
+              } else if (p.type === 'reasoning') {
+                parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
+              }
+            })
           }
           useChatStore.getState().addMessage({
             role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
             content: text,
             messageID: msgId,
             partID: partId,
+            parts: parts.length > 0 ? parts : undefined,
           })
         })
       }
@@ -248,7 +269,7 @@ export const ChatScreen: React.FC = () => {
           ))
         ) : isAssistant ? (
           <View accessible accessibilityLabel={item.content}>
-            <Text style={styles.assistantText}>{item.content}</Text>
+            <MarkdownRenderer content={item.content} />
           </View>
         ) : isUser ? (
           <View accessible accessibilityLabel={item.content}>
