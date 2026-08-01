@@ -31,6 +31,20 @@ import { QuestionDock } from '../components/chat/QuestionDock'
 import { AttachmentBar } from '../components/chat/AttachmentBar'
 import { useAttachmentStore } from '../stores/attachmentStore'
 
+/** 从 SDK tool part 的 state 提取可展示的输出文本（content 数组 → 拼接 text） */
+function extractToolOutput(state: any): string {
+  if (!state) return ''
+  if (Array.isArray(state.content)) {
+    return state.content
+      .filter((c: any) => c && typeof c.text === 'string')
+      .map((c: any) => c.text)
+      .join('')
+  }
+  if (typeof state.output === 'string') return state.output
+  if (typeof state.output === 'object' && state.output !== null) return JSON.stringify(state.output)
+  return ''
+}
+
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
@@ -95,7 +109,7 @@ export const ChatScreen: React.FC = () => {
                     tool: p.name || p.tool || '',
                     input: p.state?.input ?? {},
                     status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
-                    result: p.state?.output ?? undefined,
+                    result: extractToolOutput(p.state),
                     error: p.state?.error ?? undefined,
                     title: p.state?.title ?? undefined,
                   },

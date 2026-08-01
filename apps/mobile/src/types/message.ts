@@ -89,7 +89,7 @@ export function getToolInfo(tool: string, input: Record<string, unknown> = {}): 
   else if (tool === 'webfetch') subtitle = String(input.url ?? '')
   else if (tool === 'websearch') subtitle = String(input.query ?? '')
   else if (tool === 'task') subtitle = String(input.description ?? '').slice(0, 60)
-  else if (tool === 'bash' || tool === 'shell') subtitle = String(input.description ?? '')
+  else if (tool === 'bash' || tool === 'shell') subtitle = String(input.description ?? input.command ?? input.cmd ?? '')
 
   return {
     icon: iconMap[tool] || '⚙️',

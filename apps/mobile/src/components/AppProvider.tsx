@@ -13,6 +13,19 @@ import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
 
+/** 从 SSE tool.success payload 提取可展示输出文本（content 数组 → 拼接 text） */
+function extractToolResult(payload: any): string {
+  if (Array.isArray(payload?.content)) {
+    return payload.content
+      .filter((c: any) => c && typeof c.text === 'string')
+      .map((c: any) => c.text)
+      .join('')
+  }
+  if (typeof payload?.result === 'string') return payload.result
+  if (payload?.structured) return JSON.stringify(payload.structured)
+  return ''
+}
+
 function createReplyCall(client: BridgeClient): (id: string, reply: 'once' | 'always' | 'reject') => Promise<void> {
   return async (id: string, reply: 'once' | 'always' | 'reject') => {
     const { pendingApprovals } = useToolStore.getState()
@@ -169,7 +182,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         )
         useChatStore.getState().updateToolPart(payload?.callID || '', {
           status: 'success',
-          result: payload?.structured ?? payload?.content ?? payload?.result,
+          result: extractToolResult(payload),
         })
       }
 
