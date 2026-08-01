@@ -1,6 +1,6 @@
 # Bash 工具输出流式机制分析
 
-> 分析 OpenCode 1.18.9 中 bash 工具的输出通道：TUI 的流式输出 vs Bridge/SDK SSE 事件流的一次性输出。
+> 分析 OpenCode 中 bash 工具的输出通道：`message.part.updated` 流式事件 vs `session.next.tool.*` 一次性事件。
 
 ## 1. 背景与问题
 
@@ -8,76 +8,61 @@
 
 本分析旨在回答：**TUI 的流式 bash 输出走的是哪条通道，Bridge/App 能否复用。**
 
-## 2. 实测结论（决定性证据）
+## 2. 源码证据（决定性）
 
-### 2.1 Serve 模式 SSE 事件流：无增量
+### 2.1 bash 工具逐块流式更新输出（`packages/opencode/src/tool/shell.ts:484-531`）
 
-通过 Bridge 对 `ping -n 30`（约 30 秒长命令）实测完整事件流：
-
-```
-+3.5s  session.next.tool.input.delta × ~30   ← 命令参数逐字符流式（command 文本，非输出）
-+3.9s  session.next.tool.input.ended
-+3.9s  session.next.tool.called              ← ping 开始执行
-...    （9.5 秒执行期间：无任何 tool.progress / 输出增量事件）
-+13.4s session.next.tool.success             ← 输出一次性完整送达（content 数组）
-```
-
-- `session.next.tool.progress` 事件**实测 0 次触发**（定义存在但 bash 工具不使用）
-- bash 输出只在 `tool.success` 时一次性给全（`state.output` / `content`）
-
-### 2.2 CLI run 模式（--format json）：同样一次性
-
-```
-step_start
-tool_use   ← 单个事件，state.time.start→end 仅 50ms，output 为完整字符串
-step_finish
+```ts
+Stream.runForEach(Stream.decodeText(handle.all), (chunk) => {
+  ...
+  last = preview(last + chunk)     // 累积输出
+  ...
+  return ctx.metadata({
+    metadata: { output: last, description },   // ← 每个 stdout chunk 都更新！
+  })
+})
 ```
 
-工具 part 的 `state.output` 是命令完成后组装好的**完整字符串**，无中间事件。
+bash 工具用 `Stream.decodeText(handle.all)` **逐块读取 stdout**，**每个 chunk** 都调用 `ctx.metadata` 更新 tool part 的 `metadata.output` —— 这是流式输出的源头。
 
-### 2.3 PTY API（/api/pty）：Windows 上不可用
+### 2.2 ctx.metadata → updateToolCall → message.part.updated
 
-- SDK `pty.create` 发出正确请求（`POST /api/pty?location[directory]=...`）
-- **server 端挂起**（8s 超时无响应），日志无成功创建记录
-- opencode 1.18.9 二进制用 `portable-pty` crate + Windows ConPTY，但在 Bun 编译产物中初始化阻塞
+链路：
 
-## 3. 源码证据
-
-### 3.1 事件定义存在但无发出点
-
-`session.next.tool.progress` 在 opencode 二进制中有完整定义和投影处理（更新 tool part 的 `state.structured/content`），但**全二进制搜索 `Tool.Progress` 只有 1 处（session projector 消费方），无任何 publish/emit 发出点**。
-
-### 3.2 TUI 渲染逻辑（非流式）
-
-TUI 工具 part 渲染器：
-
-```js
-get output() {
-  return U.part.state.status === "completed" ? U.part.state.output : void 0
-}
+```
+ctx.metadata（tools.ts:51）
+  → processor.updateToolCall（processor.ts:152）
+    → session.updatePart（session.ts:624）
+      → sync.run(MessageV2.Event.PartUpdated)（session.ts:626）→ 发布 message.part.updated
 ```
 
-工具**未完成时不显示输出**，完成后一次性显示 `state.output`。
+`updatePart`（session.ts:624-632）发布 `MessageV2.Event.PartUpdated`（message-v2.ts:530），type=`message.part.updated`，携带**完整 part**（含 tool 的 `metadata.output` 实时更新）。
 
-### 3.3 PTY 通道（流式的真实来源）
+### 2.3 message.part.updated 通过 /global/event 推送
 
-TUI 有独立的**终端面板（Terminal Panel / PTY）**：
+`SyncEvent.run`（sync/index.ts:341-364）会把同步事件 re-publish 到 bus 并 **`GlobalBus.emit("event", ...)`**。`/global/event` 的 `GlobalEventSchema`（global.ts:18）包含 `SyncEvent.effectPayloads()`，`message.part.updated` 是 SyncEvent → **会被推送到 /global/event SSE**。
 
-- `client.pty.create` / `api.pty.create` 创建伪终端
-- `/api/pty/{ptyID}/connect` 以 SSE **逐字节实时**推送终端输出
-- 监听 `pty.exited` 事件
-- Windows 实现依赖 ConPTY（`portable-pty` crate，需要 Win10 1809+）
+### 2.4 Web/TUI 都订阅 message.part.updated
 
-## 4. 结论
+- Web App：`packages/app/src/context/global-sync/event-reducer.ts:226` `case "message.part.updated"`
+- TUI：`packages/opencode/src/cli/cmd/tui/context/sync.tsx:306` `case "message.part.updated"`
 
-| 通道 | 输出时序 | 谁在用 |
-|------|---------|--------|
-| **PTY**（`/api/pty/{id}/connect`） | 逐行/逐字节流式 | TUI 终端面板 |
-| **SSE tool 事件**（`session.next.tool.*`） | 一次性（tool.success） | Bridge/App、CLI run |
+## 3. 关键对比：两条事件通道
 
-- **TUI 的"流式 bash 输出"来自 PTY 通道**：bash 命令在伪终端中运行，stdout 是 TTY → 行缓冲 → 服务器日志逐行实时刷新。这**独立于** `session.next.tool.*` SSE 事件流。
-- **Bridge 订阅的 SSE 事件流中没有 bash 输出增量事件**——opencode 1.18.9 的 bash 工具不推送 `tool.progress`，输出仅在 `tool.success` 一次性送达。
-- **Windows 上 PTY 通道对 Bridge 不可用**：Bun 二进制的 `/api/pty` 服务端挂起，Bridge 无法通过该通道获取流式输出。
+| 事件 | 定义 | 核心发布 | 携带 bash 输出 | 谁在用 |
+|------|------|---------|---------------|--------|
+| **`message.part.updated`**（v1 SyncEvent） | message-v2.ts:530 | ✅ session.ts:626（每个 stdout chunk） | ✅ `part.metadata.output` 实时 | Web App、TUI |
+| **`session.next.tool.progress`**（v2） | session-event.ts:265 | ❌ 无发布点 | ❌ | TUI sync-v2 预留，实际不触发 |
+
+**结论修正**：opencode 的 bash 流式输出**真实通道是 `message.part.updated` 事件**（v1 SyncEvent），而非 `session.next.tool.progress`（v2）。之前实测 serve 模式"无增量"是因为 **bridge 只转发了 `session.next.*`（v2）事件，忽略了 `message.part.updated`（v1）**。
+
+## 4. Bridge/App 的启示
+
+**bridge 订阅 `/global/event` 理论上能收到 `message.part.updated`**（GlobalEventSchema 包含 SyncEvent）。之前的 probe 只过滤了 `tool/shell/step` 关键字，`message.part.updated` 没被记录。
+
+要在 App 流式显示 bash 输出，bridge 需要：
+1. 在 `startSSE` 中识别 `message.part.updated` 事件（其 `part` 是 tool part 且 `part.state.metadata.output` 在变化）
+2. 转发为 notify（如 `message.part.updated`），App 端 `AppProvider` 订阅并更新对应 tool part 的 `result`
 
 ## 5. App 工具执行中的 UI 表现
 
@@ -106,32 +91,21 @@ App 在工具执行中**同时有两处**显示：
 | 成功 | `⌘ Shell cmd ✅` | 移除 | 完整输出（可展开） |
 | 失败 | `⌘ Shell cmd ❌` | 移除 | 错误信息 |
 
-### 5.3 关键限制
+### 5.3 当前限制与改进方向
 
-由于 opencode 1.18.9 不触发 `tool.progress` 增量事件，App 在执行中**无法实时显示 bash 输出**——执行中只有 ⏳ 图标 + 命令文本，输出在 `tool.success` 时一次性出现。这是 SSE 通道的固有限制（非 App 缺陷），与 TUI 通过 PTY 逐行显示形成对比。
+App 执行中只有 ⏳（因 bridge 未转发 `message.part.updated`），输出在 `tool.success` 一次性出现。**实现流式的关键**是 bridge 转发 `message.part.updated` 事件（见 §4），而非依赖 `tool.progress`。
 
-## 6. 对 Bridge/App 的启示
-
-当前 App 行为（工具完成后显示完整输出）是 **SSE 通道下的正确实现**，与 TUI 渲染 tool part 的逻辑一致（都是 completed 后显示 `state.output`）。
-
-若需在 App 实现 bash 流式输出，可选路径：
-
-1. **等待/验证其他平台**：在 Linux/macOS 上 `/api/pty` 可能可用，Bridge 可订阅 PTY 通道并转发增量。
-2. **升级 opencode**：更高版本可能修复 Windows PTY 或为 bash 工具启用 `tool.progress`。
-3. **维持现状**：SSE 一次性输出已覆盖工具执行结果，流式属于增强项。
-
-## 7. 验证方法（复现）
+## 6. 验证方法（复现）
 
 ```bash
-# 1. 观察 serve 模式 SSE 事件流（Bridge 通道）
-#    用 probe 订阅 /api/session/{id}/event，触发 'ping -n 30 127.0.0.1'
-#    观察 tool.called → (空白) → tool.success
+# 1. 订阅 /global/event，触发慢 bash，观察 message.part.updated
+#    用 probe 订阅 http://localhost:4100/global/event，触发 'ping -n 30 127.0.0.1'
+#    观察 message.part.updated 事件（携带 tool part 的 metadata.output 逐块增长）
 
 # 2. 观察 CLI run 事件流
 opencode run --format json -m opencode-go/deepseek-v4-flash \
   --dir D:\code\mobile-agent-bridge "run 'ping -n 3 127.0.0.1' and say DONE"
 
-# 3. 测试 PTY API（Windows 预期挂起）
-curl -X POST "http://localhost:4100/api/pty?location[directory]=..." \
-  -H "Content-Type: application/json" -d '{"command":"echo hi"}'
+# 3. 对比 bridge 的 startSSE：确认它是否解析了 payload.syncEvent.type
+#    bridge 应识别 type === 'message.part.updated' 并转发
 ```
