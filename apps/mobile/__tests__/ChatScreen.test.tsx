@@ -9,7 +9,7 @@ import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { textOf } from './test-utils'
-import { MarkdownRenderer } from '../src/components/MarkdownRenderer'
+import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
 
 const onNavigateToSessions = jest.fn()
 
@@ -544,7 +544,7 @@ describe('ChatScreen', () => {
     expect(mdComponents[0].props.content).toBe('Hi')
   })
 
-  it('copy button exists on user messages', () => {
+  it('copy is available via long-press menu on messages', () => {
     useChatStore.setState({
       activeSessionId: 's1',
       messages: [
@@ -554,23 +554,11 @@ describe('ChatScreen', () => {
     const tree = TestRenderer.create(
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
-    const pressables = tree.root.findAll(
-      (n: any) => typeof n.props?.onPress === 'function',
-    )
-    const copyBtn = pressables.find((n: any) => {
-      let text = ''
-      function walk(node: any) {
-        if (!node) return
-        if (typeof node === 'string') { text += node; return }
-        if (node.children) node.children.forEach(walk)
-      }
-      walk(n)
-      return text.includes('Copy')
-    })
-    expect(copyBtn).toBeTruthy()
+    // 固定 Copy 按钮已移除（b7db1d1 align to Web style），消息内容仍可渲染
+    expect(textOf(tree)).toContain('copy this')
   })
 
-  it('copy button exists on assistant messages', () => {
+  it('assistant message content renders without fixed copy button', () => {
     useChatStore.setState({
       activeSessionId: 's1',
       messages: [
@@ -580,20 +568,7 @@ describe('ChatScreen', () => {
     const tree = TestRenderer.create(
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
-    const pressables = tree.root.findAll(
-      (n: any) => typeof n.props?.onPress === 'function',
-    )
-    const copyBtn = pressables.find((n: any) => {
-      let text = ''
-      function walk(node: any) {
-        if (!node) return
-        if (typeof node === 'string') { text += node; return }
-        if (node.children) node.children.forEach(walk)
-      }
-      walk(n)
-      return text.includes('Copy')
-    })
-    expect(copyBtn).toBeTruthy()
+    expect(textOf(tree)).toContain('answer')
   })
 
   it('system message does not use MarkdownRenderer', () => {

@@ -83,8 +83,8 @@ export function getToolInfo(tool: string, input: Record<string, unknown> = {}): 
   }
 
   let subtitle = ''
-  if (['read', 'edit', 'write'].includes(tool)) subtitle = String(input.filePath ?? input.path ?? '')
-  else if (tool === 'glob') subtitle = String(input.pattern ?? '')
+  if (['read', 'edit', 'write'].includes(tool)) subtitle = String(input.filePath ?? input.path ?? input.file ?? '')
+  else if (tool === 'glob') subtitle = String(input.pattern ?? input.glob ?? '')
   else if (tool === 'grep') subtitle = String(input.query ?? input.pattern ?? '')
   else if (tool === 'webfetch') subtitle = String(input.url ?? '')
   else if (tool === 'websearch') subtitle = String(input.query ?? '')

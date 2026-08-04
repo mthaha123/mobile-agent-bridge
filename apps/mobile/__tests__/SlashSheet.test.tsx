@@ -29,7 +29,7 @@ describe('SlashSheet', () => {
     useConfigStore.setState({ agents: [], commands: [] })
     const tree = TestRenderer.create(<SlashSheet visible={true} onClose={onClose} onSelect={onSelect} />)
     const text = textOf(tree)
-    expect(text).toContain('No commands or agents loaded')
+    expect(text).toContain('无匹配项')
   })
 
   it('calls onSelect when item pressed', () => {

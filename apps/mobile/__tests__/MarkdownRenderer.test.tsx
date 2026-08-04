@@ -164,7 +164,9 @@ describe('MarkdownRenderer', () => {
     const json = tree.toJSON()
     expect(json).not.toBeNull()
     if (json && typeof json === 'object' && 'props' in json) {
-      expect(json.props.style).toMatchObject({ opacity: 0.5 })
+      expect(json.props.style).toEqual(
+        expect.arrayContaining([expect.objectContaining({ opacity: 0.5 })]),
+      )
     }
   })
 

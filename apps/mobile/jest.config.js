@@ -8,6 +8,7 @@ export default {
     '^react-native$': '<rootDir>/__mocks__/react-native.js',
     '^react-native/(.*)$': '<rootDir>/__mocks__/react-native.js',
     '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
+    '^react-native-marked$': '<rootDir>/__mocks__/react-native-marked.js',
   },
   transform: {
     '^.+\\.tsx?$': [

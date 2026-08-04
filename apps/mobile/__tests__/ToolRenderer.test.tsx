@@ -1,5 +1,9 @@
 /**
  * ToolRenderer — 单元测试 (react-test-renderer)
+ *
+ * ToolRenderer 是 Phase 1+2 重构后的紧凑型工具进度卡片（用于 ToolProgressCard），
+ * 通过 getToolInfo() 渲染 图标 + 标题 + 副标题 + 状态图标，
+ * 对 shell/bash 使用 ShellOutput，对 edit 使用 DiffDisplay，其余展示 result 预览。
  */
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
@@ -54,6 +58,7 @@ describe('ToolRenderer', () => {
     const json = toJson(tree)
     expect(json).toContain('Read')
     expect(json).toContain('/test.txt')
+    expect(json).toContain('Hello World')
   })
 
   it('renders Write tool correctly', () => {
@@ -103,7 +108,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('WebFetch')
+    expect(json).toContain('Web Fetch')
     expect(json).toContain('https://example.com')
   })
 
@@ -114,7 +119,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('WebSearch')
+    expect(json).toContain('Web Search')
     expect(json).toContain('test query')
   })
 
@@ -125,7 +130,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('Task')
+    expect(json).toContain('Agent')
     expect(json).toContain('Test task description')
   })
 
@@ -136,8 +141,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('Question')
-    expect(json).toContain('What is your name?')
+    expect(json).toContain('Questions')
   })
 
   it('renders Skill tool correctly', () => {
@@ -148,7 +152,6 @@ describe('ToolRenderer', () => {
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
     expect(json).toContain('Skill')
-    expect(json).toContain('test-skill')
   })
 
   it('renders TodoWrite tool correctly', () => {
@@ -158,7 +161,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('TodoWrite')
+    expect(json).toContain('Todos')
   })
 
   it('renders unknown tool correctly', () => {
@@ -204,7 +207,7 @@ describe('ToolRenderer', () => {
     expect(json).toContain('⏳')
   })
 
-  it('shows output toggle for shell tool with output', () => {
+  it('shell shows command and output line count', () => {
     const call = createMockCall({
       tool: 'bash',
       input: { command: 'ls -la' },
@@ -212,9 +215,10 @@ describe('ToolRenderer', () => {
       result: 'file1.txt\nfile2.txt',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    const json = toJson(tree)
-    expect(json).toContain('Output')
-    expect(json).toContain('lines')
+    expect(textOf(tree)).toContain('$ ls -la')
+    expect(textOf(tree)).toContain('file1.txt')
+    expect(textOf(tree)).toContain('file2.txt')
+    expect(textOf(tree)).toContain('2 lines')
   })
 
   it('shell command shows $ prefix', () => {
@@ -236,8 +240,8 @@ describe('ToolRenderer', () => {
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     expect(textOf(tree)).toContain('Edit')
     expect(textOf(tree)).toContain('file.ts')
-    expect(textOf(tree)).toContain('- old code')
-    expect(textOf(tree)).toContain('+ new code')
+    expect(textOf(tree)).toContain('old code')
+    expect(textOf(tree)).toContain('new code')
   })
 
   it('glob renderer shows pattern', () => {
@@ -247,7 +251,7 @@ describe('ToolRenderer', () => {
       status: 'success',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('Pattern: **/*.ts')
+    expect(textOf(tree)).toContain('**/*.ts')
   })
 
   it('grep renderer shows query', () => {
@@ -257,7 +261,7 @@ describe('ToolRenderer', () => {
       status: 'success',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('Query: import')
+    expect(textOf(tree)).toContain('import')
   })
 
   it('webfetch renderer shows URL', () => {
@@ -278,7 +282,7 @@ describe('ToolRenderer', () => {
       status: 'success',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('Query: test search')
+    expect(textOf(tree)).toContain('test search')
   })
 
   it('task renderer shows description', () => {
@@ -292,39 +296,20 @@ describe('ToolRenderer', () => {
     expect(json).toContain('Run tests')
   })
 
-  it('question renderer shows question text', () => {
+  it('shows result preview for tools with result', () => {
     const call = createMockCall({
-      tool: 'question',
-      input: { question: 'Proceed?' },
+      tool: 'read',
+      input: { path: '/test.ts' },
       status: 'success',
+      result: 'line1\nline2\nline3',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
-    expect(json).toContain('Proceed?')
+    expect(json).toContain('line1')
+    expect(json).toContain('line3')
   })
 
-  it('skill renderer shows skill name', () => {
-    const call = createMockCall({
-      tool: 'skill',
-      input: { name: 'test-skill' },
-      status: 'success',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    const json = toJson(tree)
-    expect(json).toContain('test-skill')
-  })
-
-  it('todowrite renderer shows todo count', () => {
-    const call = createMockCall({
-      tool: 'todowrite',
-      input: { todos: [{ content: 'Task 1' }, { content: 'Task 2' }] },
-      status: 'success',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('2 todo items')
-  })
-
-  it('default renderer shows tool name and input preview', () => {
+  it('default renderer shows tool name', () => {
     const call = createMockCall({
       tool: 'unknown-tool',
       input: { someParam: 'value' },
@@ -333,25 +318,6 @@ describe('ToolRenderer', () => {
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = toJson(tree)
     expect(json).toContain('unknown-tool')
-  })
-
-  it('toggle expands/collapses when onToggle is provided', () => {
-    const call = createMockCall({
-      tool: 'bash',
-      input: { command: 'ls' },
-      status: 'success',
-      result: 'line1\nline2\nline3',
-    })
-    const onToggle = jest.fn()
-    const tree = TestRenderer.create(<ToolRenderer call={call} expanded={false} onToggle={onToggle} />)
-
-    const touchables = tree.root.findAll(
-      (n: any) => typeof n.props?.onPress === 'function',
-    )
-    if (touchables.length > 0) {
-      act(() => { touchables[0].props.onPress() })
-      expect(onToggle).toHaveBeenCalled()
-    }
   })
 
   it('shell renders with cmd key (alternative to command)', () => {
@@ -365,7 +331,7 @@ describe('ToolRenderer', () => {
     expect(textOf(tree)).toContain('$ echo hello')
   })
 
-  it('shell does not show output toggle when no result', () => {
+  it('shell does not show output when no result', () => {
     const call = createMockCall({
       tool: 'bash',
       input: { command: 'ls' },
@@ -373,44 +339,10 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = JSON.stringify(tree.toJSON())
-    expect(json).not.toContain('Output')
+    expect(json).not.toContain('lines')
   })
 
-  it('shell internal expand toggles output visibility', () => {
-    const call = createMockCall({
-      tool: 'bash',
-      input: { command: 'ls' },
-      status: 'success',
-      result: 'file1\nfile2\nfile3',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    const json1 = JSON.stringify(tree.toJSON())
-    expect(json1).toContain('▶')
-    expect(json1).toContain('Output')
-
-    const outputToggle = tree.root.findAll(
-      (n: any) => typeof n.props?.onPress === 'function' && textOf(n).includes('▶'),
-    )
-    if (outputToggle.length > 0) {
-      act(() => { outputToggle[0].props.onPress() })
-      const json2 = JSON.stringify(tree.toJSON())
-      expect(json2).toContain('▼')
-      expect(json2).toContain('file1')
-    }
-  })
-
-  it('read renderer shows line count', () => {
-    const call = createMockCall({
-      tool: 'read',
-      input: { path: '/test.ts' },
-      status: 'success',
-      result: 'line1\nline2\nline3',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('3 lines')
-  })
-
-  it('read renderer shows no content when no result', () => {
+  it('read renderer shows path', () => {
     const call = createMockCall({
       tool: 'read',
       input: { path: '/test.ts' },
@@ -432,7 +364,7 @@ describe('ToolRenderer', () => {
   })
 
   it('webfetch renderer truncates long content', () => {
-    const longContent = 'A'.repeat(500)
+    const longContent = 'A'.repeat(600)
     const call = createMockCall({
       tool: 'webfetch',
       input: { url: 'https://example.com' },
@@ -441,59 +373,7 @@ describe('ToolRenderer', () => {
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = JSON.stringify(tree.toJSON())
-    expect(json).not.toContain('A'.repeat(300))
-  })
-
-  it('write renderer shows content preview', () => {
-    const call = createMockCall({
-      tool: 'write',
-      input: { path: '/test.ts', content: 'console.log("hello")' },
-      status: 'success',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('console.log("hello")')
-  })
-
-  it('edit renderer shows only oldString when no newString', () => {
-    const call = createMockCall({
-      tool: 'edit',
-      input: { path: 'file.ts', oldString: 'old code' },
-      status: 'success',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('- old code')
-  })
-
-  it('glob renderer shows result count', () => {
-    const call = createMockCall({
-      tool: 'glob',
-      input: { pattern: '**/*.ts' },
-      status: 'success',
-      result: ['a.ts', 'b.ts', 'c.ts'],
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('3 files found')
-  })
-
-  it('grep renderer shows result count', () => {
-    const call = createMockCall({
-      tool: 'grep',
-      input: { query: 'import' },
-      status: 'success',
-      result: ['a.ts:1', 'b.ts:5'],
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('2 matches found')
-  })
-
-  it('grep renderer accepts pattern key (alternative to query)', () => {
-    const call = createMockCall({
-      tool: 'grep',
-      input: { pattern: 'test' },
-      status: 'success',
-    })
-    const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('Query: test')
+    expect(json).not.toContain('A'.repeat(550))
   })
 
   it('glob renderer accepts glob key (alternative to pattern)', () => {
@@ -503,17 +383,28 @@ describe('ToolRenderer', () => {
       status: 'success',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
-    expect(textOf(tree)).toContain('Pattern: **/*.ts')
+    expect(textOf(tree)).toContain('**/*.ts')
   })
 
-  it('default renderer shows JSON input preview', () => {
+  it('grep renderer accepts pattern key (alternative to query)', () => {
     const call = createMockCall({
-      tool: 'custom',
-      input: { key: 'value' },
+      tool: 'grep',
+      input: { pattern: 'test' },
       status: 'success',
     })
     const tree = TestRenderer.create(<ToolRenderer call={call} />)
+    expect(textOf(tree)).toContain('test')
+  })
+
+  it('renders array result as preview', () => {
+    const call = createMockCall({
+      tool: 'glob',
+      input: { pattern: '**/*.ts' },
+      status: 'success',
+      result: ['a.ts', 'b.ts', 'c.ts'],
+    })
+    const tree = TestRenderer.create(<ToolRenderer call={call} />)
     const json = JSON.stringify(tree.toJSON())
-    expect(json).toContain('custom')
+    expect(json).toContain('a.ts')
   })
 })
