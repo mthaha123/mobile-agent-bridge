@@ -49,10 +49,12 @@ module.exports = {
   Pressable: mockComponent('Pressable'),
 
   // Utilities
+  Clipboard: { setString: jest.fn(), getString: jest.fn().mockResolvedValue('') },
   StyleSheet: { create: (s) => s },
   Platform: { OS: 'ios', select: (obj) => (obj ? obj.ios ?? obj.default ?? null : null) },
   Alert: { alert: jest.fn() },
   Dimensions: { get: () => ({ width: 375, height: 812 }) },
+  Clipboard: { setString: jest.fn(), getString: jest.fn().mockResolvedValue('') },
 
   // Hooks
   useWindowDimensions: () => ({ width: 375, height: 812 }),

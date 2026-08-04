@@ -94,6 +94,39 @@ describe('ToolApprovalSheet', () => {
     expect(remaining.find((a) => a.id === 'a2')).toBeUndefined()
   })
 
+  it('Always Allow button sends reply with always and dequeues', async () => {
+    const replySpy = jest.fn()
+    setToolReplyCall(replySpy)
+    useToolStore.getState().enqueue({
+      id: 'a3', tool: 'bash', args: { command: 'ls' },
+      sessionId: 's1', requestedAt: Date.now(),
+    })
+    const tree = TestRenderer.create(<ToolApprovalSheet />)
+    // 文本恰好等于 "Always Allow" 的可点击按钮（排除外层 card 的空 onPress）
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.props?.onPress === 'function',
+    )
+    const textOfNode = (n: any): string => {
+      let text = ''
+      function walk(node: any) {
+        if (!node) return
+        if (typeof node === 'string') { text += node; return }
+        if (node.children) {
+          if (Array.isArray(node.children)) node.children.forEach(walk)
+          else walk(node.children)
+        }
+      }
+      walk(n)
+      return text.trim()
+    }
+    const alwaysBtn = pressables.find((n) => textOfNode(n) === 'Always Allow')
+    expect(alwaysBtn).toBeTruthy()
+    await act(async () => { alwaysBtn!.props.onPress() })
+    expect(replySpy).toHaveBeenCalledWith('a3', 'always')
+    const remaining = useToolStore.getState().pendingApprovals
+    expect(remaining.find((a) => a.id === 'a3')).toBeUndefined()
+  })
+
   it('renders tool name in pending approval', () => {
     act(() => {
       useToolStore.getState().enqueue({

@@ -70,11 +70,11 @@ const ReasoningDisplay: React.FC<PartProps> = ({ part }) => {
 registerPart('reasoning', ReasoningDisplay)
 
 export const ReasoningHeader: React.FC<{ expanded: boolean; onToggle: () => void }> = ({ expanded, onToggle }) => (
-  <View style={styles.reasoningHeader}>
+  <TouchableOpacity style={styles.reasoningHeader} onPress={onToggle} activeOpacity={0.7}>
     <Text style={styles.reasoningIcon}>🧠</Text>
     <Text style={styles.reasoningLabel}>思考过程</Text>
     <Text style={styles.reasoningArrow}>{expanded ? '▼' : '▶'}</Text>
-  </View>
+  </TouchableOpacity>
 )
 
 // ─── Error Part ────────────────────────────────────────────

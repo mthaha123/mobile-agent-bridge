@@ -22,8 +22,8 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
   const commands = useConfigStore((s) => s.commands) as Array<{ name?: string; command?: string; description?: string }>
 
-  const showCommands = !filter || filter === '/'
-  const showAgents = !filter || filter === '@'
+  const showCommands = !filter || filter === '/' || filter.startsWith('/')
+  const showAgents = !filter || filter === '@' || filter.startsWith('@')
 
   const filteredCommands = useMemo(() => {
     if (!filter || filter === '/') return commands
