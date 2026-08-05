@@ -1,12 +1,9 @@
 appId: com.mobileagentbridge
-tags:
-  - layer: l4
-  - needs-opencode: true
 ---
 # Layer 4 — 工具审批流程: 触发工具调用 → 验证审批 Sheet → 批准
 - launchApp
 
-- runFlow: .maestro/flows/shared/connect-l4.yaml
+- runFlow: ../shared/connect-l4.yaml
 
 # 创建会话
 - tapOn: "+ New"

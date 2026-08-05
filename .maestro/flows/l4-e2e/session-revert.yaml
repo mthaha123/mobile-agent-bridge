@@ -1,12 +1,9 @@
 appId: com.mobileagentbridge
-tags:
-  - layer: l4
-  - needs-opencode: true
 ---
 # Layer 4 — 会话 Revert + Unrevert
 - launchApp
 
-- runFlow: .maestro/flows/shared/connect-l4.yaml
+- runFlow: ../shared/connect-l4.yaml
 
 # 创建会话
 - tapOn: "+ New"

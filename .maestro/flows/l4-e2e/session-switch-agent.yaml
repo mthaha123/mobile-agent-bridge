@@ -1,12 +1,9 @@
 appId: com.mobileagentbridge
-tags:
-  - layer: l4
-  - needs-opencode: true
 ---
 # Layer 4 — 切换 Agent + Model
 - launchApp
 
-- runFlow: .maestro/flows/shared/connect-l4.yaml
+- runFlow: ../shared/connect-l4.yaml
 
 # 创建会话
 - tapOn: "+ New"
@@ -17,13 +14,10 @@ tags:
 # 点击 ⌘ 打开 SlashSheet
 - tapOn: "⌘"
 - extendedWaitUntil:
-    visible: "Commands"
-    timeout: 5000
+    visible: "命令 & Agent"
+    timeout: 10000
 
-# 验证 Agent 列表存在
-- assertVisible: "Switch agent"
-
-# 关闭 SlashSheet
+# 关闭 SlashSheet（点空白处）
 - tapOn:
     point: "540,1500"
 

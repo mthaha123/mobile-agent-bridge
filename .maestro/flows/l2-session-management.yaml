@@ -58,3 +58,17 @@ appId: com.mobileagentbridge
 - inputText: "Renamed Session"
 - tapOn: "Save"
 - assertNotVisible: "Session name"
+
+# 点击 Fork → 弹出 "Forked" 确认 Alert
+- tapOn: "Fork"
+- extendedWaitUntil:
+    visible: "Forked"
+    timeout: 10000
+- assertVisible: "OK"
+- tapOn: "OK"
+
+# Alert 关闭后 Modal 已关，返回 ChatScreen
+- extendedWaitUntil:
+    notVisible: "Forked"
+    timeout: 10000
+- assertVisible: "< Sessions"
