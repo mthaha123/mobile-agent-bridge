@@ -21,7 +21,7 @@ import { useUiStore } from '../stores/uiStore'
 import { ToolProgressCard } from '../components/ToolProgressCard'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
-import { PartBlock } from '../components/chat/PartBlock'
+import { PartBlock, MessageWrapperForFallback } from '../components/chat/PartBlock'
 import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
 import { RichMessage, Part } from '../types/message'
 import { useConfigStore } from '../stores/configStore'
@@ -273,18 +273,24 @@ export const ChatScreen: React.FC = () => {
         {!isUser && item.agent ? (
           <Text style={styles.messageMeta}>{item.agent}</Text>
         ) : null}
-        {parts && parts.length > 0 ? (
-          parts.map((part) => (
-            <PartBlock
-              key={part.id}
-              part={part}
-              message={item as unknown as RichMessage}
-            />
-          ))
-        ) : isAssistant ? (
-          <View accessible accessibilityLabel={item.content}>
-            <MarkdownRenderer content={item.content} />
-          </View>
+        {isAssistant ? (
+          <>
+            {item.content ? (
+              <MessageWrapperForFallback content={item.content} message={item} onRevert={handleRevert}>
+                <MarkdownRenderer content={item.content} />
+              </MessageWrapperForFallback>
+            ) : null}
+            {parts && parts.length > 0
+              ? parts.map((part) => (
+                  <PartBlock
+                    key={part.id}
+                    part={part}
+                    message={item as unknown as RichMessage}
+                    onRevert={handleRevert}
+                  />
+                ))
+              : null}
+          </>
         ) : isUser ? (
           <View accessible accessibilityLabel={item.content}>
             <Text style={styles.userText}>{item.content}</Text>

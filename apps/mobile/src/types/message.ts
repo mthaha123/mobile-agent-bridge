@@ -28,6 +28,8 @@ export interface RichMessage {
 export interface PartProps {
   part: Part
   message: RichMessage
+  /** 可选：从长按菜单触发"回退到此"操作 */
+  onRevert?: (messageID: string, partID?: string) => void
 }
 
 const PART_RENDERERS = new Map<string, React.FC<PartProps>>()

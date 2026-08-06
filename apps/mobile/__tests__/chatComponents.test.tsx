@@ -659,6 +659,47 @@ describe('PartBlock', () => {
     alertSpy.mockRestore()
   })
 
+  it('assistant text part long-press shows revert option that calls onRevert', () => {
+    const onRevert = jest.fn()
+    const alertSpy = jest.spyOn(Alert, 'alert')
+    const tree = TestRenderer.create(
+      <PartBlock
+        part={{ id: 'p1', type: 'text', data: { content: 'revert me' } }}
+        message={{ id: 'm1', role: 'assistant', messageID: 'msg-1', partID: 'part-1', parts: [] }}
+        onRevert={onRevert}
+      />,
+    )
+    const longPressables = tree.root.findAll((n: any) => typeof n.props?.onLongPress === 'function')
+    act(() => { longPressables[0].props.onLongPress() })
+
+    // 断言 Alert 菜单包含"回退到此"按钮
+    const buttons = alertSpy.mock.calls[0][2] as any[]
+    expect(buttons.some((b) => b.text === '回退到此')).toBe(true)
+
+    // 点击"回退到此"
+    const revertBtn = buttons.find((b) => b.text === '回退到此')
+    act(() => { revertBtn.onPress() })
+    expect(onRevert).toHaveBeenCalledWith('msg-1', 'part-1')
+    alertSpy.mockRestore()
+  })
+
+  it('user text part long-press does not show revert option', () => {
+    const onRevert = jest.fn()
+    const alertSpy = jest.spyOn(Alert, 'alert')
+    const tree = TestRenderer.create(
+      <PartBlock
+        part={{ id: 'p1', type: 'text', data: { content: 'my message' } }}
+        message={{ id: 'm1', role: 'user', parts: [] }}
+        onRevert={onRevert}
+      />,
+    )
+    const longPressables = tree.root.findAll((n: any) => typeof n.props?.onLongPress === 'function')
+    act(() => { longPressables[0].props.onLongPress() })
+    const buttons = alertSpy.mock.calls[0][2] as any[]
+    expect(buttons.some((b) => b.text === '回退到此')).toBe(false)
+    alertSpy.mockRestore()
+  })
+
   it('tool part renders tool card', () => {
     const tree = TestRenderer.create(
       <PartBlock part={{ id: 'p1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } }} message={message} />,

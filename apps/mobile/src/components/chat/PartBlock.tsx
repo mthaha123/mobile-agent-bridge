@@ -7,18 +7,18 @@ import { MarkdownRenderer } from './MarkdownRenderer'
 
 // ─── PartBlock 调度器 ────────────────────────────────────
 
-export const PartBlock: React.FC<PartProps> = ({ part, message }) => {
+export const PartBlock: React.FC<PartProps> = ({ part, message, onRevert }) => {
   const Renderer = getPartRenderer(part.type)
   if (!Renderer) return null
-  return <Renderer part={part} message={message} />
+  return <Renderer part={part} message={message} onRevert={onRevert} />
 }
 
 // ─── Text Part ────────────────────────────────────────────
 
-const TextPartDisplay: React.FC<PartProps> = ({ part, message }) => {
+const TextPartDisplay: React.FC<PartProps> = ({ part, message, onRevert }) => {
   const content = String(part.data?.content ?? part.data?.text ?? '')
   return (
-    <MessageWrapper content={content} message={message}>
+    <MessageWrapper content={content} message={message} onRevert={onRevert}>
       <MarkdownRenderer content={content} />
     </MessageWrapper>
   )
@@ -27,19 +27,32 @@ registerPart('text', TextPartDisplay)
 
 // ─── 长按菜单 Wrapper ─────────────────────────────────────
 
-const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?: string; messageID?: string }; children: React.ReactNode }> = ({ content, message, children }) => {
+const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?: string; messageID?: string; partID?: string }; onRevert?: (messageID: string, partID?: string) => void; children: React.ReactNode }> = ({ content, message, onRevert, children }) => {
   const showMenu = () => {
     Alert.alert('消息操作', undefined, [
       { text: '复制消息', onPress: () => Clipboard.setString(content) },
       ...(message.role === 'assistant' && message.messageID
-        ? [{ text: '回退到此', style: 'destructive' as const, onPress: () => {} }]
+        ? [{
+            text: '回退到此',
+            style: 'destructive' as const,
+            onPress: () => {
+              if (onRevert && message.messageID) onRevert(message.messageID, message.partID)
+            },
+          }]
         : []),
       { text: '取消', style: 'cancel' as const },
     ])
   }
 
   return (
-    <TouchableOpacity activeOpacity={1} onLongPress={showMenu} delayLongPress={500}>
+    <TouchableOpacity
+      activeOpacity={1}
+      onLongPress={showMenu}
+      delayLongPress={500}
+      accessible={true}
+      accessibilityRole="button"
+      testID={message.role === 'assistant' ? 'assistant-text-part' : undefined}
+    >
       {children}
     </TouchableOpacity>
   )
@@ -114,6 +127,7 @@ registerPart('compaction', CompactionDisplay)
 // ─── 导出 Part 类型 ────────────────────────────────────────
 
 export { registerPart, getPartRenderer } from '../../types/message'
+export const MessageWrapperForFallback = MessageWrapper
 
 const styles = StyleSheet.create({
   textPart: {

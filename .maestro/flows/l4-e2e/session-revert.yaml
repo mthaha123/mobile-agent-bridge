@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 4 — 会话 Revert + Unrevert
+# Layer 4 — 会话 Revert：长按 AI 回复 → 回退到此 → Reverted 确认
 - launchApp
 
 - runFlow: ../shared/connect-l4.yaml
@@ -11,9 +11,9 @@ appId: com.mobileagentbridge
     visible: "< Sessions"
     timeout: 30000
 
-# 发送消息
+# 发送消息（纯文本请求，避免触发工具调用导致消息结构复杂）
 - tapOn: "Type a message..."
-- inputText: "write a simple hello world function in python"
+- inputText: "Reply with only the words: Hello, world!"
 - tapOn: "Send message"
 
 # 等待 AI 回复完成
@@ -21,11 +21,20 @@ appId: com.mobileagentbridge
     notVisible: "AI is thinking..."
     timeout: 90000
 
-# 点击 Revert 按钮撤销这条 AI 回复
-- tapOn: "Revert"
+# 长按 AI 回复触发消息操作菜单
+- longPressOn:
+    id: "assistant-text-part"
 - extendedWaitUntil:
-    visible: "Reverted"
+    visible: "回退到此"
     timeout: 10000
 
-# 确认弹窗
+# 点击回退到此
+- tapOn: "回退到此"
+
+# 确认回退成功
+- extendedWaitUntil:
+    visible: "Reverted"
+    timeout: 15000
+
+# 关闭确认弹窗
 - tapOn: "OK"
