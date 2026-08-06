@@ -76,7 +76,7 @@ export interface SessionState {
 
   // Advanced session operations
   getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
-  getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
+  getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }) => Promise<any>
   revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchAgent: (id: string, agent: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchModel: (id: string, model: string | { id: string; providerID: string; variant?: string }, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
@@ -147,10 +147,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  getSessionMessages: async (id, clientCall) => {
+  getSessionMessages: async (id, clientCall, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }) => {
     set({ error: null })
     try {
-      const result = await clientCall('session.messages', { sessionId: id })
+      const params: Record<string, unknown> = { sessionId: id }
+      if (opts?.limit !== undefined) params.limit = opts.limit
+      if (opts?.order) params.order = opts.order
+      if (opts?.cursor) params.cursor = opts.cursor
+      const result = await clientCall('session.messages', params)
+      // 兼容两种响应：数组 或 { messages/data, cursor }
       const raw = normalizeArray<any>(result, 'messages')
       const mapped = raw
         .filter((m) => m && typeof m === 'object')
@@ -162,10 +167,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         .filter((m) => m.role === 'user' || m.role === 'assistant')
       // 真实 SDK 返回最新在前的事件对象（带 type 字段），ChatScreen 按时间正序渲染 → 反转
       const isSdkEventFormat = raw.some((m) => m && typeof m.type === 'string')
-      return isSdkEventFormat ? mapped.reverse() : mapped
+      const list = isSdkEventFormat ? mapped.reverse() : mapped
+      const cursor = result && typeof result === 'object' && !Array.isArray(result)
+        ? (result as Record<string, unknown>).cursor
+        : undefined
+      return { messages: list, cursor }
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '获取会话消息失败' })
-      return []
+      return { messages: [], cursor: undefined }
     }
   },
 

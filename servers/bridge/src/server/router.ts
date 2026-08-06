@@ -151,7 +151,14 @@ registerHandler("session.get", async (p) => {
 registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.messages requires sessionId parameter")
-  return unwrapData(await sdkCall(() => sdk().v2.session.messages({ sessionID: id })))
+  // 分页透传（opencode v2 messages 支持 limit/order/cursor）
+  const params: { sessionID: string; limit?: number; order?: 'asc' | 'desc'; cursor?: string } = { sessionID: id }
+  if (p.limit !== undefined) params.limit = p.limit as number
+  if (p.order) params.order = p.order as 'asc' | 'desc'
+  if (p.cursor) params.cursor = p.cursor as string
+  const result = await sdkCall<{ data: unknown; cursor?: { previous?: string; next?: string } }>(() => sdk().v2.session.messages(params))
+  // 返回 { messages, cursor }，保留分页游标供客户端加载更早消息
+  return { messages: result?.data ?? [], cursor: result?.cursor }
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))

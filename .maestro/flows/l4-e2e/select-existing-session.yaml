@@ -1,0 +1,52 @@
+appId: com.mobileagentbridge
+---
+# Layer 4 — 选择已有会话 + 历史消息渲染（分页加载）
+# 流程：创建会话 → 发消息（产生历史）→ 回列表 → 重新选该会话 → 验证历史消息可见
+- launchApp
+
+# 连接真实 Bridge
+- runFlow: ../shared/connect-l4.yaml
+
+# 创建新会话并发送消息，产生历史消息
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 30000
+
+- tapOn: "Type a message..."
+- inputText: "PERSISTED_MARKER_HISTORY_123"
+- tapOn: "Send message"
+
+# 等待回复完成
+- extendedWaitUntil:
+    notVisible: "AI is thinking..."
+    timeout: 90000
+- assertVisible: "PERSISTED_MARKER_HISTORY_123"
+
+# 回到会话列表
+- tapOn: "< Sessions"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000
+
+# 选择刚创建的会话（标题为 "New session - <timestamp>"，位于列表顶部）
+- tapOn:
+    text: "New session.*"
+    index: 0
+
+# 进入 ChatScreen
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 15000
+
+# 验证历史消息被重新加载（分页加载后可见）
+- extendedWaitUntil:
+    visible: "PERSISTED_MARKER_HISTORY_123"
+    timeout: 30000
+
+# 验证仍在 ChatScreen 且可交互
+- assertVisible: "Open commands"
+- tapOn: "Type a message..."
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 10000

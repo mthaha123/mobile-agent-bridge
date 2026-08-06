@@ -26,6 +26,7 @@ export interface ChatState {
 
   setActiveSession: (sessionId: string | null) => void
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  prependMessages: (msgs: Omit<ChatMessage, 'id' | 'timestamp'>[]) => void
   updateLastAssistant: (text: string) => void
   appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number | string) => void
   advanceStreamId: (assistantMessageId: string, eventId: number | string) => void
@@ -79,10 +80,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: `msg_${++msgCounter}_${Date.now()}`,
       timestamp: Date.now(),
     }
-    set((state) => ({ messages: [...state.messages, newMsg] }))
+    set((state) => {
+      // 去重：按 messageID 或 (role+content) 判断，避免历史消息重复加载
+      if (msg.messageID) {
+        if (state.messages.some((m) => m.messageID === msg.messageID)) return state
+      } else if (state.messages.some((m) => m.role === msg.role && m.content === msg.content)) {
+        return state
+      }
+      return { messages: [...state.messages, newMsg] }
+    })
   },
 
   setInputText: (text) => set({ inputText: text }),
+
+  prependMessages: (msgs) => {
+    const newMsgs: ChatMessage[] = msgs.map((msg) => ({
+      ...msg,
+      id: `msg_${++msgCounter}_${Date.now()}`,
+      timestamp: Date.now(),
+    }))
+    set((state) => {
+      // 去重：跳过已在列表中的 messageID
+      const existingIDs = new Set(state.messages.map((m) => m.messageID).filter(Boolean))
+      const fresh = newMsgs.filter((m) => !m.messageID || !existingIDs.has(m.messageID))
+      if (fresh.length === 0) return state
+      return { messages: [...fresh, ...state.messages] }
+    })
+  },
 
   updateLastAssistant: (text: string) => {
     set((state) => ({

@@ -483,7 +483,7 @@ describe("RPC Router", () => {
       params: { sessionID: "sess_123" },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual([{ id: "m1", type: "user", text: "hi" }])
+    expect(messages[0].payload).toEqual({ messages: [{ id: "m1", type: "user", text: "hi" }], cursor: {} })
   })
 
   it("should unwrap { data } in session.get", async () => {
@@ -539,8 +539,20 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.messages).toHaveBeenCalledWith({ sessionID: "sess_123" })
-    // SDK { data: [...] } 包裹被解包为裸数组
-    expect(Array.isArray(messages[0].payload)).toBe(true)
+    // 返回 { messages, cursor }，保留分页游标
+    expect(messages[0].payload).toEqual({ messages: [], cursor: {} })
+  })
+
+  it("should forward limit/order/cursor to session.messages", async () => {
+    const { mockV3Session } = createMockSdk()
+    mockV3Session.messages.mockResolvedValueOnce({ data: { data: [{ id: "m1" }], cursor: { previous: "p1" } } })
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.messages",
+      params: { sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" },
+    }, testPayload)
+    expect(mockV3Session.messages).toHaveBeenCalledWith({ sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" })
+    expect(messages[0].payload).toEqual({ messages: [{ id: "m1" }], cursor: { previous: "p1" } })
   })
 
   it("should reject session.messages without id", async () => {

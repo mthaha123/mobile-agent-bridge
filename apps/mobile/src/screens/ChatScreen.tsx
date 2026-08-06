@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -50,6 +50,11 @@ export const ChatScreen: React.FC = () => {
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
   const [slashFilter, setSlashFilter] = useState<string | undefined>()
   const [modelPickerVisible, setModelPickerVisible] = useState(false)
+  // 历史消息分页：olderCursor 指向更早消息，hasMoreOlder 是否还有更早，loadingOlder 加载中
+  const [olderCursor, setOlderCursor] = useState<string | undefined>()
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const PAGE_SIZE = 30
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -82,55 +87,106 @@ export const ChatScreen: React.FC = () => {
     }
   }, [chatSubScreen, activeSessionId])
 
+  // 将 session.messages 返回的消息转换为 ChatMessage 并加入 store（按 messageID 去重）
+  const applyLoadedMessages = (msgs: any[]) => {
+    msgs.forEach((msg: any) => {
+      const msgId = msg.id || undefined
+      let partId: string | undefined
+      let text = msg.content || msg.text || ''
+      const rawContent = msg.rawContent
+      const parts: import('../types/message').Part[] = []
+      if (Array.isArray(rawContent)) {
+        rawContent.forEach((p: any) => {
+          if (p.type === 'text') {
+            text = p.text || text
+            partId = p.id || undefined
+            parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } })
+          } else if (p.type === 'tool') {
+            parts.push({
+              id: p.id || p.callID || `tool_${Date.now()}`,
+              type: 'tool',
+              data: {
+                tool: p.name || p.tool || '',
+                input: p.state?.input ?? {},
+                status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
+                result: extractToolOutput(p.state),
+                error: p.state?.error ?? undefined,
+                title: p.state?.title ?? undefined,
+              },
+            })
+          } else if (p.type === 'reasoning') {
+            parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
+          }
+        })
+      }
+      useChatStore.getState().addMessage({
+        role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
+        content: text,
+        messageID: msgId,
+        partID: partId,
+        parts: parts.length > 0 ? parts : undefined,
+      })
+    })
+  }
+
+  // 初始加载：拉最近 PAGE_SIZE 条（order desc），正序渲染
   useEffect(() => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
     let cancelled = false
+    setOlderCursor(undefined)
+    setHasMoreOlder(false)
+    setLoadingOlder(false)
     ;(async () => {
-      const msgs = await useSessionStore.getState().getSessionMessages(activeSessionId, client.call.bind(client))
-      if (!cancelled && msgs.length > 0) {
-        msgs.forEach((msg: any) => {
-          const msgId = msg.id || undefined
-          let partId: string | undefined
-          let text = msg.content || msg.text || ''
-          const rawContent = msg.rawContent
-          const parts: import('../types/message').Part[] = []
-          if (Array.isArray(rawContent)) {
-            rawContent.forEach((p: any) => {
-              if (p.type === 'text') {
-                text = p.text || text
-                partId = p.id || undefined
-                parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } })
-              } else if (p.type === 'tool') {
-                parts.push({
-                  id: p.id || p.callID || `tool_${Date.now()}`,
-                  type: 'tool',
-                  data: {
-                    tool: p.name || p.tool || '',
-                    input: p.state?.input ?? {},
-                    status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
-                    result: extractToolOutput(p.state),
-                    error: p.state?.error ?? undefined,
-                    title: p.state?.title ?? undefined,
-                  },
-                })
-              } else if (p.type === 'reasoning') {
-                parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
-              }
-            })
-          }
-          useChatStore.getState().addMessage({
-            role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
-            content: text,
-            messageID: msgId,
-            partID: partId,
-            parts: parts.length > 0 ? parts : undefined,
-          })
-        })
+      const res = await useSessionStore.getState().getSessionMessages(
+        activeSessionId, client.call.bind(client),
+        { limit: PAGE_SIZE, order: 'desc' },
+      )
+      if (cancelled || !res) return
+      // res 现在是 { messages, cursor } 结构（兼容旧数组）
+      const list = Array.isArray(res) ? res : (res?.messages ?? [])
+      const cursor = !Array.isArray(res) ? res?.cursor : undefined
+      if (!cancelled) {
+        applyLoadedMessages(list) // desc 反转后为时间正序，直接追加
+        setOlderCursor(cursor?.previous)
+        setHasMoreOlder(!!cursor?.previous)
       }
     })()
     return () => { cancelled = true }
   }, [activeSessionId])
+
+  // 加载更早的历史消息（滚动到顶部触发）
+  const handleLoadOlder = useCallback(async () => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client || !olderCursor || loadingOlder) return
+    setLoadingOlder(true)
+    try {
+      const res = await useSessionStore.getState().getSessionMessages(
+        activeSessionId, client.call.bind(client),
+        { limit: PAGE_SIZE, order: 'desc', cursor: olderCursor },
+      )
+      const list = Array.isArray(res) ? res : (res?.messages ?? [])
+      const cursor = !Array.isArray(res) ? res?.cursor : undefined
+      if (list.length > 0) {
+        // 更早的消息应插入到已有消息之前
+        useChatStore.getState().prependMessages(list.map((m: any) => {
+          const text = m.content || m.text || ''
+          return {
+            role: (m.role as 'user' | 'assistant' | 'system') || 'assistant',
+            content: text,
+            messageID: m.id || undefined,
+            parts: Array.isArray(m.rawContent) ? m.rawContent as import('../types/message').Part[] : undefined,
+          }
+        }))
+      }
+      setOlderCursor(cursor?.previous)
+      setHasMoreOlder(!!cursor?.previous)
+    } catch {
+      setHasMoreOlder(false)
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [activeSessionId, olderCursor, loadingOlder])
 
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
@@ -351,6 +407,18 @@ export const ChatScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         renderItem={renderMessage}
         ListFooterComponent={renderFooter}
+        ListHeaderComponent={
+          hasMoreOlder ? (
+            <TouchableOpacity
+              onPress={handleLoadOlder}
+              accessibilityLabel="Load older messages"
+              style={styles.loadOlderBtn}
+              disabled={loadingOlder}
+            >
+              <Text style={styles.loadOlderText}>{loadingOlder ? '加载中...' : '↑ 加载更早消息'}</Text>
+            </TouchableOpacity>
+          ) : null
+        }
         contentContainerStyle={styles.messageList}
         style={styles.messageListContainer}
       />
@@ -527,6 +595,15 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  loadOlderBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  loadOlderText: {
+    color: '#8ab4f8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   // 用户消息 → 气泡（右对齐）
   userBubble: {
