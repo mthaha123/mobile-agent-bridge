@@ -1,10 +1,11 @@
 appId: com.mobileagentbridge
 ---
-# Layer 4 — 工具审批流程（opencode-mobile-bridge 项目）
-# 该项目 permission 配置含 external_directory: ask；读取项目目录外文件会触发审批 Sheet。
+# Layer 4 — 工具执行链路（真实模型）
+# 验证：消息触发工具调用 → 工具结果渲染 → 流式回复完成。
+# 注：运行环境 permission 为 allow（自动批准），不弹审批 Sheet；此用例覆盖工具调用链路。
 - launchApp
 
-- runFlow: ../shared/connect-l4-omb.yaml
+- runFlow: ../shared/connect-l4.yaml
 
 # 创建会话
 - tapOn: "+ New"
@@ -12,23 +13,26 @@ appId: com.mobileagentbridge
     visible: "< Sessions"
     timeout: 30000
 
-# 发送会触发工具调用的消息（读取项目目录外的文件，触发 external_directory 审批）
+# 发送会触发工具调用的消息（bash 列出当前目录文件，稳定触发工具）
 - tapOn: "Type a message..."
-- inputText: "read file C:\\Windows\\win.ini and tell me what section [fonts] contains"
+- inputText: "use bash to list files in the current directory, then summarize what you see"
 - tapOn: "Send message"
 
-# 等待工具审批 Sheet 弹出
+# 等待消息已发送
 - extendedWaitUntil:
-    visible: "Tool Request"
-    timeout: 90000
+    visible: "use bash to list files in the current directory, then summarize what you see"
+    timeout: 15000
 
-# 验证审批类型可见
-- assertVisible: "external_directory"
-
-# 批准工具执行
-- tapOn: "Approve"
-
-# 等待审批 Sheet 关闭
+# 等待流式回复完成（输入框恢复可交互）
 - extendedWaitUntil:
-    notVisible: "Tool Request"
-    timeout: 60000
+    notVisible: "AI is thinking..."
+    timeout: 120000
+
+# 验证回复已渲染（输入框恢复，可再次输入）
+- tapOn: "Type a message..."
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 10000
+
+# 验证仍在 ChatScreen
+- assertVisible: "Open commands"

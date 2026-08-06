@@ -30,10 +30,38 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "..", "..")
 const require = createRequire(import.meta.url)
 
-const OPENCODE_PATH = process.env.OPENCODE_PATH || "opencode.cmd"
+const OPENCODE_PATH = process.env.OPENCODE_PATH ||
+  resolve(process.env.APPDATA || "C:\\Users\\MT\\AppData\\Roaming", "npm", "node_modules", "opencode-ai", "bin", "opencode.exe")
 const OPENCODE_PORT = process.env.OPENCODE_PORT || "4096"
 const BRIDGE_PORT = process.env.BRIDGE_PORT || "19985"
 const BRIDGE_PASSWORD = process.env.BRIDGE_PASSWORD || "test123"
+const BRIDGE_DEFAULT_MODEL = process.env.BRIDGE_DEFAULT_MODEL || "opencode-go/deepseek-v4-flash"
+
+// opencode-go provider 在 models.dev 定义 env=OPENCODE_API_KEY。
+// serve 模式不读 auth.json 的 opencode-go 条目，必须显式注入该 env（env → 注册表 → auth.json 三级解析）。
+function resolveOpenCodeAPIKey() {
+  if (process.env.OPENCODE_API_KEY) return process.env.OPENCODE_API_KEY
+  try {
+    const reg = execSync('reg query "HKCU\\Environment" /v OPENCODE_API_KEY', {
+      stdio: ["ignore", "pipe", "ignore"], timeout: 5000, encoding: "utf8",
+    }).toString()
+    const m = reg.match(/OPENCODE_API_KEY\s+REG_\w+\s+(\S+)/)
+    if (m && m[1]) return m[1]
+  } catch (_) {}
+  try {
+    const authPath = resolve(process.env.USERPROFILE || "C:\\Users\\MT", ".local", "share", "opencode", "auth.json")
+    const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"))
+    for (const p of ["opencode-go", "opencode"]) {
+      if (auth[p] && auth[p].key) return auth[p].key
+    }
+  } catch (_) {}
+  return undefined
+}
+const OPENCODE_API_KEY = resolveOpenCodeAPIKey()
+if (!OPENCODE_API_KEY) {
+  console.error("[FATAL] 无法解析 OPENCODE_API_KEY（未设置环境变量且注册表/auth.json 均无 key）")
+  process.exit(2)
+}
 
 function log(msg) {
   console.log(`[L4] ${msg}`)
@@ -59,17 +87,26 @@ async function waitForPort(port, label, timeout = 30000) {
 }
 
 async function main() {
+  // 确保 adb 可用（run-layer4 用 execSync("adb ...")，需要 adb 在 PATH）
+  const adbHome = process.env.ANDROID_HOME ||
+    resolve(process.env.LOCALAPPDATA || "C:\\Users\\MT\\AppData\\Local", "Android", "Sdk")
+  const adbDir = resolve(adbHome, "platform-tools")
+  if (!process.env.PATH.split(";").some(p => p.trim().toLowerCase() === adbDir.toLowerCase())) {
+    process.env.PATH = `${adbDir};${process.env.PATH}`
+  }
+  log("adb: " + (execSync("adb --version", { stdio: ["ignore", "pipe", "ignore"], timeout: 5000, encoding: "utf8" }).split("\n")[0] || "?").trim())
+
   log("=== Layer 4 E2E 启动 ===")
   log(`OpenCode: ${OPENCODE_PATH} :${OPENCODE_PORT}`)
   log(`Bridge: :${BRIDGE_PORT}`)
   log("")
 
-  // 1. 启动 OpenCode serve
+  // 1. 启动 OpenCode serve（直接 spawn exe，不经 .cmd + shell:true，否则 env 丢失 → 模型 key 失效）
   log("1. 启动 OpenCode serve...")
   const opencode = spawn(OPENCODE_PATH, ["serve", "--port", OPENCODE_PORT, "--print-logs"], {
     stdio: ["ignore", "pipe", "pipe"],
-    shell: true,
-    env: { ...process.env },
+    shell: false,
+    env: { ...process.env, OPENCODE_SERVER_PASSWORD: "", OPENCODE_API_KEY },
   })
   opencode.stdout.on("data", (d) => process.stdout.write(`[opencode] ${d}`))
   opencode.stderr.on("data", (d) => process.stderr.write(`[opencode] ${d}`))
@@ -85,9 +122,10 @@ async function main() {
 
   // 2. 启动 Bridge
   log("2. 启动 Bridge 服务器...")
+  const tsxCli = resolve(ROOT, "servers/bridge/node_modules/tsx/dist/cli.mjs")
   const bridge = spawn(
-    require.resolve("tsx/dist/cli.mjs"),
-    [resolve(ROOT, "servers/bridge/src/index.ts")],
+    process.execPath,
+    [tsxCli, resolve(ROOT, "servers/bridge/src/index.ts")],
     {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -139,20 +177,40 @@ async function main() {
     execSync("adb shell pm clear com.mobileagentbridge", { stdio: "pipe" })
   } catch {}
 
-  // 5. 运行 Maestro flows
-  log("4. 运行 Maestro L4 flows...")
-  const flowsDir = resolve(ROOT, ".maestro/flows/l4-e2e")
-  const flows = fs.readdirSync(flowsDir).filter((f) => f.endsWith(".yaml"))
-  log(`   找到 ${flows.length} 个 flow`)
+  // 5. 运行 Maestro flows（--layer l4/l5/all，默认 l4；支持 --layer=all 与 --layer all）
+  let layerArg = "l4"
+  const layerIdx = process.argv.indexOf("--layer")
+  if (process.argv.includes("--all")) layerArg = "all"
+  else if (layerIdx >= 0 && process.argv[layerIdx + 1]) layerArg = process.argv[layerIdx + 1]
+  else {
+    const eq = process.argv.find(a => a.startsWith("--layer="))
+    if (eq) layerArg = eq.split("=")[1]
+  }
+  const targets = []
+  if (layerArg === "all" || layerArg === "l4") {
+    const flowsDir = resolve(ROOT, ".maestro/flows/l4-e2e")
+    targets.push(...fs.readdirSync(flowsDir).filter((f) => f.endsWith(".yaml")).map((f) => resolve(flowsDir, f)))
+  }
+  if (layerArg === "all" || layerArg === "l5") {
+    targets.push(resolve(ROOT, ".maestro/flows/l5-complete-e2e.yaml"))
+  }
+  log(`4. 运行 Maestro flows (layer=${layerArg})...`)
+  log(`   找到 ${targets.length} 个 flow`)
 
   let passed = 0
   let failed = 0
 
-  for (const flow of flows) {
+  for (let i = 0; i < targets.length; i++) {
+    const flow = targets[i]
+    // flow 之间延时，避免 Maestro driver 并发/重启竞争导致启动超时
+    if (i > 0) {
+      log(`   [delay] 等待 driver 释放 5s...`)
+      await sleep(5000)
+    }
     log(`   运行: ${flow}`)
     const start = Date.now()
     try {
-      execSync(`.maestro/maestro.cmd test .maestro/flows/l4-e2e/${flow}`, {
+      execSync(`"${resolve(ROOT, ".maestro/maestro.cmd")}" test "${flow}"`, {
         cwd: ROOT,
         stdio: "pipe",
         timeout: 300000, // 5min per flow
@@ -162,7 +220,9 @@ async function main() {
       passed++
     } catch (e) {
       const elapsed = ((Date.now() - start) / 1000).toFixed(0)
+      const stderr = e.stderr ? e.stderr.toString().slice(0, 500) : ""
       log(`   ❌ ${flow} (${elapsed}s)`)
+      if (stderr) log(`      stderr: ${stderr}`)
       failed++
     }
   }

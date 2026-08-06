@@ -6,10 +6,15 @@
 
 ## Bash 超时安全网
 
-项目 `.opencode/plugin/bash-timeout-guard.ts` 是一个 opencode plugin，自动拦截所有 bash 调用，强制限制 `timeout ≤ 180s`。这意味着：
+项目 `.opencode/plugin/bash-timeout-guard.ts` 是一个 opencode plugin，自动拦截所有 bash 调用，强制限制 `timeout ≤ 180s`：
+
+- **`tool.execute.before`**：把 bash 的 `timeout` 统一 cap 到 180s（3 分钟上限）。opencode bash 工具原生消费该参数，**超过 180s 会自动强制 kill 进程树**，任何 bash 命令最长跑 3 分钟。
+- **`tool.execute.after`**：若 bash 结果标记超时（`Command exceeded timeout`），**向 agent 注入明确警告**（输出追加 `[超时]...已被强制终止`），提醒不要超过 180s。
+
+这意味着：
 - 长后台任务（E2E 测试/APK 构建）**绝不传 timeout 或传很小的 timeout**（仅够启动进程本身），任务本身用 `Start-Process -WindowStyle Hidden` 或 `Start-Job` 启动
 - 日志查询/结果检查命令的 timeout 设 ≤ 15s，用短查询轮询取代长 sleep
-- **当插件拦截并抛出 timeout 超限错误时，立即切换到 fire-and-forget + 短查询轮询模式**，而不是试图增加 timeout 重试。插件的阻止是强制性的，调大 timeout 不会被放过。
+- **当 agent 看到 bash 被强制终止（超时）或插件 cap 提示时，立即切换到 fire-and-forget + 短查询轮询模式**，而不是试图增加 timeout 重试。插件的 cap 是强制性的，bash 最长 3 分钟，调大 timeout 不会放过。
 
 ---
 
@@ -139,6 +144,25 @@ npm run e2e:all          # 全部测试（2 个流程）
 
 - **禁止在 tsx 环境下使用 SDK 的 `fetch` 通道**（`req.timeout = false` 在 tsx 下会导致 hang）。所有 OpenCode API 调用必须走 `opencodeFetch()`（基于 Node.js `http` 模块）。
 - 如果引入新的后端 HTTP 调用，必须使用 `http`/`https` 模块，禁止使用 `fetch`。
+
+## opencode-go 模型 key 注入（serve 模式）
+
+- **`opencode serve` 模式不读 `auth.json` 的 provider 条目，只认环境变量**。`opencode-go`/`opencode` provider 在 models.dev 定义 `env: ["OPENCODE_API_KEY"]`。
+- 不注入 `OPENCODE_API_KEY` 时，serve 模式会用该模型建 session 时解析失败：`Model unavailable: opencode-go/deepseek-v4-flash` 或 `HTTP 401: Missing API key`，表现为"卡住"（消息已受理但无任何响应事件）。
+- **CLI `opencode run` 才读 auth.json**，直接运行测试时正常，容易误以为 key 没问题。
+- **推荐做法：把 key 持久化为 Windows 用户级环境变量**（一次性配置，serve/脚本自动继承）：
+  ```powershell
+  $key = (Get-Content "$env:USERPROFILE\.local\share\opencode\auth.json" -Raw | ConvertFrom-Json).'opencode-go'.key
+  setx OPENCODE_API_KEY $key
+  ```
+  ⚠️ `setx` 只对**新启动**的进程生效（当前已运行的 opencode 需重启）。
+- 启动 serve 必须显式注入（脚本兜底，env → 注册表 → auth.json 三级解析）：
+  ```js
+  const OPENCODE_API_KEY = resolveOpenCodeAPIKey() // env → reg(HKCU\Environment) → auth.json
+  spawn("opencode.exe", ["serve", ...], { env: { ...process.env, OPENCODE_API_KEY } })
+  ```
+  ⚠️ 必须直接 spawn `opencode.exe`（绝对路径），**不要用 `opencode.cmd` + `shell:true`**——.cmd 包装层会丢失传入的 env，导致 key 失效（实测 `shell:false` 直接 spawn exe 才可靠）。
+- 参考实现：`scripts/e2e/test-project-analysis.mjs` 的 `resolveOpenCodeAPIKey()`。
 
 ---
 

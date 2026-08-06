@@ -23,5 +23,19 @@ export const BashTimeoutGuard: Plugin = async () => {
         )
       }
     },
+    "tool.execute.after": async (input, output) => {
+      if (input.tool !== "bash") return
+
+      // bash 工具超时返回 "Command exceeded timeout of X ms"；opencode 已强制中止进程
+      const isTimeout = typeof output.output === "string" && output.output.includes("Command exceeded timeout")
+
+      if (isTimeout) {
+        const reminder =
+          `\n\n[超时] 该 bash 命令运行超过 ${MAX_TIMEOUT_MS / 1000}s，已被强制终止。` +
+          `请勿让 bash 阻塞超过 ${MAX_TIMEOUT_MS / 1000}s：改为短查询轮询或 fire-and-forget 后台任务。`
+        output.output = `${output.output}${reminder}`
+        console.log(`[BashTimeoutGuard] bash 超时已被强制终止（>${MAX_TIMEOUT_MS / 1000}s）`)
+      }
+    },
   }
 }

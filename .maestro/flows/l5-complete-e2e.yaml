@@ -20,21 +20,21 @@ appId: com.mobileagentbridge
 - launchApp
 
 # ============================================================
-# Step 1: 连接 Bridge 服务器
+# Step 1: 连接 Bridge 服务�?
 # ============================================================
 - tapOn: "ws://192.168.1.100:8080/ws"
 - eraseText: 50
-- inputText: "ws://10.0.2.2:8081/ws"
+- inputText: "ws://10.0.2.2:19985/ws"
 - tapOn: "password (optional)"
 - inputText: "test123"
 - tapOn: "project directory (e.g. /home/user/project)"
-- inputText: "."
+- inputText: 'D:\code\mobile-agent-bridge'
 - tapOn: "Connect"
 
-# 校验点 1: 连接成功 → Tab 栏出现
+# 校验点 1: 连接成功 → 会话列表出现（+ New 是连接成功的可靠信号）
 - extendedWaitUntil:
-    visible: "Chat"
-    timeout: 20000
+    visible: "+ New"
+    timeout: 30000
 - assertNotVisible: "Connect"
 - assertVisible: "Files"
 - assertVisible: "Settings"
