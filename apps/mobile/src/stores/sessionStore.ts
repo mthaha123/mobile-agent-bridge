@@ -165,9 +165,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)) }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
-      // 真实 SDK 返回最新在前的事件对象（带 type 字段），ChatScreen 按时间正序渲染 → 反转
+      // 真实 SDK 默认返回最新在前（desc）的事件对象（带 type 字段）。
+      // 显式 asc 时返回时间正序；仅非 asc（desc/默认）且为 SDK 事件格式时才反转成正序。
       const isSdkEventFormat = raw.some((m) => m && typeof m.type === 'string')
-      const list = isSdkEventFormat ? mapped.reverse() : mapped
+      const list = (opts?.order !== 'asc' && isSdkEventFormat) ? mapped.reverse() : mapped
       const cursor = result && typeof result === 'object' && !Array.isArray(result)
         ? (result as Record<string, unknown>).cursor
         : undefined

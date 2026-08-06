@@ -1,7 +1,7 @@
 appId: com.mobileagentbridge
 ---
-# Layer 4 — 选择已有会话 + 历史消息渲染（分页加载）
-# 流程：创建会话 → 发消息（产生历史）→ 回列表 → 重新选该会话 → 验证历史消息可见
+# Layer 4 — 选择已有会话 + 历史消息渲染（全量加载）
+# 流程：创建会话 → 发消息 → 验证用户消息渲染 → 回列表 → 重新选该会话 → 验证历史消息可见
 - launchApp
 
 # 连接真实 Bridge
@@ -14,14 +14,18 @@ appId: com.mobileagentbridge
     timeout: 30000
 
 - tapOn: "Type a message..."
-- inputText: "PERSISTED_MARKER_HISTORY_123"
+- inputText: "Reply with the word: HELLO_HISTORY_123"
 - tapOn: "Send message"
+
+# 发送后用户消息应立即渲染（位于列表底部，此刻可见）
+- extendedWaitUntil:
+    visible: "Reply with the word: HELLO_HISTORY_123"
+    timeout: 15000
 
 # 等待回复完成
 - extendedWaitUntil:
     notVisible: "AI is thinking..."
     timeout: 90000
-- assertVisible: "PERSISTED_MARKER_HISTORY_123"
 
 # 回到会话列表
 - tapOn: "< Sessions"
@@ -39,9 +43,11 @@ appId: com.mobileagentbridge
     visible: "< Sessions"
     timeout: 15000
 
-# 验证历史消息被重新加载（分页加载后可见）
-- extendedWaitUntil:
-    visible: "PERSISTED_MARKER_HISTORY_123"
+# 验证历史消息被全量加载渲染（滚动到该消息可见）
+- scrollUntilVisible:
+    element:
+      text: "Reply with the word: HELLO_HISTORY_123"
+    direction: UP
     timeout: 30000
 
 # 验证仍在 ChatScreen 且可交互
