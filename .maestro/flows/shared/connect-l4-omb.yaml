@@ -1,0 +1,14 @@
+appId: com.mobileagentbridge
+---
+# Shared: 连接真实 Bridge，项目指向 opencode-mobile-bridge（该项目的 permission 配置含 external_directory: ask）
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:19985/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: 'D:\code\opencode-mobile-bridge'
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000

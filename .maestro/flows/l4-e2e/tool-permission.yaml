@@ -1,9 +1,10 @@
 appId: com.mobileagentbridge
 ---
-# Layer 4 — 工具审批流程: 触发工具调用 → 验证审批 Sheet → 批准
+# Layer 4 — 工具审批流程（opencode-mobile-bridge 项目）
+# 该项目 permission 配置含 external_directory: ask；读取项目目录外文件会触发审批 Sheet。
 - launchApp
 
-- runFlow: ../shared/connect-l4.yaml
+- runFlow: ../shared/connect-l4-omb.yaml
 
 # 创建会话
 - tapOn: "+ New"
@@ -11,23 +12,23 @@ appId: com.mobileagentbridge
     visible: "< Sessions"
     timeout: 30000
 
-# 发送会触发工具调用的消息（读取文件）
+# 发送会触发工具调用的消息（读取项目目录外的文件，触发 external_directory 审批）
 - tapOn: "Type a message..."
-- inputText: "read package.json"
+- inputText: "read file C:\\Windows\\win.ini and tell me what section [fonts] contains"
 - tapOn: "Send message"
 
 # 等待工具审批 Sheet 弹出
 - extendedWaitUntil:
     visible: "Tool Request"
-    timeout: 60000
+    timeout: 90000
 
-# 验证工具名称可见
-- assertVisible: "read"
+# 验证审批类型可见
+- assertVisible: "external_directory"
 
 # 批准工具执行
 - tapOn: "Approve"
 
-# 等待回复完成
+# 等待审批 Sheet 关闭
 - extendedWaitUntil:
     notVisible: "Tool Request"
     timeout: 60000
