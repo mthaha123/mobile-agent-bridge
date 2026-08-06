@@ -15,7 +15,6 @@ export interface ConfigState {
   agents: unknown[]
   commands: unknown[]
   models: unknown[]
-  vcs: unknown | null
   loading: boolean
   error: string | null
 
@@ -24,7 +23,6 @@ export interface ConfigState {
   fetchAgents: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchCommands: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchModels: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
-  fetchVcs: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   updateConfig: (updates: Record<string, unknown>, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
@@ -34,7 +32,6 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   agents: [],
   commands: [],
   models: [],
-  vcs: null,
   loading: false,
   error: null,
 
@@ -86,16 +83,6 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       set({ models: extractArray(result, 'models'), loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 models 失败' })
-    }
-  },
-
-  fetchVcs: async (clientCall) => {
-    set({ loading: true, error: null })
-    try {
-      const result = await clientCall('vcs.get')
-      set({ vcs: result, loading: false })
-    } catch (e: unknown) {
-      set({ loading: false, error: e instanceof Error ? e.message : '获取 VCS 失败' })
     }
   },
 

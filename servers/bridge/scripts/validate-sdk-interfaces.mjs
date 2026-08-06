@@ -207,16 +207,18 @@ for (const [label, method] of [
   t(label, method)
 }
 
-// ─ 已从 bridge 移除为空的端点（config/vcs/project，server 不支持） ─
+// ─ bridge 真实对接的端点（provider.list 替代 config.providers，location 替代 project.*） ─
+t("provider.list (config.providers 替代)", () => sdk.v2.provider.list({}))
+t("location.get (project.current/list 数据源)", () => sdk.v2.location.get({}))
+
+// ─ server 不存在的端点（bridge 占位返回空） ─
 for (const [label, method, path] of [
   ["config.get (removed)", "GET", "/api/config"],
-  ["config.providers (removed)", "GET", "/api/config/providers"],
-  ["vcs.get (removed)", "GET", "/api/vcs"],
-  ["project.list (removed)", "GET", "/api/project"],
+  ["config.providers legacy (removed)", "GET", "/api/config/providers"],
 ]) {
   tests.push(async () => {
     const r = await probeEndpoint(method, path)
-    if (r.status === "HTML" || r.status === 404 || r.status === "TIMEOUT") ok(label, `endpoint → ${r.status} (不存在, bridge 返回空)`)
+    if (r.status === "HTML" || r.status === 404 || r.status === "TIMEOUT") ok(label, `endpoint → ${r.status} (不存在, bridge 占位)`)
     else fail(label, `endpoint → ${JSON.stringify(r).slice(0, 80)} (意外存在!)`)
   })
 }

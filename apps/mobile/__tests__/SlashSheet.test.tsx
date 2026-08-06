@@ -12,7 +12,7 @@ beforeEach(() => {
   useConfigStore.setState({
     agents: [{ name: 'CodeStral' }, { name: 'GPT-4o' }],
     commands: [{ command: 'model', description: 'Switch model' }, { command: 'agent', description: 'Switch agent' }],
-    config: null, providers: [], vcs: null, loading: false, error: null,
+    config: null, providers: [], loading: false, error: null,
   })
   jest.clearAllMocks()
 })

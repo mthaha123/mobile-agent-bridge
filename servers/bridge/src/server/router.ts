@@ -89,9 +89,20 @@ registerHandler("auth.logout", () => handleLogout())
 registerHandler("health.ping", () => ({ ok: true }))
 
 registerHandler("project.switch", async (params) => switchProject(params.directory))
-registerHandler("project.current", async () => getCurrentProject())
-// opencode server 1.18.x 已移除 /project 端点（返回空，避免挂起）
-registerHandler("project.list", async () => [])
+registerHandler("project.current", async () => {
+  // 真实对接 opencode /api/location（含 directory + project）
+  const loc = await sdkCall(() => sdk().v2.location.get({}))
+  return { directory: loc?.directory ?? getCurrentProject().directory, project: loc?.project ?? getCurrentProject().project }
+})
+// opencode server 1.18.x 为单项目模型，无 /project 列表端点（返回当前项目，避免挂起）
+registerHandler("project.list", async () => {
+  try {
+    const loc = await sdkCall<{ directory?: string; project?: { name?: string; id?: string } }>(() => sdk().v2.location.get({}))
+    return loc?.directory ? [{ directory: loc.directory, name: loc.project?.name || loc.project?.id || loc.directory }] : []
+  } catch {
+    return []
+  }
+})
 
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
 // SDK 内部使用 createOpencodeClient 时传入的 fetch，确保 tsx 兼容
@@ -231,15 +242,18 @@ registerHandler("question.reject", async (p) => {
   }))
 })
 
-// opencode server 1.18.x 已移除 /config、/config/providers、/vcs 端点（返回空，避免挂起）
+// opencode server 1.18.x 无 /config 端点：config.get/update 返回空（功能在 server 侧不存在）
 registerHandler("config.get", async () => ({ config: {} }))
 registerHandler("config.update", async () => ({ ok: true }))
 registerHandler("config.agents", async () => sdkCall(() => sdk().v2.agent.list({})))
-registerHandler("config.providers", async () => ({ providers: [] }))
+// config.providers 真实对接 /api/provider
+registerHandler("config.providers", async () => {
+  const providers = await sdkCall(() => sdk().v2.provider.list({}))
+  return { providers }
+})
 registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))
 registerHandler("command.list", async () => sdkCall(() => sdk().v2.command.list({})))
 registerHandler("model.list", async () => sdkCall(() => sdk().v2.model.list({})))
-registerHandler("vcs.get", async () => ({ branch: null, status: [] }))
 
 // ===== 文件操作（直接实现，不经过 SDK）=====
 

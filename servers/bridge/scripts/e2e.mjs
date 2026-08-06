@@ -461,7 +461,7 @@ if (!hasOpenCode) {
     await testSdkProxy(method, params, id)
   }
 
-  // ── 场景: question.* / permission / config / vcs ──
+  // ── 场景: question.* / permission / config ──
   const otherMethods = [
     { method: "question.reply",   params: { id: "q_test", answer: "yes" } },
     { method: "question.reject",  params: { id: "q_test" } },
@@ -469,7 +469,6 @@ if (!hasOpenCode) {
     { method: "config.providers", params: {} },
     { method: "config.agents",    params: {} },
     { method: "provider.list",    params: {} },
-    { method: "vcs.get",          params: {} },
     { method: "command.list",     params: {} },
   ]
 

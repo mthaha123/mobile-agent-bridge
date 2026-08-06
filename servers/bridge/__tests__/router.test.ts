@@ -52,7 +52,6 @@ function createMockSdk() {
     providers: jest.fn<any>().mockResolvedValue({ data: [] }),
     update: jest.fn<any>().mockResolvedValue({ data: {} }),
   }
-  const mockVcs = { get: jest.fn<any>().mockResolvedValue({ data: {} }) }
   const mockV2 = {
     session: {
       ...mockV3Session,
@@ -64,6 +63,7 @@ function createMockSdk() {
         clear: jest.fn<any>().mockResolvedValue(undefined),
       },
     },
+    location: { get: jest.fn<any>().mockResolvedValue({ data: { directory: "D:\\code\\mobile-agent-bridge", project: { name: "mobile-agent-bridge" } } }) },
     model: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     agent: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     provider: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
@@ -76,9 +76,8 @@ function createMockSdk() {
       },
     },
   }
-
-  backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, vcs: mockVcs, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
-  return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig, mockVcs }
+  backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
+  return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig }
 }
 
 const testPayload: TokenPayload = { sub: "test", role: "user" }
@@ -657,12 +656,14 @@ describe("RPC Router", () => {
     expect(mockV2.agent.list).toHaveBeenCalledWith({})
   })
 
-  it("should return empty providers on config.providers (endpoint removed in server 1.18)", async () => {
+  it("should call provider.list on config.providers (v2)", async () => {
+    const { mockV2 } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.providers", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
+    expect(mockV2.provider.list).toHaveBeenCalledWith({})
     expect(messages[0].payload).toEqual({ providers: [] })
   })
 
@@ -684,15 +685,6 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV2.command.list).toHaveBeenCalledWith({})
-  })
-
-  it("should return empty vcs on vcs.get (endpoint removed in server 1.18)", async () => {
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "vcs.get", params: {},
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ branch: null, status: [] })
   })
 
   it("should call model.list", async () => {
@@ -807,22 +799,27 @@ describe("RPC Router", () => {
 
   // ===== Project handler =====
 
-  it("should return current project via project.current (default null)", async () => {
+  it("should return current project via project.current (from v2.location)", async () => {
+    createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "project.current", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ directory: null, project: null })
+    expect(messages[0].payload.directory).toBe("D:\\code\\mobile-agent-bridge")
+    expect(messages[0].payload.project).toEqual({ name: "mobile-agent-bridge" })
   })
 
-  it("should return empty list on project.list (endpoint removed in server 1.18)", async () => {
+  it("should return current project on project.list (via v2.location)", async () => {
+    createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "project.list", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual([])
+    expect(messages[0].payload).toEqual([
+      { directory: "D:\\code\\mobile-agent-bridge", name: "mobile-agent-bridge" },
+    ])
   })
 
   it("should reject project.switch without directory", async () => {
@@ -885,6 +882,7 @@ describe("RPC Router", () => {
         ...oldSdk,
         v2: {
           ...(oldSdk as any).v2,
+          location: { get: jest.fn<any>().mockResolvedValue({ data: { directory, project: { name: "test" } } }) },
           event: { subscribe: jest.fn<any>().mockResolvedValue({ stream: (async function*() {})() }) },
         },
       } as any

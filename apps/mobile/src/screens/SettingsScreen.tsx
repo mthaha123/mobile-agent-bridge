@@ -20,9 +20,6 @@ export const SettingsScreen: React.FC = () => {
 
   const config = useConfigStore((s) => s.config)
   const updateConfig = useConfigStore((s) => s.updateConfig)
-  const vcs = useConfigStore((s) => s.vcs) as Record<string, unknown> | null
-  const vcsType = vcs?.type || vcs?.vcs || ''
-  const vcsBranch = vcs?.branch || vcs?.currentBranch || ''
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; label?: string }>
   const providers = useConfigStore((s) => s.providers) as Array<{ name?: string; id?: string }>
 
@@ -105,20 +102,6 @@ export const SettingsScreen: React.FC = () => {
         ) : (
           <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
         )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>VCS</Text>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Type</Text>
-          <Text style={styles.rowValue}>{vcsType ? String(vcsType) : '(none)'}</Text>
-        </View>
-        {vcsBranch ? (
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Branch</Text>
-            <Text style={styles.rowValue}>{String(vcsBranch)}</Text>
-          </View>
-        ) : null}
       </View>
 
       <View style={styles.section}>

@@ -1,7 +1,7 @@
 /**
  * configStore tests
  *
- * Tests all 5 config fetch methods: config, providers, agents, commands, vcs.
+ * Tests config fetch methods: config, providers, agents, commands.
  * Each method takes a clientCall function and follows loading/error patterns.
  */
 
@@ -13,7 +13,6 @@ function resetConfigStore() {
     providers: [],
     agents: [],
     commands: [],
-    vcs: null,
     loading: false,
     error: null,
   })
@@ -145,34 +144,6 @@ describe('fetchCommands', () => {
     expect(useConfigStore.getState().commands).toEqual([])
     expect(useConfigStore.getState().loading).toBe(false)
     expect(useConfigStore.getState().error).toBe('commands error')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// fetchVcs
-// ---------------------------------------------------------------------------
-
-describe('fetchVcs', () => {
-  it('calls vcs.get and updates vcs state on success', async () => {
-    const vcsData = { type: 'git', branch: 'main' }
-    const clientCall = jest.fn().mockResolvedValue(vcsData)
-
-    await useConfigStore.getState().fetchVcs(clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('vcs.get')
-    expect(useConfigStore.getState().vcs).toEqual(vcsData)
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBeNull()
-  })
-
-  it('handles fetch failure gracefully', async () => {
-    const clientCall = jest.fn().mockRejectedValue(new Error('vcs error'))
-
-    await useConfigStore.getState().fetchVcs(clientCall)
-
-    expect(useConfigStore.getState().vcs).toBeNull()
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBe('vcs error')
   })
 })
 
