@@ -602,4 +602,81 @@ describe('ChatScreen', () => {
     expect(mdComponents[0].props.content).toBe('First')
     expect(mdComponents[1].props.content).toBe('Second')
   })
+
+  // ─── 历史消息全量加载（选择已有会话） ──────────────────────
+
+  it('loads full history via getSessionMessages when session becomes active (order asc)', async () => {
+    const getSessionMessages = jest.fn().mockResolvedValue({
+      messages: [
+        { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
+        { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+        { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
+      ],
+      cursor: undefined,
+    })
+    useSessionStore.getState().getSessionMessages = getSessionMessages as any
+
+    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+
+    let tree: TestRenderer.ReactTestRenderer
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+      )
+    })
+
+    expect(getSessionMessages).toHaveBeenCalledWith('s1', expect.anything(), { order: 'asc' })
+    const msgs = useChatStore.getState().messages
+    expect(msgs.map((m) => m.content)).toEqual(['First Q', 'First A', 'Second Q'])
+  })
+
+  it('dedupes history messages by messageID when re-loaded', async () => {
+    const history = [
+      { id: 'h1', role: 'user', content: 'Q', text: 'Q', rawContent: 'Q' },
+      { id: 'h2', role: 'assistant', content: 'A', text: 'A', rawContent: 'A' },
+    ]
+    const getSessionMessages = jest.fn().mockResolvedValue({ messages: history, cursor: undefined })
+    useSessionStore.getState().getSessionMessages = getSessionMessages as any
+
+    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+
+    await act(async () => {
+      TestRenderer.create(<ChatScreen onNavigateToSessions={onNavigateToSessions} />)
+    })
+    const afterLoad = useChatStore.getState().messages
+    expect(afterLoad).toHaveLength(2)
+
+    // 再次加载相同历史 → 去重，不重复
+    useChatStore.getState().addMessage({ role: 'user', content: 'Q', messageID: 'h1' })
+    useChatStore.getState().addMessage({ role: 'assistant', content: 'A', messageID: 'h2' })
+    expect(useChatStore.getState().messages).toHaveLength(2)
+  })
+
+  it('renders full history in chronological order (user first)', async () => {
+    const getSessionMessages = jest.fn().mockResolvedValue({
+      messages: [
+        { id: 'h1', role: 'user', content: 'Oldest Q', text: 'Oldest Q', rawContent: 'Oldest Q' },
+        { id: 'h2', role: 'assistant', content: 'Latest A', text: 'Latest A', rawContent: 'Latest A' },
+      ],
+      cursor: undefined,
+    })
+    useSessionStore.getState().getSessionMessages = getSessionMessages as any
+    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+
+    let tree: TestRenderer.ReactTestRenderer
+    await act(async () => {
+      tree = TestRenderer.create(<ChatScreen onNavigateToSessions={onNavigateToSessions} />)
+    })
+
+    const text = textOf(tree!)
+    // user 消息在前（chronological），且都渲染了
+    expect(text).toContain('Oldest Q')
+    expect(text).toContain('Latest A')
+  })
 })
