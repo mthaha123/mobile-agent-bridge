@@ -73,18 +73,11 @@ export interface SessionState {
   clearError: () => void
   fetchSessions: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   createSession: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
-  deleteSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 
   // Advanced session operations
   getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
   getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
-  renameSession: (id: string, name: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
-  getSessionTodo: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
-  getSessionDiff: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
-  forkSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
-  getSessionChildren: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<any[]>
   revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
-  unrevertSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchAgent: (id: string, agent: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchModel: (id: string, model: string | { id: string; providerID: string; variant?: string }, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
@@ -138,16 +131,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  deleteSession: async (id, clientCall) => {
-    set({ error: null })
-    try {
-      await clientCall('session.delete', { sessionId: id })
-      get().removeSession(id)
-    } catch (e: unknown) {
-      console.warn('session.delete not supported:', e instanceof Error ? e.message : e)
-    }
-  },
-
   // ---------------------------------------------------------------------------
   // Advanced session operations
   // ---------------------------------------------------------------------------
@@ -186,73 +169,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  renameSession: async (id, name, clientCall) => {
-    try {
-      await clientCall('session.rename', { sessionId: id, name })
-    } catch (e: unknown) {
-      console.warn('session.rename failed:', e instanceof Error ? e.message : e)
-    }
-  },
-
-  getSessionTodo: async (id, clientCall) => {
-    try {
-      const result = await clientCall('session.todo', { sessionId: id })
-      return normalizeArray<any>(result, 'todos')
-    } catch (e: unknown) {
-      console.warn('session.todo failed:', e instanceof Error ? e.message : e)
-      return []
-    }
-  },
-
-  getSessionDiff: async (id, clientCall) => {
-    try {
-      const result = await clientCall('session.diff', { sessionId: id })
-      return normalizeArray<any>(result, 'diffs')
-    } catch (e: unknown) {
-      console.warn('session.diff failed:', e instanceof Error ? e.message : e)
-      return []
-    }
-  },
-
-  forkSession: async (id, clientCall) => {
-    set({ error: null })
-    try {
-      const result = await clientCall('session.fork', { sessionId: id })
-      if (typeof result === 'string') return result || null
-      if (result && typeof result === 'object') {
-        const obj = result as Record<string, unknown>
-        return (obj.sessionId as string) ?? (obj.sessionID as string) ?? null
-      }
-      return null
-    } catch (e: unknown) {
-      set({ error: e instanceof Error ? e.message : '复刻会话失败' })
-      return null
-    }
-  },
-
-  getSessionChildren: async (id, clientCall) => {
-    try {
-      const result = await clientCall('session.children', { sessionId: id })
-      return normalizeArray<any>(result, 'sessions')
-    } catch (e: unknown) {
-      console.warn('session.children failed:', e instanceof Error ? e.message : e)
-      return []
-    }
-  },
-
   revertSession: async (id, messageID, partID, clientCall) => {
     try {
       await clientCall('session.revert', { sessionId: id, messageID, partID })
     } catch (e: unknown) {
       console.warn('session.revert failed:', e instanceof Error ? e.message : e)
-    }
-  },
-
-  unrevertSession: async (id, clientCall) => {
-    try {
-      await clientCall('session.unrevert', { sessionId: id })
-    } catch (e: unknown) {
-      console.warn('session.unrevert failed:', e instanceof Error ? e.message : e)
     }
   },
 

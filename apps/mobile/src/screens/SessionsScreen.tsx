@@ -45,7 +45,6 @@ export const SessionsScreen: React.FC = () => {
   const loading = useSessionStore((s) => s.loading)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const createSession = useSessionStore((s) => s.createSession)
-  const deleteSession = useSessionStore((s) => s.deleteSession)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const projects = useProjectStore((s) => s.projects)
@@ -100,27 +99,6 @@ export const SessionsScreen: React.FC = () => {
     pushChat()
   }
 
-  const handleDeleteSession = (sessionId: string, sessionName: string) => {
-    Alert.alert(
-      'Delete Session',
-      `Are you sure you want to delete "${sessionName}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const client = useAuthStore.getState().client
-            if (!client) return
-            await deleteSession(sessionId, client.call.bind(client))
-          },
-        },
-      ],
-    )
-  }
-
-
-
   const renderSession = ({ item }: { item: import('../stores/sessionStore').Session }) => {
     const displayName = item.name || `Session ${item.id.slice(0, 8)}`
 
@@ -128,7 +106,6 @@ export const SessionsScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.sessionCard}
         onPress={() => handleSelectSession(item.id)}
-        onLongPress={() => handleDeleteSession(item.id, displayName)}
         activeOpacity={0.7}
       >
         <View style={styles.sessionInfo}>

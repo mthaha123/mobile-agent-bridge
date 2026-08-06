@@ -113,15 +113,6 @@ describe('Auth → Session flow', () => {
     expect(useChatStore.getState().activeSessionId).toBe('s2')
     expect(useSessionStore.getState().sessions).toHaveLength(1)
   })
-
-  it('deletes session', async () => {
-    useSessionStore.setState({
-      sessions: [{ id: 's1', name: 'Chat', createdAt: '', updatedAt: '', messageCount: 0 }],
-    })
-    const client = mockClient({ 'session.delete': () => {} })
-    await useSessionStore.getState().deleteSession('s1', client.call.bind(client))
-    expect(useSessionStore.getState().sessions).toHaveLength(0)
-  })
 })
 
 // ─── 2. 聊天 + 通知 流程 ─────────────────────────────────

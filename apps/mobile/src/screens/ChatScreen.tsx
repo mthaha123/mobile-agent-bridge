@@ -148,16 +148,10 @@ export const ChatScreen: React.FC = () => {
     useChatStore.getState().setWaiting(true)
 
     try {
-      if (text.startsWith('!')) {
-        await useChatStore.getState().shellCommand(activeSessionId, text.slice(1).trim(), client.call.bind(client))
-      } else if (text.startsWith('/')) {
-        await useChatStore.getState().writeCommand(activeSessionId, text, client.call.bind(client))
-      } else {
-        await client.call('message.send', {
-          sessionId: activeSessionId,
-          message: text,
-        })
-      }
+      await client.call('message.send', {
+        sessionId: activeSessionId,
+        message: text,
+      })
     } catch (e: unknown) {
       useChatStore.getState().addMessage({
         role: 'system',
@@ -190,7 +184,10 @@ export const ChatScreen: React.FC = () => {
     useChatStore.getState().addMessage({ role: 'user', content: command })
     useChatStore.getState().setWaiting(true)
     try {
-      await useChatStore.getState().writeCommand(activeSessionId, command, client.call.bind(client))
+      await client.call('message.send', {
+        sessionId: activeSessionId,
+        message: command,
+      })
     } catch (e: unknown) {
       useChatStore.getState().addMessage({
         role: 'system',

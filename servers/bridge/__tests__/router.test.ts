@@ -58,6 +58,11 @@ function createMockSdk() {
       ...mockV3Session,
       switchAgent: jest.fn<any>().mockResolvedValue({ data: { id: "sess_123" } }),
       switchModel: jest.fn<any>().mockResolvedValue({ data: { id: "sess_123" } }),
+      revert: {
+        stage: jest.fn<any>().mockResolvedValue({ data: { messageID: "msg_456", snapshot: "snap" } }),
+        commit: jest.fn<any>().mockResolvedValue(undefined),
+        clear: jest.fn<any>().mockResolvedValue(undefined),
+      },
     },
     model: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
     agent: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
@@ -433,50 +438,6 @@ describe("RPC Router", () => {
     expect(messages[0].error).toBeTruthy()
   })
 
-  it("should call session.delete with sessionID param", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.delete",
-      params: { id: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.delete).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should reject session.delete without id", async () => {
-    createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.delete",
-      params: {},
-    }, testPayload)
-    expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionId")
-  })
-
-  it("should call session.update with title param", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.update",
-      params: { id: "sess_123", title: "renamed" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.update).toHaveBeenCalledWith({ sessionID: "sess_123", title: "renamed" })
-  })
-
-  it("should reject session.update without id", async () => {
-    createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.update",
-      params: { title: "no id" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionId")
-  })
-
   it("should call onTokenRefreshed when auth.login returns token", async () => {
     const { ws, messages } = createMockWs()
     const onTokenRefreshed = jest.fn<any>()
@@ -614,127 +575,26 @@ describe("RPC Router", () => {
     expect(mockV3Session.active).toHaveBeenCalled()
   })
 
-  it("should call session.rename with name param", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.rename",
-      params: { id: "sess_123", name: "new-name" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.update).toHaveBeenCalledWith({
-      sessionID: "sess_123",
-      title: "new-name",
-    })
-  })
-
-  it("should reject session.rename without id", async () => {
-    createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.rename",
-      params: { name: "new-name" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionId")
-  })
-
-  it("should call session.todo", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.todo",
-      params: { sessionID: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.todo).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should call session.diff", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.diff",
-      params: { sessionID: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.diff).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should forward messageID to session.diff", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.diff",
-      params: { id: "sess_123", messageID: "msg_456" },
-    }, testPayload)
-    expect(mockSession2.diff).toHaveBeenCalledWith({ sessionID: "sess_123", messageID: "msg_456" })
-  })
-
-  it("should call session.fork", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.fork",
-      params: { sessionID: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.fork).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should call session.revert", async () => {
-    const { mockSession2 } = createMockSdk()
+  it("should call session.revert via v2 stage+commit", async () => {
+    const { mockV2 } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.revert",
-      params: { sessionID: "sess_123" },
+      params: { sessionID: "sess_123", messageID: "msg_456" },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockSession2.revert).toHaveBeenCalledWith({ sessionID: "sess_123" })
+    expect(mockV2.session.revert.stage).toHaveBeenCalledWith({ sessionID: "sess_123", messageID: "msg_456" })
+    expect(mockV2.session.revert.commit).toHaveBeenCalledWith({ sessionID: "sess_123" })
   })
 
-  it("should forward messageID and partID to session.revert", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws } = createMockWs()
+  it("should reject session.revert without id", async () => {
+    const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.revert",
-      params: { id: "sess_123", messageID: "msg_456", partID: "part_789" },
-    }, testPayload)
-    expect(mockSession2.revert).toHaveBeenCalledWith({
-      sessionID: "sess_123", messageID: "msg_456", partID: "part_789",
-    })
-  })
-
-  it("should call session.unrevert", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.unrevert",
-      params: { sessionID: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.unrevert).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should call session.children", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.children",
-      params: { sessionID: "sess_123" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.children).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should reject session.children without id", async () => {
-    createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "session.children", params: {},
+      params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("sessionId")
+    expect(messages[0].error).toContain("session.revert requires")
   })
 
   // ===== Message handlers =====
@@ -748,34 +608,6 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.interrupt).toHaveBeenCalledWith({ sessionID: "sess_123" })
-  })
-
-  it("should call message.shell with command", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "message.shell",
-      params: { sessionId: "sess_123", command: "ls -la" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.shell).toHaveBeenCalledWith({
-      sessionID: "sess_123",
-      command: "ls -la",
-    })
-  })
-
-  it("should call message.command with command", async () => {
-    const { mockSession2 } = createMockSdk()
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "message.command",
-      params: { sessionId: "sess_123", command: "/model claude" },
-    }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockSession2.command).toHaveBeenCalledWith({
-      sessionID: "sess_123",
-      command: "/model claude",
-    })
   })
 
   // ===== Question handlers =====
@@ -796,25 +628,23 @@ describe("RPC Router", () => {
 
   // ===== Config handlers =====
 
-  it("should call config.get", async () => {
-    const { mockGlobal } = createMockSdk()
+  it("should return empty config on config.get (endpoint removed in server 1.18)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.get", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockGlobal.config.get).toHaveBeenCalled()
+    expect(messages[0].payload).toEqual({ config: {} })
   })
 
-  it("should call config.update with params", async () => {
-    const { mockConfig } = createMockSdk()
+  it("should return ok on config.update (endpoint removed in server 1.18)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.update",
       params: { theme: "light" },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockConfig.update).toHaveBeenCalledWith({ theme: "light" })
+    expect(messages[0].payload).toEqual({ ok: true })
   })
 
   it("should call config.agents", async () => {
@@ -827,14 +657,13 @@ describe("RPC Router", () => {
     expect(mockV2.agent.list).toHaveBeenCalledWith({})
   })
 
-  it("should call config.providers", async () => {
-    const { mockConfig } = createMockSdk()
+  it("should return empty providers on config.providers (endpoint removed in server 1.18)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.providers", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockConfig.providers).toHaveBeenCalledWith({})
+    expect(messages[0].payload).toEqual({ providers: [] })
   })
 
   it("should call provider.list", async () => {
@@ -857,14 +686,13 @@ describe("RPC Router", () => {
     expect(mockV2.command.list).toHaveBeenCalledWith({})
   })
 
-  it("should call vcs.get", async () => {
-    const { mockVcs } = createMockSdk()
+  it("should return empty vcs on vcs.get (endpoint removed in server 1.18)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "vcs.get", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockVcs.get).toHaveBeenCalledWith({})
+    expect(messages[0].payload).toEqual({ branch: null, status: [] })
   })
 
   it("should call model.list", async () => {
@@ -988,22 +816,13 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toEqual({ directory: null, project: null })
   })
 
-  it("should call project.list", async () => {
-    createMockSdk()
+  it("should return empty list on project.list (endpoint removed in server 1.18)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "project.list", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-  })
-
-  it("should error project.list without SDK", async () => {
-    const { ws, messages } = createMockWs()
-    await handleFrame("conn1", ws, {
-      type: "req", id: "1", method: "project.list", params: {},
-    }, testPayload)
-    expect(messages[0].ok).toBe(false)
-    expect(messages[0].error).toContain("SDK not initialized")
+    expect(messages[0].payload).toEqual([])
   })
 
   it("should reject project.switch without directory", async () => {

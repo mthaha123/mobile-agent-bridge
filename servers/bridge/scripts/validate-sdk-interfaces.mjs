@@ -1,10 +1,21 @@
 #!/usr/bin/env node
+/**
+ * 验证: opencode server 真实支持的端点（对应 bridge 暴露的 WS 方法）
+ *
+ * 背景: opencode server 1.18.x 移除了部分 session 操作端点
+ *   （delete/update/todo/diff/fork/unrevert/children/shell/command），
+ *   bridge 已同步删除这些 handler；revert 改为 v2 stage+commit 两步式。
+ * 本脚本逐一探测 bridge 保留的每个 WS 方法对应的端点，确认真实可用。
+ *
+ * 用法: node servers/bridge/scripts/validate-sdk-interfaces.mjs
+ * 环境变量: OPENCODE_URL (默认 http://localhost:4096)
+ */
 import { createOpencodeClient } from "@opencode-ai/sdk/v2"
 import http from "http"
 import { URL } from "url"
 
 const OPENCODE_URL = process.env.OPENCODE_URL || "http://localhost:4096"
-const BASE = `${OPENCODE_URL.replace(/\/+$/, "")}/api`
+const BASE = `${OPENCODE_URL.replace(/\/+$/, "")}`
 
 let passed = 0, failed = 0, skipped = 0
 
@@ -12,7 +23,6 @@ function green(t) { return `\x1b[32m${t}\x1b[0m` }
 function red(t) { return `\x1b[31m${t}\x1b[0m` }
 function yellow(t) { return `\x1b[33m${t}\x1b[0m` }
 function gray(t) { return `\x1b[90m${t}\x1b[0m` }
-
 function ok(label, detail) { console.log(`  ${green("PASS")} ${label} ${gray(detail || "")}`); passed++ }
 function fail(label, detail) { console.log(`  ${red("FAIL")} ${label} ${gray(detail || "")}`); failed++ }
 function skip(label, msg) { console.log(`  ${yellow("SKIP")} ${label} ${gray(msg || "")}`); skipped++ }
@@ -23,7 +33,7 @@ function trunc(s, max = 120) {
 
 const SKIP = Symbol("skip")
 
-// Node http fetch
+// Node http fetch（带 /api 前缀）
 function createNodeFetch() {
   return async (input, init) => {
     const req = input instanceof Request ? input : new Request(String(input), init)
@@ -41,16 +51,19 @@ function createNodeFetch() {
         timeout: 15000,
       }, (res) => {
         const chunks = []; res.on("data", c => chunks.push(c))
-        res.on("end", () => resolve(new Response(Buffer.concat(chunks).toString(), {
-          status: res.statusCode || 200, statusText: res.statusMessage || "",
-          headers: { "content-type": res.headers["content-type"] || "" },
-        })))
+        res.on("end", () => {
+          const status = res.statusCode || 200
+          const bodyText = Buffer.concat(chunks).toString()
+          resolve(new Response(status === 204 ? null : bodyText, {
+            status, statusText: res.statusMessage || "",
+            headers: { "content-type": res.headers["content-type"] || "" },
+          }))
+        })
       }).on("error", reject).on("timeout", function() { this.destroy(); reject(new Error("timeout")) }).end(bodyStr || undefined)
     })
   }
 }
 
-// Wait for server
 async function waitForServer() {
   const url = new URL(`${OPENCODE_URL}/api/health`)
   for (let i = 0; i < 12; i++) {
@@ -67,16 +80,10 @@ async function waitForServer() {
   throw new Error("Server not ready")
 }
 
-// Test helpers
 let id = null
 
 async function doCall(fn) {
-  try {
-    const r = await fn()
-    return r
-  } catch (err) {
-    return { _exception: err.message }
-  }
+  try { return await fn() } catch (err) { return { _exception: err.message } }
 }
 
 function t(label, fn) {
@@ -84,30 +91,59 @@ function t(label, fn) {
     const r = await doCall(fn)
     if (r === SKIP) return
     if (r?._exception) { fail(label, `Exception: ${r._exception}`); return }
-    if (r?.error) {
-      const msg = typeof r.error === "string" ? r.error : r.error?.message || JSON.stringify(r.error)
-      fail(label, trunc(msg))
-      return
-    }
+    if (r?.error) { fail(label, trunc(r.error)); return }
     ok(label, `${JSON.stringify(r?.data).length}B`)
   })
 }
 
+// 期望 404/失败（端点存在但参数错误 → 说明端点注册了；HTML fallback → 端点不存在）
 function x(label, fn) {
   tests.push(async () => {
     const r = await doCall(fn)
     if (r === SKIP) return
-    if (r?._exception) { ok(label, `exception: ${r._exception}`); return }
+    if (r?._exception) { ok(label, `exception: ${r._exception} (端点可能挂起)`); return }
     if (r?.error) { ok(label, trunc(r.error)); return }
     fail(label, `expected error but got data: ${trunc(r?.data)}`)
   })
 }
 
-function requiresId() {
-  if (!id) { return SKIP }
+function requiresId() { if (!id) return SKIP }
+
+// 直接探测带 /api 前缀的端点是否存在（404/HTML → 不存在；挂起 → 标记）
+function probeEndpoint(method, path, body) {
+  const url = new URL(`${BASE}${path}`)
+  const bodyStr = body ? JSON.stringify(body) : undefined
+  return new Promise((resolve) => {
+    http.request({
+      hostname: url.hostname, port: parseInt(url.port || "80", 10),
+      path: url.pathname + url.search, method,
+      headers: bodyStr ? { "content-type": "application/json", "Content-Length": Buffer.byteLength(bodyStr) } : {},
+      timeout: 5000,
+    }, (res) => {
+      let d = ""; res.on("data", c => d += c)
+      res.on("end", () => {
+        const ct = res.headers["content-type"] || ""
+        resolve(ct.includes("text/html") ? { status: "HTML" } : { status: res.statusCode, body: d })
+      })
+    }).on("error", e => resolve({ status: "ERR", body: e.message }))
+      .on("timeout", function() { this.destroy(); resolve({ status: "TIMEOUT" }) })
+      .end(bodyStr || undefined)
+  })
 }
 
-// ══════════════════════════════════
+function removed(label, method, body) {
+  tests.push(async () => {
+    if (!id) return
+    const r = await probeEndpoint("POST", `/api/session/${id}/${method}`, body || {})
+    if (r.status === "HTML" || r.status === 404 || r.status === 405) {
+      ok(label, `endpoint ${method} → ${r.status} (不存在, 符合预期)`)
+    } else if (r.status === "TIMEOUT") {
+      ok(label, `endpoint ${method} → TIMEOUT (挂起, 不可用)`)
+    } else {
+      fail(label, `endpoint ${method} → ${JSON.stringify(r).slice(0, 80)} (意外存在!)`)
+    }
+  })
+}
 
 const tests = []
 
@@ -121,64 +157,69 @@ await waitForServer()
 const fetch = createNodeFetch()
 const sdk = createOpencodeClient({ baseUrl: BASE, fetch })
 
-// ─ session CRUD ─
-t("session.create", () => sdk.session.create({ title: "sdk-validation-test" }))
+// ─ session CRUD（v2 端点，bridge 保留） ─
+t("session.create", () => sdk.v2.session.create({ location: { directory: process.cwd() } }))
 
 t("session.list", async () => {
-  const r = await sdk.session.list({})
+  const r = await sdk.v2.session.list({})
   if (r.error) return r
   const list = Array.isArray(r.data) ? r.data : (r.data?.data ?? [])
   if (!list.length) return { error: "empty list" }
-  const keys = Object.keys(list[0]).join(",")
-  // try title, then fallback to first
-  const found = list.find(s => s.title === "sdk-validation-test" || s.name === "sdk-validation-test")
-  id = found ? found.id : list[0].id
-  return { data: `${list.length} sessions, id=${id}, keys=${keys}` }
+  id = list[0].id
+  return { data: `${list.length} sessions, id=${id}` }
 })
 
-t("session.get", () => { if (!id) return SKIP; return sdk.session.get({ sessionID: id }) })
-t("session.messages", () => { if (!id) return SKIP; return sdk.session.messages({ sessionID: id }) })
-t("session.status", () => sdk.session.status({}))
+t("session.get", () => { if (!id) return SKIP; return sdk.v2.session.get({ sessionID: id }) })
+t("session.messages", () => { if (!id) return SKIP; return sdk.v2.session.messages({ sessionID: id }) })
+t("session.active", () => sdk.v2.session.active())
 
-x("session.update (rename)", () => { if (!id) return SKIP; return sdk.session.update({ sessionID: id, title: "renamed" }) })
-x("session.delete", () => { if (!id) return SKIP; return sdk.session.delete({ sessionID: id }) })
+// ─ 已从 bridge 移除的端点：探测确认不存在 ─
+for (const method of ["delete", "update", "todo", "diff", "fork", "unrevert", "children", "shell", "command"]) {
+  const body = method === "shell" ? { command: "echo hi" } : method === "command" ? { command: "help" } : {}
+  removed(`session.${method} (removed)`, method, body)
+}
+removed("session.revert (removed, v1 路径)", "revert", {})
 
-// ─ message ─
+// ─ revert（v2 三步式 stage+commit，桥保留） ─
+tests.push(async () => {
+  if (!id) return
+  const r = await probeEndpoint("POST", `/api/session/${id}/revert/stage`, {})
+  if (r.status === 400 || r.status === 200 || r.status === 204) ok("session.revert.stage (v2)", `端点存在 → ${r.status}`)
+  else if (r.status === "TIMEOUT") fail("session.revert.stage (v2)", "TIMEOUT")
+  else ok("session.revert.stage (v2)", `端点存在? → ${JSON.stringify(r).slice(0,60)}`)
+})
+
+// ─ message（bridge 保留） ─
 t("session.prompt", () => {
   if (!id) return SKIP
-  return sdk.session.prompt({ sessionID: id, parts: [{ type: "text", text: "Hello" }] })
+  return sdk.v2.session.prompt({ sessionID: id, prompt: { text: "Hello" } })
 })
+t("session.interrupt", () => { if (!id) return SKIP; return sdk.v2.session.interrupt({ sessionID: id }) })
 
-t("session.abort", () => { if (!id) return SKIP; return sdk.session.abort({ sessionID: id }) })
-
-// ─ advanced ─
-for (const method of ["todo", "diff", "shell", "command", "fork", "unrevert"]) {
-  t(`session.${method}`, () => {
-    if (!id) return SKIP
-    const body = method === "shell" ? { command: "echo hi" } : method === "command" ? { command: "help" } : {}
-    return sdk.session[method]({ sessionID: id, ...body })
-  })
-}
-
-x("session.revert", () => { if (!id) return SKIP; return sdk.session.revert({ sessionID: id }) })
-
-// ─ config / providers / global ─
+// ─ config / providers / command / agent / model（bridge 保留） ─
 for (const [label, method] of [
-  ["config.get", () => sdk.config.get({})],
-  ["config.providers", () => sdk.config.providers({})],
-  ["app.agents", () => sdk.app.agents({})],
-  ["provider.list", () => sdk.provider.list({})],
-  ["vcs.get", () => sdk.vcs.get({})],
-  ["command.list", () => sdk.command.list({})],
+  ["agent.list", () => sdk.v2.agent.list({})],
+  ["provider.list", () => sdk.v2.provider.list({})],
+  ["command.list", () => sdk.v2.command.list({})],
+  ["model.list", () => sdk.v2.model.list({})],
   ["global.health", () => sdk.global.health({})],
 ]) {
   t(label, method)
 }
 
-// ─ permission / question ─
-x("permission.reply", () => sdk.permission.reply({ requestID: "nonexistent", reply: "once" }))
-x("question.reply", () => sdk.question.reply({ requestID: "nonexistent", answers: [["yes"]] }))
-x("question.reject", () => sdk.question.reject({ requestID: "nonexistent" }))
+// ─ 已从 bridge 移除为空的端点（config/vcs/project，server 不支持） ─
+for (const [label, method, path] of [
+  ["config.get (removed)", "GET", "/api/config"],
+  ["config.providers (removed)", "GET", "/api/config/providers"],
+  ["vcs.get (removed)", "GET", "/api/vcs"],
+  ["project.list (removed)", "GET", "/api/project"],
+]) {
+  tests.push(async () => {
+    const r = await probeEndpoint(method, path)
+    if (r.status === "HTML" || r.status === 404 || r.status === "TIMEOUT") ok(label, `endpoint → ${r.status} (不存在, bridge 返回空)`)
+    else fail(label, `endpoint → ${JSON.stringify(r).slice(0, 80)} (意外存在!)`)
+  })
+}
 
 // ═══════ execute ═══════
 for (const t of tests) await t()

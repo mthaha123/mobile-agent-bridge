@@ -27,3 +27,6 @@ package-lock.json
 
 # Generated/temp
 .sisyphus/
+
+# 移动连接隧道配置（运行时生成，每次连接变化）
+.config/opencode/

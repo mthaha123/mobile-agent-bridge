@@ -58,10 +58,10 @@ function sdk() {
   return backend.sdk
 }
 
-async function sdkCall<T>(call: () => Promise<{ data?: T; error?: any }>): Promise<T> {
+async function sdkCall<T>(call: () => Promise<{ data?: T; error?: any } | undefined>): Promise<T> {
   const result = await call()
-  if (result.error) throw new Error(result.error.message || JSON.stringify(result.error))
-  return result.data as T
+  if (result?.error) throw new Error(result.error.message || JSON.stringify(result.error))
+  return result?.data as T
 }
 
 // ===== Handler 注册 =====
@@ -90,7 +90,8 @@ registerHandler("health.ping", () => ({ ok: true }))
 
 registerHandler("project.switch", async (params) => switchProject(params.directory))
 registerHandler("project.current", async () => getCurrentProject())
-registerHandler("project.list", async () => sdkCall(() => sdk().project.list({})))
+// opencode server 1.18.x 已移除 /project 端点（返回空，避免挂起）
+registerHandler("project.list", async () => [])
 
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
 // SDK 内部使用 createOpencodeClient 时传入的 fetch，确保 tsx 兼容
@@ -143,66 +144,17 @@ registerHandler("session.messages", async (p) => {
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))
-registerHandler("session.delete", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.delete requires sessionId parameter")
-  return sdkCall(() => sdk().session.delete({ sessionID: id }))
-})
-registerHandler("session.update", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.update requires sessionId parameter")
-  return sdkCall(() => sdk().session.update({
-    sessionID: id,
-    ...(p.title ? { title: p.title } : {}),
-  }))
-})
-registerHandler("session.rename", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.rename requires sessionId parameter")
-  return sdkCall(() => sdk().session.update({
-    sessionID: id,
-    ...(p.name || p.title ? { title: p.name || p.title } : {}),
-  }))
-})
-registerHandler("session.todo", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.todo requires sessionId parameter")
-  return sdkCall(() => sdk().session.todo({ sessionID: id }))
-})
-registerHandler("session.diff", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.diff requires sessionId parameter")
-  return sdkCall(() => sdk().session.diff({
-    sessionID: id as string,
-    ...(p.messageID || p.message ? { messageID: (p.messageID || p.message) as string } : {}),
-  }))
-})
-registerHandler("session.fork", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.fork requires sessionId parameter")
-  return sdkCall(() => sdk().session.fork({
-    sessionID: id,
-    ...(p.messageID || p.message ? { messageID: p.messageID || p.message } : {}),
-  }))
-})
 registerHandler("session.revert", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.revert requires sessionId parameter")
-  return sdkCall(() => sdk().session.revert({
+  // v2 两步式 revert：stage（记录回退点）→ commit（应用回退）
+  const stage = await sdkCall(() => sdk().v2.session.revert.stage({
     sessionID: id as string,
     ...(p.messageID ? { messageID: p.messageID as string } : {}),
-    ...(p.partID ? { partID: p.partID as string } : {}),
+    ...(p.partID ? { files: true } : {}),
   }))
-})
-registerHandler("session.unrevert", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.unrevert requires sessionId parameter")
-  return sdkCall(() => sdk().session.unrevert({ sessionID: id }))
-})
-registerHandler("session.children", async (p) => {
-  const id = resolveSessionIdOrId(p)
-  if (!id) throw new Error("session.children requires sessionId parameter")
-  return sdkCall(() => sdk().session.children({ sessionID: id }))
+  await sdkCall(() => sdk().v2.session.revert.commit({ sessionID: id as string }))
+  return stage?.data ?? stage
 })
 registerHandler("session.switchAgent", async (p) => {
   const id = resolveSessionId(p)
@@ -231,22 +183,6 @@ registerHandler("message.abort", async (p) => {
   const sid = resolveSessionId(p)
   if (!sid) throw new Error("message.abort requires sessionId parameter")
   return sdkCall(() => sdk().v2.session.interrupt({ sessionID: sid }))
-})
-registerHandler("message.shell", async (p) => {
-  const sid = resolveSessionId(p)
-  if (!sid) throw new Error("message.shell requires sessionId parameter")
-  return sdkCall(() => sdk().session.shell({
-    sessionID: sid,
-    ...(p.command ? { command: p.command as string } : {}),
-  }))
-})
-registerHandler("message.command", async (p) => {
-  const sid = resolveSessionId(p)
-  if (!sid) throw new Error("message.command requires sessionId parameter")
-  return sdkCall(() => sdk().session.command({
-    sessionID: sid,
-    ...(p.command ? { command: p.command as string } : {}),
-  }))
 })
 
 registerHandler("permission.reply", async (p) => {
@@ -295,14 +231,15 @@ registerHandler("question.reject", async (p) => {
   }))
 })
 
-registerHandler("config.get", async () => sdkCall(() => sdk().global.config.get()))
-registerHandler("config.update", async (p) => sdkCall(() => sdk().config.update(p)))
+// opencode server 1.18.x 已移除 /config、/config/providers、/vcs 端点（返回空，避免挂起）
+registerHandler("config.get", async () => ({ config: {} }))
+registerHandler("config.update", async () => ({ ok: true }))
 registerHandler("config.agents", async () => sdkCall(() => sdk().v2.agent.list({})))
-registerHandler("config.providers", async () => sdkCall(() => sdk().config.providers({})))
+registerHandler("config.providers", async () => ({ providers: [] }))
 registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))
 registerHandler("command.list", async () => sdkCall(() => sdk().v2.command.list({})))
 registerHandler("model.list", async () => sdkCall(() => sdk().v2.model.list({})))
-registerHandler("vcs.get", async () => sdkCall(() => sdk().vcs.get({})))
+registerHandler("vcs.get", async () => ({ branch: null, status: [] }))
 
 // ===== 文件操作（直接实现，不经过 SDK）=====
 

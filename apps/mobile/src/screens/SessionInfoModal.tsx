@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
   View,
   Text,
@@ -7,15 +7,12 @@ import {
   Modal,
   ScrollView,
   Platform,
-  TextInput,
-  Alert,
 } from 'react-native'
 import { useDiffStore, FileDiff } from '../stores/diffStore'
 import { useTodoStore, TodoItem } from '../stores/todoStore'
 import { useSessionStore, Session } from '../stores/sessionStore'
-import { useAuthStore } from '../stores/authStore'
 
-type Tab = 'diff' | 'todo' | 'children'
+type Tab = 'diff' | 'todo'
 
 export const SessionInfoModal: React.FC<{
   visible: boolean
@@ -23,62 +20,13 @@ export const SessionInfoModal: React.FC<{
   onClose: () => void
 }> = ({ visible, sessionId, onClose }) => {
   const [tab, setTab] = useState<Tab>('diff')
-  const [renaming, setRenaming] = useState(false)
-  const [newName, setNewName] = useState('')
 
-  const [children, setChildren] = useState<any[]>([])
   const diffs = useDiffStore((s) => (sessionId ? s.diffs[sessionId] ?? [] : []))
   const todos = useTodoStore((s) => (sessionId ? s.todos[sessionId] ?? [] : []))
   const sessions = useSessionStore((s) => s.sessions)
-  const client = useAuthStore((s) => s.client)
-
-  useEffect(() => {
-    if (sessionId && client) {
-      useSessionStore.getState().getSessionChildren(sessionId, client.call.bind(client)).then(setChildren)
-    } else {
-      setChildren([])
-    }
-  }, [sessionId])
 
   const currentSession = sessions.find((s: Session) => s.id === sessionId)
   const sessionName = currentSession?.name || ''
-
-  const handleRename = async () => {
-    const name = newName.trim()
-    if (!name || !sessionId || !client) return
-    try {
-      await useSessionStore.getState().renameSession(sessionId, name, client.call.bind(client))
-      setRenaming(false)
-    } catch {
-      Alert.alert('Error', 'Failed to rename session')
-    }
-  }
-
-  const handleFork = async () => {
-    if (!sessionId || !client) return
-    try {
-      const newId = await useSessionStore.getState().forkSession(sessionId, client.call.bind(client))
-      if (newId) {
-        Alert.alert('Forked', `New session: ${newId.slice(0, 8)}...`)
-        onClose()
-        await useSessionStore.getState().fetchSessions(client.call.bind(client))
-      } else {
-        Alert.alert('Error', 'Fork returned no session ID')
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to fork session')
-    }
-  }
-
-  const handleUnrevert = async () => {
-    if (!sessionId || !client) return
-    try {
-      await useSessionStore.getState().unrevertSession(sessionId, client.call.bind(client))
-      Alert.alert('Unreverted', 'Session has been unreverted')
-    } catch {
-      Alert.alert('Error', 'Failed to unrevert session')
-    }
-  }
 
   return (
     <Modal
@@ -98,43 +46,7 @@ export const SessionInfoModal: React.FC<{
           onPress={() => {}}
         >
           <View style={styles.titleRow}>
-            {renaming ? (
-              <View style={styles.renameRow}>
-                <TextInput
-                  style={styles.renameInput}
-                  value={newName}
-                  onChangeText={setNewName}
-                  onSubmitEditing={handleRename}
-                  placeholder="Session name"
-                  placeholderTextColor="#666"
-                  autoFocus
-                />
-                <TouchableOpacity style={styles.renameSaveBtn} onPress={handleRename}>
-                  <Text style={styles.renameSaveText}>Save</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setRenaming(false)}>
-                  <Text style={styles.renameCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.title} numberOfLines={1}>{sessionName || 'Session Info'}</Text>
-                <View style={styles.titleActions}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={handleUnrevert}>
-                    <Text style={styles.actionBtnText}>Unrevert</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionBtn} onPress={handleFork}>
-                    <Text style={styles.actionBtnText}>Fork</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => { setNewName(sessionName || ''); setRenaming(true) }}
-                    style={styles.actionBtn}
-                  >
-                    <Text style={styles.actionBtnText}>✏️</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <Text style={styles.title} numberOfLines={1}>{sessionName || 'Session Info'}</Text>
           </View>
 
           {currentSession && (
@@ -176,16 +88,6 @@ export const SessionInfoModal: React.FC<{
                 Todos ({todos.length})
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, tab === 'children' && styles.tabActive]}
-              onPress={() => setTab('children')}
-            >
-              <Text
-                style={[styles.tabText, tab === 'children' && styles.tabTextActive]}
-              >
-                Children ({children.length})
-              </Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -222,20 +124,6 @@ export const SessionInfoModal: React.FC<{
                       {d.patch}
                     </Text>
                   ) : null}
-                </View>
-              ))}
-
-            {tab === 'children' && children.length === 0 && (
-              <Text style={styles.emptyText}>No child sessions</Text>
-            )}
-            {tab === 'children' &&
-              children.map((child: any, i: number) => (
-                <View key={i} style={styles.item}>
-                  <Text style={styles.fileName}>{child.name || child.id || `Session ${i + 1}`}</Text>
-                  <Text style={styles.childrenMeta}>
-                    {child.messageCount ?? 0} msgs
-                    {child.createdAt ? ` · ${formatTime(child.createdAt)}` : ''}
-                  </Text>
                 </View>
               ))}
 
@@ -301,51 +189,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#eee',
     flex: 1,
-  },
-  titleActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  actionBtn: {
-    backgroundColor: '#0f3460',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  actionBtnText: {
-    color: '#8ab4f8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  renameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  renameInput: {
-    flex: 1,
-    backgroundColor: '#0f3460',
-    color: '#eee',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 16,
-  },
-  renameSaveBtn: {
-    backgroundColor: '#1a5276',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  renameSaveText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  renameCancelText: {
-    color: '#888',
-    fontSize: 14,
   },
   tabs: {
     flexDirection: 'row',
@@ -424,11 +267,6 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 12,
     fontWeight: '600',
-  },
-  childrenMeta: {
-    color: '#888',
-    fontSize: 12,
-    marginTop: 4,
   },
   patch: {
     color: '#aaa',

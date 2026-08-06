@@ -54,56 +54,6 @@ describe('abortMessage', () => {
 })
 
 // ---------------------------------------------------------------------------
-// shellCommand
-// ---------------------------------------------------------------------------
-
-describe('shellCommand', () => {
-  it('calls message.shell and keeps waiting true (SSE manages waiting)', async () => {
-    useChatStore.setState({ waiting: true })
-    const clientCall = jest.fn().mockResolvedValue(undefined)
-
-    await useChatStore.getState().shellCommand(sessionId, 'ls -la', clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('message.shell', { sessionId, command: 'ls -la' })
-    expect(useChatStore.getState().waiting).toBe(true)
-  })
-
-  it('does not reset waiting when clientCall rejects (SSE manages waiting)', async () => {
-    useChatStore.setState({ waiting: true })
-    const clientCall = jest.fn().mockRejectedValue(new Error('shell failed'))
-
-    await expect(useChatStore.getState().shellCommand(sessionId, 'ls', clientCall)).rejects.toThrow('shell failed')
-
-    expect(useChatStore.getState().waiting).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// writeCommand
-// ---------------------------------------------------------------------------
-
-describe('writeCommand', () => {
-  it('calls message.command and keeps waiting true (SSE manages waiting)', async () => {
-    useChatStore.setState({ waiting: true })
-    const clientCall = jest.fn().mockResolvedValue(undefined)
-
-    await useChatStore.getState().writeCommand(sessionId, 'git add .', clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('message.command', { sessionId, command: 'git add .' })
-    expect(useChatStore.getState().waiting).toBe(true)
-  })
-
-  it('does not reset waiting when clientCall rejects (SSE manages waiting)', async () => {
-    useChatStore.setState({ waiting: true })
-    const clientCall = jest.fn().mockRejectedValue(new Error('write failed'))
-
-    await expect(useChatStore.getState().writeCommand(sessionId, 'git commit', clientCall)).rejects.toThrow('write failed')
-
-    expect(useChatStore.getState().waiting).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
 // setActiveSession
 // ---------------------------------------------------------------------------
 
