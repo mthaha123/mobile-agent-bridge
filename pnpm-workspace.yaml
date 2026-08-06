@@ -5,4 +5,4 @@ packages:
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
-  - '@opencode-ai/sdk@0.0.0-dev-202606301614'
+  - '@opencode-ai/sdk@0.0.0-dev-202606301614 || 1.18.13'

@@ -149,18 +149,25 @@ async function runFlow(flowPath) {
     })
 
     let output = ""
+    let settled = false
     child.stdout.on("data", d => { output += d.toString() })
     child.stderr.on("data", d => { output += d.toString() })
 
+    const settle = (ok, tag) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (ok) { passed++ } else { failed++ }
+      console.log(ok ? green(`  ╰ ${tag} PASSED`) : red(`  ╰ ${tag}`))
+      resolve(ok)
+    }
+
     const timer = setTimeout(() => {
       child.kill()
-      console.log(red(`  ╰ TIMEOUT (${FLOW_TIMEOUT / 1000}s)`))
-      failed++
-      resolve(false)
+      settle(false, `TIMEOUT (${FLOW_TIMEOUT / 1000}s)`)
     }, FLOW_TIMEOUT + 5000)
 
     child.on("close", (code) => {
-      clearTimeout(timer)
       const lines = output.split("\n").filter(l => l.trim())
       const resultLines = lines.filter(l =>
         l.includes("COMPLETED") || l.includes("FAILED") || l.includes("PASSED") || l.includes("ERROR")
@@ -168,14 +175,7 @@ async function runFlow(flowPath) {
       resultLines.forEach(l => console.log(`  ${l}`))
 
       const hasFailed = output.includes("FAILED") || code !== 0
-      if (hasFailed) {
-        console.log(red(`  ╰ FAILED`))
-        failed++
-      } else {
-        console.log(green(`  ╰ PASSED`))
-        passed++
-      }
-      resolve(!hasFailed)
+      settle(!hasFailed, hasFailed ? "FAILED" : "PASSED")
     })
   })
 }

@@ -13,6 +13,11 @@ import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
 
+/** 预埋开关：允许工具调用事件（session.next.tool.called）进入审批队列。
+ *  当前 opencode serve 对 API session 不发送 permission.v2.asked，审批无法触发；
+ *  开启后 App 会在工具被调用时自行弹出审批 UI。默认关闭保持现状。 */
+const ENABLE_TOOL_CALL_APPROVAL = false
+
 /** 从 SSE tool.success payload 提取可展示输出文本（content 数组 → 拼接 text） */
 function extractToolResult(payload: any): string {
   if (Array.isArray(payload?.content)) {
@@ -162,6 +167,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             status: 'called',
           },
         })
+        // 预埋：serve 未发 permission.v2.asked 时，工具调用也可进入审批队列。
+        // 仅当工具尚未在待审批队列中时 enqueue，避免与 permission.v2.asked 双弹。
+        // 由 ENABLE_TOOL_CALL_APPROVAL 开关控制（默认关闭，保持现状）。
+        if (ENABLE_TOOL_CALL_APPROVAL) {
+          const callID = payload?.callID || ''
+          const tool = payload?.tool || ''
+          const sessionId = payload?.sessionID || ''
+          const input = payload?.input || {}
+          const alreadyPending = useToolStore
+            .getState()
+            .pendingApprovals.some((a) => a.id === callID || (a.tool === tool && a.sessionId === sessionId))
+          if (callID && !alreadyPending) {
+            useToolStore.getState().enqueue({
+              id: callID,
+              tool,
+              args: input as Record<string, unknown>,
+              sessionId,
+              requestedAt: Date.now(),
+            })
+          }
+        }
       }
 
       // 工具执行进度

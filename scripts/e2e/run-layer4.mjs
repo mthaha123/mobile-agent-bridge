@@ -45,22 +45,15 @@ function sleep(ms) {
 
 async function waitForPort(port, label, timeout = 30000) {
   const start = Date.now()
+  const { createConnection } = await import("net")
   while (Date.now() - start < timeout) {
-    try {
-      const { createConnection } = await import("net")
-      return new Promise((resolve, reject) => {
-        const conn = createConnection({ port, host: "127.0.0.1", timeout: 2000 }, () => {
-          conn.end()
-          resolve()
-        })
-        conn.on("error", () => {
-          conn.destroy()
-          reject()
-        })
-      })
-    } catch {
-      await sleep(1000)
-    }
+    const ok = await new Promise((resolve) => {
+      const conn = createConnection({ port, host: "127.0.0.1", timeout: 2000 })
+      conn.on("connect", () => { conn.destroy(); resolve(true) })
+      conn.on("error", () => { conn.destroy(); resolve(false) })
+    })
+    if (ok) return
+    await sleep(1000)
   }
   throw new Error(`${label} 端口 ${port} 未在 ${timeout}ms 内就绪`)
 }
