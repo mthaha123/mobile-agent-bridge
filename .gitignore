@@ -30,3 +30,6 @@ package-lock.json
 
 # 移动连接隧道配置（运行时生成，每次连接变化）
 .config/opencode/
+
+# Bridge 运行时数据（session 标题映射等）
+servers/bridge/.data/
