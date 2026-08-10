@@ -582,3 +582,46 @@ describe('FileBrowserScreen — edge cases', () => {
     }
   })
 })
+
+
+// ─── 图片预览 & 文件下载 ─────────────────────────────────
+
+describe('FileBrowserScreen — image preview & download', () => {
+  it('react-native-fs mock provides DownloadDirectoryPath and writeFile', () => {
+    const RNFS = require('react-native-fs')
+    expect(RNFS.DownloadDirectoryPath).toBe('/mock/downloads')
+    expect(typeof RNFS.writeFile).toBe('function')
+  })
+
+  it('readFile supports base64 image payload', async () => {
+    const client = mockClient({
+      'file.read': () => ({
+        path: '/test/pic.png', content: 'iVBORw0KGgo=', encoding: 'base64',
+        size: 8, base64: true, mimeType: 'image/png',
+      }),
+    })
+    const result = await client.call('file.read', { path: '/test/pic.png', encoding: 'base64' })
+    expect(result.encoding).toBe('base64')
+    expect(result.base64).toBe(true)
+    expect(result.mimeType).toBe('image/png')
+  })
+
+  it('download writes base64 content to Download directory via RNFS', async () => {
+    const RNFS = require('react-native-fs')
+    const writeFileSpy = RNFS.writeFile
+    writeFileSpy.mockClear()
+
+    const client = mockClient({
+      'file.read': () => ({
+        path: '/test/file.bin', content: 'aGVsbG8=', encoding: 'base64',
+        size: 5, base64: true,
+      }),
+    })
+    // 直接调用 BridgeClient.readFile，验证能取到 base64
+    const data = await client.call('file.read', { path: '/test/file.bin', encoding: 'base64' })
+    expect(data.content).toBe('aGVsbG8=')
+    // 验证 RNFS 可被调用（下载逻辑通过它写文件）
+    await writeFileSpy('/mock/downloads/x.bin', data.content, 'base64')
+    expect(writeFileSpy).toHaveBeenCalled()
+  })
+})

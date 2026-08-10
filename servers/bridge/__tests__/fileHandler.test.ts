@@ -18,6 +18,10 @@ describe("File Handler", () => {
     const subDir = path.join(testDir, "subdir")
     await fs.mkdir(subDir, { recursive: true })
     await fs.writeFile(path.join(subDir, "nested.txt"), "Nested content with pattern.")
+
+    // 测试图片文件（假 PNG 二进制）
+    const pngFile = path.join(testDir, "test.png")
+    await fs.writeFile(pngFile, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   })
 
   afterAll(async () => {
@@ -69,6 +73,28 @@ describe("File Handler", () => {
 
     it("should throw for non-existent file", async () => {
       await expect(fileRead("/nonexistent/file.txt")).rejects.toThrow()
+    })
+
+    it("should read image file as base64 when encoding=base64", async () => {
+      const pngFile = path.join(testDir, "test.png")
+      const result = await fileRead(pngFile, "base64")
+      expect(result.base64).toBe(true)
+      expect(result.encoding).toBe("base64")
+      expect(result.mimeType).toBe("image/png")
+      expect(result.content).toMatch(/^iVBORw0KGgo=/) // PNG 魔数 base64
+    })
+
+    it("should detect image mime type for utf-8 read", async () => {
+      const pngFile = path.join(testDir, "test.png")
+      const result = await fileRead(pngFile, "utf-8")
+      expect(result.mimeType).toBe("image/png")
+      expect(result.base64).toBe(false)
+    })
+
+    it("should return undefined mime for non-image file", async () => {
+      const result = await fileRead(testFile)
+      expect(result.mimeType).toBeUndefined()
+      expect(result.base64).toBe(false)
     })
   })
 

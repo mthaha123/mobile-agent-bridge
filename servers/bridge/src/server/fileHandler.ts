@@ -14,6 +14,36 @@ export interface FileContent {
   encoding: string
   size: number
   path: string
+  /** 是否为二进制/base64（图片等） */
+  base64?: boolean
+  /** 文件 MIME 类型（图片预览用） */
+  mimeType?: string
+}
+
+/** 常见图片 MIME 映射 */
+const IMAGE_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".heic": "image/heic",
+  ".avif": "image/avif",
+}
+
+/** 根据扩展名判断是否图片文件 */
+export function isImageFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase()
+  return ext in IMAGE_MIME
+}
+
+/** 获取文件 MIME 类型 */
+export function mimeForPath(filePath: string): string | undefined {
+  const ext = path.extname(filePath).toLowerCase()
+  return IMAGE_MIME[ext]
 }
 
 export interface SearchResult {
@@ -68,6 +98,20 @@ export async function fileRead(filePath: string, encoding?: string): Promise<Fil
   }
 
   const enc = encoding || "utf-8"
+
+  // 二进制/图片读取：返回 base64，供前端预览/下载
+  if (enc === "base64" || (enc === "binary" && isImageFile(resolved))) {
+    const buf = await fs.readFile(resolved)
+    return {
+      content: buf.toString("base64"),
+      encoding: "base64",
+      size: stat.size,
+      path: resolved,
+      base64: true,
+      mimeType: mimeForPath(resolved),
+    }
+  }
+
   const content = await fs.readFile(resolved, { encoding: enc as BufferEncoding })
 
   return {
@@ -75,6 +119,8 @@ export async function fileRead(filePath: string, encoding?: string): Promise<Fil
     encoding: enc,
     size: stat.size,
     path: resolved,
+    base64: false,
+    mimeType: isImageFile(resolved) ? mimeForPath(resolved) : undefined,
   }
 }
 

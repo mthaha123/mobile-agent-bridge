@@ -302,6 +302,8 @@ export class BridgeClient {
     encoding: string
     size: number
     path: string
+    base64?: boolean
+    mimeType?: string
   }> {
     return this.call('file.read', { path, encoding })
   }

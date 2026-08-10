@@ -10,10 +10,14 @@ import {
   Alert,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native'
 import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import RNFS from 'react-native-fs'
+
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
 
 export const FileBrowserScreen: React.FC = () => {
   const {
@@ -39,6 +43,7 @@ export const FileBrowserScreen: React.FC = () => {
   const projectDir = useProjectStore((s) => s.directory)
 
   const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
+  const [imagePreview, setImagePreview] = useState<{ uri: string; name: string } | null>(null)
 
   const loadDirectory = useCallback(async (path: string) => {
     if (!client) return
@@ -75,6 +80,23 @@ export const FileBrowserScreen: React.FC = () => {
     if (file.type === 'directory') {
       enterDirectory(file.name)
     } else if (file.type === 'file') {
+      // 图片文件 → base64 预览
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      if (IMAGE_EXTS.includes(ext)) {
+        setLoading(true)
+        try {
+          const data = await client?.readFile(currentPath + '/' + file.name, 'base64')
+          if (data?.base64) {
+            const mime = data.mimeType || 'image/png'
+            setImagePreview({ uri: `data:${mime};base64,${data.content}`, name: file.name })
+          }
+        } catch (err: unknown) {
+          Alert.alert('Error', err instanceof Error ? err.message : 'Failed to preview image')
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
       setLoading(true)
       try {
         const content = await client?.readFile(currentPath + '/' + file.name)
@@ -89,6 +111,28 @@ export const FileBrowserScreen: React.FC = () => {
 
   const handleFileLongPress = (file: FileInfo) => {
     setFileInfoTarget(file)
+  }
+
+  // 下载文件：读取 base64 → 写入设备 Download 目录
+  const handleDownload = async (file: FileInfo) => {
+    if (!client) return
+    if (file.type !== 'file') {
+      Alert.alert('下载', '仅支持下载文件')
+      return
+    }
+    const filePath = currentPath + '/' + file.name
+    setLoading(true)
+    try {
+      const data = await client.readFile(filePath, 'base64')
+      if (!data?.content) throw new Error('读取文件失败')
+      const dest = RNFS.DownloadDirectoryPath + '/' + file.name
+      await RNFS.writeFile(dest, data.content, 'base64')
+      Alert.alert('下载成功', `已保存到: ${dest}`)
+    } catch (err: unknown) {
+      Alert.alert('下载失败', err instanceof Error ? err.message : '未知错误')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSearch = async () => {
@@ -278,8 +322,56 @@ export const FileBrowserScreen: React.FC = () => {
                 <Text style={styles.fileInfoActionText}>Open File</Text>
               </TouchableOpacity>
             )}
+            {fileInfoTarget?.type !== 'directory' && (
+              <TouchableOpacity
+                style={[styles.fileInfoAction, styles.downloadAction]}
+                onPress={() => {
+                  const target = fileInfoTarget
+                  setFileInfoTarget(null)
+                  if (target) handleDownload(target)
+                }}
+              >
+                <Text style={styles.fileInfoActionText}>⬇ Download</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* 图片预览 */}
+      <Modal
+        visible={!!imagePreview}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImagePreview(null)}
+      >
+        <View style={styles.imagePreviewModal}>
+          <View style={styles.imagePreviewHeader}>
+            <Text style={styles.imagePreviewTitle} numberOfLines={1}>{imagePreview?.name}</Text>
+            <TouchableOpacity onPress={() => setImagePreview(null)} accessibilityLabel="Close image preview">
+              <Text style={styles.closePreview}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          {imagePreview && (
+            <Image
+              source={{ uri: imagePreview.uri }}
+              style={styles.imagePreviewImage}
+              resizeMode="contain"
+            />
+          )}
+          {imagePreview && (
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => {
+                const img = imagePreview
+                setImagePreview(null)
+                if (img) handleDownload({ name: img.name, type: 'file', size: 0, modified: '', permissions: '' })
+              }}
+            >
+              <Text style={styles.downloadButtonText}>⬇ 下载</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </Modal>
     </View>
   )
@@ -488,5 +580,41 @@ const styles = StyleSheet.create({
     color: '#4a9eff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  downloadAction: {
+    marginTop: 8,
+  },
+  imagePreviewModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+  },
+  imagePreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  imagePreviewTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 12,
+  },
+  imagePreviewImage: {
+    flex: 1,
+    width: '100%',
+  },
+  downloadButton: {
+    padding: 16,
+    backgroundColor: '#0f3460',
+    alignItems: 'center',
+  },
+  downloadButtonText: {
+    color: '#4a9eff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 })

@@ -12,6 +12,7 @@
     "events": "^3.3.0",
     "react": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-fs": "^2.20.0",
     "react-native-markdown-display": "7.0.2",
     "react-native-marked": "^8.1.1",
     "zustand": "^4.5.0"
