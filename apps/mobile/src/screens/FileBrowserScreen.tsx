@@ -16,6 +16,7 @@ import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
 import ReactNativeBlobUtil from 'react-native-blob-util'
+import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
 
@@ -247,7 +248,11 @@ export const FileBrowserScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.codeContainer}>
-            <Text style={styles.codeContent}>{currentFile.content}</Text>
+            {currentFile.path.toLowerCase().endsWith('.md') ? (
+              <MarkdownRenderer content={currentFile.content} />
+            ) : (
+              <Text style={styles.codeContent}>{currentFile.content}</Text>
+            )}
           </ScrollView>
         </View>
       )}

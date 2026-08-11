@@ -285,6 +285,23 @@ describe('FileBrowserScreen — rendering', () => {
     expect(textOf(tree)).toContain('/test/file.ts')
   })
 
+  it('file preview renders markdown for .md files', () => {
+    const client = mockClient()
+    act(() => {
+      useAuthStore.setState({ client: client as any })
+      useProjectStore.setState({ directory: '/test' })
+    })
+    act(() => {
+      useFileStore.setState({
+        currentFile: { path: '/test/README.md', content: '# Title\n\n**bold**', encoding: 'utf-8', size: 20 },
+      })
+    })
+    const tree = TestRenderer.create(<FileBrowserScreen />)
+    expect(textOf(tree)).toContain('# Title')
+    expect(textOf(tree)).toContain('**bold**')
+  })
+
+
   it('error state shows error text', () => {
     const client = mockClient()
     act(() => {
