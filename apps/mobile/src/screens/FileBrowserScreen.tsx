@@ -15,9 +15,23 @@ import {
 import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
-import RNFS from 'react-native-fs'
+import ReactNativeBlobUtil from 'react-native-blob-util'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
+
+const MIME_TYPES: Record<string, string> = {
+  txt: 'text/plain', md: 'text/markdown', json: 'application/json', js: 'application/javascript',
+  ts: 'text/plain', tsx: 'text/plain', html: 'text/html', css: 'text/css', xml: 'text/xml',
+  csv: 'text/csv', log: 'text/plain', yml: 'text/yaml', yaml: 'text/yaml', pdf: 'application/pdf',
+  zip: 'application/zip', gz: 'application/gzip', tar: 'application/x-tar', apk: 'application/vnd.android.package-archive',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon', heic: 'image/heic', avif: 'image/avif',
+}
+
+const getMimeType = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  return MIME_TYPES[ext] || 'application/octet-stream'
+}
 
 export const FileBrowserScreen: React.FC = () => {
   const {
@@ -113,7 +127,7 @@ export const FileBrowserScreen: React.FC = () => {
     setFileInfoTarget(file)
   }
 
-  // 下载文件：读取 base64 → 写入设备 Download 目录
+  // 下载文件：读取 base64 → 写入公共 Download 目录（Android MediaStore，用户可在文件管理器看到）
   const handleDownload = async (file: FileInfo) => {
     if (!client) return
     if (file.type !== 'file') {
@@ -125,11 +139,22 @@ export const FileBrowserScreen: React.FC = () => {
     try {
       const data = await client.readFile(filePath, 'base64')
       if (!data?.content) throw new Error('读取文件失败')
-      const dest = RNFS.DownloadDirectoryPath + '/' + file.name
-      await RNFS.writeFile(dest, data.content, 'base64')
-      Alert.alert('下载成功', `已保存到: ${dest}`)
+      // 1. base64 先写入 app 缓存
+      const cachePath = ReactNativeBlobUtil.fs.dirs.CacheDir + '/' + file.name
+      await ReactNativeBlobUtil.fs.writeFile(cachePath, data.content, 'base64')
+      // 2. 在公共 Download 集合创建条目
+      const uri = await ReactNativeBlobUtil.MediaCollection.createMediafile(
+        { name: file.name, parentFolder: '', mimeType: getMimeType(file.name) },
+        'Download',
+      )
+      // 3. 把缓存内容写入 MediaStore 条目
+      await ReactNativeBlobUtil.MediaCollection.writeToMediafile(uri, cachePath)
+      // 4. 清理缓存
+      ReactNativeBlobUtil.fs.unlink(cachePath).catch(() => {})
+      Alert.alert('下载成功', `已保存到公共 Download 目录`)
     } catch (err: unknown) {
-      Alert.alert('下载失败', err instanceof Error ? err.message : '未知错误')
+      const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+      Alert.alert('下载失败', msg)
     } finally {
       setLoading(false)
     }

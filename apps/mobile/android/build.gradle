@@ -14,5 +14,17 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.2.1")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        // 让子库（react-native-blob-util）的 apply plugin: 'com.facebook.react' 能解析
+        classpath(files("../node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build/libs/react-native-gradle-plugin.jar"))
     }
+}
+
+// rootProject.ext：让 autolink 的原生库（如 react-native-blob-util）能读到 SDK 版本
+ext {
+    buildToolsVersion = "34.0.0"
+    minSdkVersion = 24
+    compileSdkVersion = 34
+    targetSdkVersion = 34
+    ndkVersion = "27.1.12297006"
+    kotlinVersion = "1.9.24"
 }

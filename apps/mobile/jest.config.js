@@ -7,7 +7,7 @@ export default {
   moduleNameMapper: {
     '^react-native$': '<rootDir>/__mocks__/react-native.js',
     '^react-native/(.*)$': '<rootDir>/__mocks__/react-native.js',
-    '^react-native-fs$': '<rootDir>/__mocks__/react-native-fs.js',
+    '^react-native-blob-util$': '<rootDir>/__mocks__/react-native-blob-util.js',
     '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
     '^react-native-marked$': '<rootDir>/__mocks__/react-native-marked.js',
   },

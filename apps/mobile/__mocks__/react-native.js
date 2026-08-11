@@ -54,7 +54,7 @@ module.exports = {
   Platform: { OS: 'ios', select: (obj) => (obj ? obj.ios ?? obj.default ?? null : null) },
   Alert: { alert: jest.fn() },
   Dimensions: { get: () => ({ width: 375, height: 812 }) },
-  Clipboard: { setString: jest.fn(), getString: jest.fn().mockResolvedValue('') },
+  Share: { share: jest.fn().mockResolvedValue({ action: 'sharedAction' }), sharedAction: 'sharedAction', dismissedAction: 'dismissedAction' },
 
   // Hooks
   useWindowDimensions: () => ({ width: 375, height: 812 }),
