@@ -24,6 +24,14 @@ logs/
 scripts/test-screenshots/
 scripts/bridge-debug.log
 package-lock.json
+coverage/
+coverage-tmp/
+scripts/e2e/screenshots/
+
+# Maestro 本地测试工具二进制（flow 测试脚本保留，工具本体不入库）
+.maestro/bin/
+.maestro/lib/
+.maestro/maestro.cmd
 
 # Generated/temp
 .sisyphus/
