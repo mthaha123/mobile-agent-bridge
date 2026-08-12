@@ -1240,4 +1240,61 @@ describe("RPC Router", () => {
     expect(messages[0].error).toContain("path")
   })
 
+  // ===== 时序契约：配置 RPC 依赖 project.switch，SDK 未初始化时报错 =====
+  it("should error when SDK not initialized for config.agents", async () => {
+    const backend = getBackend()
+    backend.sdk = null
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "config.agents", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("SDK not initialized")
+  })
+
+  it("should error when SDK not initialized for model.list", async () => {
+    const backend = getBackend()
+    backend.sdk = null
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "model.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("SDK not initialized")
+  })
+
+  // ===== project.current 探测：SDK 未初始化时通过 ensureClient 查询 OpenCode location =====
+  it("should probe OpenCode location via ensureClient when SDK not initialized", async () => {
+    const backend = getBackend()
+    backend.sdk = null
+
+    const mockLocationGet = jest.fn<any>().mockResolvedValue({ data: { directory: "D:\\repo\\probe", project: { name: "probe" } } })
+    const lazySdk = {
+      v2: {
+        location: { get: mockLocationGet },
+        agent: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+        provider: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+        model: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+        command: { list: jest.fn<any>().mockResolvedValue({ data: [] }) },
+      },
+      global: { dispose: jest.fn<any>().mockResolvedValue(undefined) },
+    }
+    backend.createClient = jest.fn<any>().mockImplementation(() => {
+      backend.sdk = lazySdk as any
+    })
+
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "project.current", params: {},
+    }, testPayload)
+
+    expect(messages[0].ok).toBe(true)
+    expect(backend.createClient).toHaveBeenCalledWith("")
+    expect(mockLocationGet).toHaveBeenCalledWith({})
+    expect(messages[0].payload).toEqual({
+      directory: "D:\\repo\\probe",
+      project: { name: "probe" },
+    })
+  })
+
 })

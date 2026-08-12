@@ -96,6 +96,15 @@ export class OpenCodeBackend {
       this.sdk = null
     }
   }
+
+  /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
+   *  用于 config.agents/providers/model.list/command.list 等只读全局配置查询，
+   *  它们不依赖 project.switch。已初始化时复用当前 client。 */
+  ensureClient(): OpencodeClient {
+    if (this.sdk) return this.sdk
+    this.createClient("")
+    return this.sdk!
+  }
 }
 
 let _backend: OpenCodeBackend | null = null

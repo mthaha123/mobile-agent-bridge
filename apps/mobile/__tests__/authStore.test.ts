@@ -113,7 +113,7 @@ describe('login', () => {
     mockCall.mockResolvedValue({ token: 'jwt-token-123' })
 
     useAuthStore.getState().setBridgeUrl('ws://localhost:19985/ws')
-    mockSwitchProject.mockResolvedValue(undefined)
+    mockSwitchProject.mockResolvedValue(true)
 
     // Act
     await useAuthStore.getState().login('test123')

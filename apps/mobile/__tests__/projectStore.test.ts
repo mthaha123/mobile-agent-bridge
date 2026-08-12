@@ -143,22 +143,41 @@ describe('switchProject', () => {
     await useProjectStore.getState().switchProject('/any')
   })
 
-  it('does nothing when no directory available', async () => {
+  it('does nothing when no directory available and probe fails', async () => {
     const client = makeClient()
     useAuthStore.setState({ client: client as any })
-    // directory is empty string
-    await useProjectStore.getState().switchProject()
+    // directory is empty string; project.current probe returns no directory
+    const result = await useProjectStore.getState().switchProject()
 
-    expect(client.call).not.toHaveBeenCalled()
+    expect(result).toBe(false)
+    // 探测了 project.current，但未发起 project.switch
+    expect(client.call).toHaveBeenCalledWith('project.current', {})
+    expect(client.call).not.toHaveBeenCalledWith('project.switch', expect.anything())
   })
 
-  it('sets switching=false on error', async () => {
+  it('uses probed directory when no directory given', async () => {
+    const client = makeClient()
+    useAuthStore.setState({ client: client as any })
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'project.current') return { directory: '/probed/dir', project: { name: 'probed' } }
+      if (method === 'project.switch') return { directory: '/probed/dir', project: { name: 'probed' } }
+      return undefined
+    })
+
+    const result = await useProjectStore.getState().switchProject()
+
+    expect(result).toBe(true)
+    expect(useProjectStore.getState().directory).toBe('/probed/dir')
+    expect(client.call).toHaveBeenCalledWith('project.switch', { directory: '/probed/dir' })
+  })
+
+  it('sets switching=false on error and rethrows', async () => {
     const client = makeClient()
     client.call.mockRejectedValue(new Error('switch failed'))
     useAuthStore.setState({ client: client as any })
     useProjectStore.setState({ switching: true })
 
-    await useProjectStore.getState().switchProject('/err')
+    await expect(useProjectStore.getState().switchProject('/err')).rejects.toThrow('switch failed')
     // The error is caught internally, switching should be false
     expect(useProjectStore.getState().switching).toBe(false)
   })

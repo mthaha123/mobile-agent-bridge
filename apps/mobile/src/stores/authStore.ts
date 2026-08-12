@@ -50,33 +50,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null })
 
     try {
-      // 临时 client 用于登录（无需 token，服务器接受未认证连接）
+      // ── 层1：连接 Bridge（WS + auth.login）──
       const loginClient = new BridgeClient({ url: bridgeUrl })
-
-      // 先连接再调用 auth.login
       await loginClient.connect()
-
       const result = (await loginClient.call('auth.login', {
         password: password ?? null,
       })) as { token: string }
-
       loginClient.disconnect()
 
       // 创建持久的已认证 client
       const client = new BridgeClient({ url: bridgeUrl, token: result.token })
-
       await client.connect()
 
-      // 步骤1：先设置 client 触发 AppProvider 注册通知处理器
-      // 此时 authenticated=false，ConnectScreen 仍然显示
+      // 先设置 client 触发 AppProvider 注册通知处理器（authenticated=false，ConnectScreen 仍显示）
       set({ client, token: result.token, loading: false, error: null })
 
-      // 步骤2：注册完处理器后再初始化项目
-      // handler 已就绪，不会丢失初始化事件
+      // ── 层2：建立 OpenCode 连接（project.switch，目录为空时自动探测）──
       const { useProjectStore } = await import('./projectStore')
-      await useProjectStore.getState().switchProject()
+      const switched = await useProjectStore.getState().switchProject()
+      if (!switched) {
+        throw new Error('未指定项目目录，且无法探测 OpenCode 当前项目。请在连接页填写项目目录。')
+      }
 
-      // 步骤3：最后标记已认证，页面跳转至 SessionsScreen
+      // ── 层2就绪后拉取全局配置（agent/provider/model/command）──
+      const { useConfigStore } = await import('./configStore')
+      const call = client.call.bind(client)
+      await Promise.all([
+        useConfigStore.getState().fetchAgents(call),
+        useConfigStore.getState().fetchProviders(call),
+        useConfigStore.getState().fetchCommands(call),
+        useConfigStore.getState().fetchModels(call),
+      ])
+
+      // ── 全部就绪后标记已认证，进入 SessionsScreen ──
       set({ authenticated: true, loading: false })
     } catch (e: unknown) {
       set({

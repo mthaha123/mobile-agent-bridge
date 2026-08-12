@@ -91,8 +91,8 @@ registerHandler("health.ping", () => ({ ok: true }))
 
 registerHandler("project.switch", async (params) => switchProject(params.directory))
 registerHandler("project.current", async () => {
-  // 真实对接 opencode /api/location（含 directory + project）
-  const loc = await sdkCall(() => sdk().v2.location.get({}))
+  // 用 ensureClient 探测 OpenCode 当前项目（未 project.switch 时也可查询 location）
+  const loc = await sdkCall(() => getBackend().ensureClient().v2.location.get({}))
   return { directory: loc?.directory ?? getCurrentProject().directory, project: loc?.project ?? getCurrentProject().project }
 })
 // opencode server 1.18.x 为单项目模型，无 /project 列表端点（返回当前项目，避免挂起）
@@ -258,15 +258,18 @@ registerHandler("question.reject", async (p) => {
 // opencode server 1.18.x 无 /config 端点：config.get/update 返回空（功能在 server 侧不存在）
 registerHandler("config.get", async () => ({ config: {} }))
 registerHandler("config.update", async () => ({ ok: true }))
-registerHandler("config.agents", async () => sdkCall(() => sdk().v2.agent.list({})))
+// config.agents / config.providers / model.list / command.list 依赖 OpenCode server，
+// 必须在 project.switch 建立 OpenCode 连接之后才能查询（客户端登录时序保证）。
+// SDK list 类返回 { location, data: [...] }，统一解包为裸数组（与手机端 extractArray 契约一致）
+registerHandler("config.agents", async () => unwrapData(await sdkCall(() => sdk().v2.agent.list({}))))
 // config.providers 真实对接 /api/provider
 registerHandler("config.providers", async () => {
-  const providers = await sdkCall(() => sdk().v2.provider.list({}))
+  const providers = unwrapData(await sdkCall(() => sdk().v2.provider.list({})))
   return { providers }
 })
-registerHandler("provider.list", async () => sdkCall(() => sdk().v2.provider.list({})))
-registerHandler("command.list", async () => sdkCall(() => sdk().v2.command.list({})))
-registerHandler("model.list", async () => sdkCall(() => sdk().v2.model.list({})))
+registerHandler("provider.list", async () => unwrapData(await sdkCall(() => sdk().v2.provider.list({}))))
+registerHandler("command.list", async () => unwrapData(await sdkCall(() => sdk().v2.command.list({}))))
+registerHandler("model.list", async () => unwrapData(await sdkCall(() => sdk().v2.model.list({}))))
 
 // ===== 文件操作（直接实现，不经过 SDK）=====
 

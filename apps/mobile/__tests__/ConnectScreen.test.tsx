@@ -140,9 +140,17 @@ describe('ConnectScreen — interactions', () => {
   it('Connect button triggers login flow', async () => {
     const tree = TestRenderer.create(<ConnectScreen />)
 
-    act(() => { findAllInputs(tree)[0].props.onChangeText('ws://localhost:8080/ws') })
-    act(() => { findAllInputs(tree)[1].props.onChangeText('secret123') })
-    act(() => { findAllInputs(tree)[2].props.onChangeText('/home/user/project') })
+    const setByPlaceholder = (prefix: string, value: string) => {
+      const input = findAllInputs(tree).find((i: any) =>
+        (i.props.placeholder || '').startsWith(prefix),
+      )
+      expect(input).toBeDefined()
+      act(() => { input!.props.onChangeText(value) })
+    }
+
+    setByPlaceholder('ws://', 'ws://localhost:8080/ws')
+    setByPlaceholder('password', 'secret123')
+    setByPlaceholder('project directory', '/home/user/project')
 
     const connectBtn = findAllPressable(tree).find((p: any) => {
       const t = textOf({ toJSON: () => p } as any)

@@ -40,12 +40,32 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
   },
 
-  switchProject: async (dir?: string) => {
+  switchProject: async (dir?: string): Promise<boolean> => {
     const client = useAuthStore.getState().client
-    if (!client) return
+    if (!client) return false
 
-    const targetDir = dir ?? get().directory
-    if (!targetDir) return
+    let targetDir = dir ?? get().directory
+
+    // 未指定目录时：探测 OpenCode 当前项目（project.current 不依赖已 switch）
+    if (!targetDir) {
+      try {
+        const cur = (await client.call('project.current', {})) as {
+          directory?: string
+          project?: { name?: string }
+        }
+        if (cur?.directory) {
+          targetDir = cur.directory
+          set({ directory: cur.directory, project: cur.project ?? null })
+        }
+      } catch {
+        // 探测失败，视为无项目，返回 false（不抛错）
+      }
+    }
+
+    // 无目录且探测不到 → 静默返回 false，由调用方（login）决定是否阻断
+    if (!targetDir) {
+      return false
+    }
 
     set({ switching: true })
     try {
@@ -58,8 +78,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         project: result.project ?? null,
         switching: false,
       })
-    } catch {
+      return true
+    } catch (e: unknown) {
       set({ switching: false })
+      throw e instanceof Error ? e : new Error('切换项目失败')
     }
   },
 

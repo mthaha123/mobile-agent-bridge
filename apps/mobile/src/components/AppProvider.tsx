@@ -8,7 +8,6 @@ import { useToolProgressStore } from '../stores/toolProgressStore'
 import { useDiffStore } from '../stores/diffStore'
 import { useTodoStore } from '../stores/todoStore'
 import { useQuestionStore } from '../stores/questionStore'
-import { useConfigStore } from '../stores/configStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
@@ -80,12 +79,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       await client.call('question.reply', { id, sessionId: found.sessionId, answers })
     })
 
-    const call = client.call.bind(client)
-    useConfigStore.getState().fetchAgents(call)
-    useConfigStore.getState().fetchProviders(call)
-    useConfigStore.getState().fetchCommands(call)
-    useConfigStore.getState().fetchModels(call)
-    useConfigStore.getState().fetchConfig(call)
+    // 配置拉取由 authStore.login 在 project.switch 建立 OpenCode 连接后显式驱动，
+    // 保证时序：连接 → 切项目 → 拉配置 → 进入主界面
 
     client.on('notification', (method: string, payload: any) => {
       // 流式文本增量（带 eventId 排序重组；SDK v3 的 eventId 是 evt_ 字符串 → 走到达顺序）
