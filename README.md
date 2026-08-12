@@ -46,8 +46,8 @@ mobile-agent-bridge/
     │   ├── l2-bridge-*.yaml           # Layer 2: Mock 集成测试
     │   ├── l3-*.yaml                  # Layer 3: UI 组件测试
     │   └── shared/                    # 公共连接步骤
-    ├── bin/                           # Maestro 可执行文件
-    └── lib/                           # Maestro 依赖库
+    ├── bin/                           # Maestro 可执行文件（本地安装，不入库）
+    └── lib/                           # Maestro 依赖库（本地安装，不入库）
 ```
 
 ---
@@ -74,6 +74,23 @@ cd apps/mobile
 pnpm install
 npx react-native run-android
 ```
+
+#### 构建 Release APK
+
+```bash
+cd apps/mobile/android
+./gradlew :app:assembleRelease   # 产物: app/build/outputs/apk/release/app-release.apk
+```
+
+> ⚠️ 首次构建前需先生成 `react-native-gradle-plugin` 的 jar（`build.gradle` 引用它来支持新架构 codegen）：
+> `./gradlew tasks --all || true`，然后重新执行上面的构建命令。
+
+#### GitHub Actions 自动构建
+
+推送到 GitHub 后，`.github/workflows/build-android.yml` 会在每次 push/PR 时自动构建 APK 并作为 artifact 提供：
+- 触发路径：`apps/mobile/**`、`packages/shared/**`
+- 产物下载：Actions 页面 → 对应 run → Artifacts → `app-release.apk`
+- 也可手动触发：Actions → "Build Android APK" → Run workflow
 
 ### 3. E2E 验证（无需模拟器）
 
@@ -111,7 +128,7 @@ npm run e2e:test-rpcs     # 验证 5 个核心 RPC (9 断言)
 
 ```bash
 npm run bridge:test               # Bridge: 117 tests (3 test files)
-cd apps/mobile && npx jest        # Mobile: 571 tests (29 test files)
+cd apps/mobile && npx jest        # Mobile: 634 tests (29 test files)
 ```
 
 ### E2E 测试
