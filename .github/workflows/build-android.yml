@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@11 --activate
+        run: corepack enable && corepack prepare pnpm@11.9.0 --activate
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4

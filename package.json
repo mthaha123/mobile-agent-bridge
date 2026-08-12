@@ -1,6 +1,7 @@
 {
   "name": "mobile-agent-bridge",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "bridge:dev": "cd servers/bridge && pnpm dev",
     "bridge:build": "cd servers/bridge && pnpm build",
