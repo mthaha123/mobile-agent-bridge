@@ -69,28 +69,6 @@ describe('FileBrowserScreen', () => {
     const tree = TestRenderer.create(<FileBrowserScreen />)
     expect(tree.toJSON()).not.toBeNull()
   })
-
-  it('file preview shows content and close button', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: {
-          path: '/test/file.ts',
-          content: 'console.log("hello")',
-          encoding: 'utf-8',
-          size: 22,
-        },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    const t = textOf(tree)
-    expect(t).toContain('console.log("hello")')
-    expect(t).toContain('✕')
-  })
 })
 
 // ─── Store 状态验证 ────────────────────────────────────────
@@ -240,67 +218,6 @@ describe('FileBrowserScreen — rendering', () => {
     expect(inputs.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('file preview shows close button', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: { path: '/test/file.ts', content: 'hello', encoding: 'utf-8', size: 5 },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    expect(textOf(tree)).toContain('✕')
-  })
-
-  it('file preview shows file content', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: { path: '/test/file.ts', content: 'console.log("hello")', encoding: 'utf-8', size: 22 },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    expect(textOf(tree)).toContain('console.log("hello")')
-  })
-
-  it('file preview shows file path', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: { path: '/test/file.ts', content: 'hello', encoding: 'utf-8', size: 5 },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    expect(textOf(tree)).toContain('/test/file.ts')
-  })
-
-  it('file preview renders markdown for .md files', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: { path: '/test/README.md', content: '# Title\n\n**bold**', encoding: 'utf-8', size: 20 },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    expect(textOf(tree)).toContain('# Title')
-    expect(textOf(tree)).toContain('**bold**')
-  })
-
 
   it('error state shows error text', () => {
     const client = mockClient()
@@ -423,37 +340,6 @@ describe('FileBrowserScreen — formatSize', () => {
 // ─── 交互测试补充 ─────────────────────────────────────────
 
 describe('FileBrowserScreen — interactions extended', () => {
-  it('close file preview button clears currentFile', () => {
-    const client = mockClient()
-    act(() => {
-      useAuthStore.setState({ client: client as any })
-      useProjectStore.setState({ directory: '/test' })
-    })
-    act(() => {
-      useFileStore.setState({
-        currentFile: { path: '/test/file.ts', content: 'hello', encoding: 'utf-8', size: 5 },
-      })
-    })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    const pressables = tree.root.findAll(
-      (n: any) => typeof n.props?.onPress === 'function',
-    )
-    const closeBtn = pressables.find((n: any) => {
-      let text = ''
-      function walk(node: any) {
-        if (!node) return
-        if (typeof node === 'string') { text += node; return }
-        if (node.children) node.children.forEach(walk)
-      }
-      walk(n)
-      return text.includes('✕')
-    })
-    expect(closeBtn).toBeTruthy()
-
-    act(() => { closeBtn!.props.onPress() })
-    expect(useFileStore.getState().currentFile).toBeNull()
-  })
-
   it('search button triggers handleSearch', async () => {
     const client = mockClient({
       'file.search': () => [{ file: 'src/index.ts', line: 1, content: 'test' }],

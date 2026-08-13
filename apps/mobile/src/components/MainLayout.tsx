@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { SessionsScreen } from '../screens/SessionsScreen'
 import { ChatScreen } from '../screens/ChatScreen'
 import { FileBrowserScreen } from '../screens/FileBrowserScreen'
+import { FileViewerScreen } from '../screens/FileViewerScreen'
 import { SettingsScreen } from '../screens/SettingsScreen'
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
@@ -16,6 +17,7 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 export const MainLayout: React.FC = () => {
   const activeTab = useUiStore((s) => s.activeTab)
   const chatSubScreen = useUiStore((s) => s.chatSubScreen)
+  const filesSubScreen = useUiStore((s) => s.filesSubScreen)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const client = useAuthStore((s) => s.client)
 
@@ -37,13 +39,16 @@ export const MainLayout: React.FC = () => {
       case 'chat':
         return chatSubScreen === 'sessions' ? <SessionsScreen /> : <ChatScreen />
       case 'files':
-        return <FileBrowserScreen />
+        return filesSubScreen === 'viewer' ? <FileViewerScreen /> : <FileBrowserScreen />
       case 'settings':
         return <SettingsScreen />
       default:
         return <SessionsScreen />
     }
   }
+
+  // 全屏查看器：隐藏底部 tab bar
+  const isFullscreenViewer = activeTab === 'files' && filesSubScreen === 'viewer'
 
   return (
     <View style={styles.root}>
@@ -57,22 +62,24 @@ export const MainLayout: React.FC = () => {
         {renderContent()}
       </View>
 
-      <View style={styles.tabBar}>
-        {TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tab, activeTab === t.key && styles.tabActive]}
-            onPress={() => setActiveTab(t.key)}
-          >
-            <Text style={[styles.tabIcon, activeTab === t.key && styles.tabIconActive]}>
-              {t.icon}
-            </Text>
-            <Text style={[styles.tabLabel, activeTab === t.key && styles.tabLabelActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {!isFullscreenViewer && (
+        <View style={styles.tabBar}>
+          {TABS.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tab, activeTab === t.key && styles.tabActive]}
+              onPress={() => setActiveTab(t.key)}
+            >
+              <Text style={[styles.tabIcon, activeTab === t.key && styles.tabIconActive]}>
+                {t.icon}
+              </Text>
+              <Text style={[styles.tabLabel, activeTab === t.key && styles.tabLabelActive]}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   )
 }

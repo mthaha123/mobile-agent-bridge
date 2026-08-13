@@ -92,6 +92,7 @@ export function resetAllStores() {
     screen: 'connect',
     activeTab: 'chat',
     chatSubScreen: 'sessions',
+    filesSubScreen: 'browser',
   })
   useFileStore.getState().reset()
 }

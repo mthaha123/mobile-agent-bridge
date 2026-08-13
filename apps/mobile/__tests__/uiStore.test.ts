@@ -6,6 +6,7 @@ describe('uiStore', () => {
       screen: 'connect',
       activeTab: 'chat',
       chatSubScreen: 'sessions',
+      filesSubScreen: 'browser',
     })
   })
 
@@ -14,6 +15,7 @@ describe('uiStore', () => {
     expect(s.screen).toBe('connect')
     expect(s.activeTab).toBe('chat')
     expect(s.chatSubScreen).toBe('sessions')
+    expect(s.filesSubScreen).toBe('browser')
   })
 
   it('setScreen changes screen and resets tab/subscreen', () => {
@@ -27,6 +29,7 @@ describe('uiStore', () => {
     expect(s.screen).toBe('connect')
     expect(s.activeTab).toBe('chat')
     expect(s.chatSubScreen).toBe('sessions')
+    expect(s.filesSubScreen).toBe('browser')
   })
 
   it('setActiveTab changes active tab', () => {
@@ -55,5 +58,23 @@ describe('uiStore', () => {
     useUiStore.getState().setActiveTab('files')
     useUiStore.getState().pushChat()
     expect(useUiStore.getState().activeTab).toBe('files')
+  })
+
+  it('pushViewer changes filesSubScreen to viewer', () => {
+    useUiStore.getState().pushViewer()
+    expect(useUiStore.getState().filesSubScreen).toBe('viewer')
+  })
+
+  it('popViewer changes filesSubScreen to browser', () => {
+    useUiStore.getState().pushViewer()
+    useUiStore.getState().popViewer()
+    expect(useUiStore.getState().filesSubScreen).toBe('browser')
+  })
+
+  it('pushViewer does not affect active tab', () => {
+    useUiStore.getState().setActiveTab('files')
+    useUiStore.getState().pushViewer()
+    expect(useUiStore.getState().activeTab).toBe('files')
+    expect(useUiStore.getState().filesSubScreen).toBe('viewer')
   })
 })

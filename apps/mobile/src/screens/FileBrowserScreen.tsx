@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -8,15 +8,13 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  ScrollView,
   Modal,
-  Image,
 } from 'react-native'
 import { useFileStore, FileInfo, SearchResult } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useUiStore } from '../stores/uiStore'
 import ReactNativeBlobUtil from 'react-native-blob-util'
-import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
 
@@ -38,14 +36,12 @@ export const FileBrowserScreen: React.FC = () => {
   const {
     currentPath,
     files,
-    currentFile,
     searchResults,
     searchQuery,
     loading,
     error,
     setCurrentPath,
     setFiles,
-    setCurrentFile,
     setSearchResults,
     setSearchQuery,
     setLoading,
@@ -56,33 +52,39 @@ export const FileBrowserScreen: React.FC = () => {
 
   const client = useAuthStore((s) => s.client)
   const projectDir = useProjectStore((s) => s.directory)
+  const openTextViewer = useFileStore((s) => s.openTextViewer)
+  const openImageViewer = useFileStore((s) => s.openImageViewer)
+  const pushViewer = useUiStore((s) => s.pushViewer)
 
   const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
-  const [imagePreview, setImagePreview] = useState<{ uri: string; name: string } | null>(null)
+
+  const loadSeqRef = useRef(0)
 
   const loadDirectory = useCallback(async (path: string) => {
     if (!client) return
 
+    const seq = ++loadSeqRef.current
     setLoading(true)
     setError(null)
-    setCurrentFile(null)
 
     try {
       const files = await client.listFiles(path)
+      // 只接受最新一次请求的结果，丢弃过期响应（避免竞态覆盖）
+      if (seq !== loadSeqRef.current) return
       setFiles(files)
     } catch (err: unknown) {
+      if (seq !== loadSeqRef.current) return
       const msg = err instanceof Error ? err.message : 'Failed to load directory'
       setError(msg)
       Alert.alert('Error', msg)
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
-  }, [client, setFiles, setLoading, setError, setCurrentFile])
+  }, [client, setFiles, setLoading, setError])
 
   useEffect(() => {
     const initialPath = projectDir || '/'
     setCurrentPath(initialPath)
-    loadDirectory(initialPath)
   }, [projectDir])
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export const FileBrowserScreen: React.FC = () => {
     if (file.type === 'directory') {
       enterDirectory(file.name)
     } else if (file.type === 'file') {
-      // 图片文件 → base64 预览
+      // 图片文件 → 全屏查看器
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
       if (IMAGE_EXTS.includes(ext)) {
         setLoading(true)
@@ -103,7 +105,8 @@ export const FileBrowserScreen: React.FC = () => {
           const data = await client?.readFile(currentPath + '/' + file.name, 'base64')
           if (data?.base64) {
             const mime = data.mimeType || 'image/png'
-            setImagePreview({ uri: `data:${mime};base64,${data.content}`, name: file.name })
+            openImageViewer({ uri: `data:${mime};base64,${data.content}`, name: file.name })
+            pushViewer()
           }
         } catch (err: unknown) {
           Alert.alert('Error', err instanceof Error ? err.message : 'Failed to preview image')
@@ -115,7 +118,10 @@ export const FileBrowserScreen: React.FC = () => {
       setLoading(true)
       try {
         const content = await client?.readFile(currentPath + '/' + file.name)
-        setCurrentFile(content || null)
+        if (content) {
+          openTextViewer(content)
+          pushViewer()
+        }
       } catch (err: unknown) {
         Alert.alert('Error', err instanceof Error ? err.message : 'Failed to read file')
       } finally {
@@ -237,26 +243,6 @@ export const FileBrowserScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {currentFile && (
-        <View style={styles.filePreview}>
-          <View style={styles.filePreviewHeader}>
-            <Text style={styles.filePreviewTitle} numberOfLines={1}>
-              {currentFile.path}
-            </Text>
-            <TouchableOpacity onPress={() => setCurrentFile(null)} accessibilityLabel="Close preview">
-              <Text style={styles.closePreview}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.codeContainer}>
-            {currentFile.path.toLowerCase().endsWith('.md') ? (
-              <MarkdownRenderer content={currentFile.content} />
-            ) : (
-              <Text style={styles.codeContent}>{currentFile.content}</Text>
-            )}
-          </ScrollView>
-        </View>
-      )}
-
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4a9eff" />
@@ -367,42 +353,6 @@ export const FileBrowserScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
-
-      {/* 图片预览 */}
-      <Modal
-        visible={!!imagePreview}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setImagePreview(null)}
-      >
-        <View style={styles.imagePreviewModal}>
-          <View style={styles.imagePreviewHeader}>
-            <Text style={styles.imagePreviewTitle} numberOfLines={1}>{imagePreview?.name}</Text>
-            <TouchableOpacity onPress={() => setImagePreview(null)} accessibilityLabel="Close image preview">
-              <Text style={styles.closePreview}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          {imagePreview && (
-            <Image
-              source={{ uri: imagePreview.uri }}
-              style={styles.imagePreviewImage}
-              resizeMode="contain"
-            />
-          )}
-          {imagePreview && (
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => {
-                const img = imagePreview
-                setImagePreview(null)
-                if (img) handleDownload({ name: img.name, type: 'file', size: 0, modified: '', permissions: '' })
-              }}
-            >
-              <Text style={styles.downloadButtonText}>⬇ 下载</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </Modal>
     </View>
   )
 }
@@ -508,39 +458,6 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff6b6b',
   },
-  filePreview: {
-    flex: 1,
-    backgroundColor: '#16213e',
-  },
-  filePreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#0f3460',
-    borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
-  },
-  filePreviewTitle: {
-    color: '#eee',
-    fontSize: 14,
-    flex: 1,
-    marginRight: 12,
-  },
-  closePreview: {
-    color: '#888',
-    fontSize: 18,
-  },
-  codeContainer: {
-    flex: 1,
-    padding: 12,
-  },
-  codeContent: {
-    color: '#d4d4d4',
-    fontFamily: 'monospace',
-    fontSize: 14,
-    lineHeight: 20,
-  },
   searchResult: {
     padding: 12,
     borderBottomWidth: 1,
@@ -613,38 +530,5 @@ const styles = StyleSheet.create({
   },
   downloadAction: {
     marginTop: 8,
-  },
-  imagePreviewModal: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    justifyContent: 'center',
-  },
-  imagePreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  imagePreviewTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 12,
-  },
-  imagePreviewImage: {
-    flex: 1,
-    width: '100%',
-  },
-  downloadButton: {
-    padding: 16,
-    backgroundColor: '#0f3460',
-    alignItems: 'center',
-  },
-  downloadButtonText: {
-    color: '#4a9eff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

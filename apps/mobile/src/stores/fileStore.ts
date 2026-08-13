@@ -27,6 +27,13 @@ export interface SearchResult {
   match?: string
 }
 
+export interface ViewerImage {
+  uri: string
+  name: string
+}
+
+export type ViewerMode = 'text' | 'image' | null
+
 export interface FileState {
   /** 当前浏览路径 */
   currentPath: string
@@ -43,6 +50,17 @@ export interface FileState {
   /** 错误信息 */
   error: string | null
 
+  /** 查看器类型（text / image / null） */
+  viewerMode: ViewerMode
+  /** 查看器图片数据 */
+  viewerImage: ViewerImage | null
+  /** 查看器字号偏好（持久化） */
+  viewerFontSize: number
+  /** 查看器是否显示行号（持久化） */
+  viewerShowLineNumbers: boolean
+  /** markdown 文件：是否显示源码（false=渲染） */
+  viewerShowSource: boolean
+
   /** 设置当前路径 */
   setCurrentPath: (path: string) => void
   /** 设置文件列表 */
@@ -57,6 +75,18 @@ export interface FileState {
   setLoading: (loading: boolean) => void
   /** 设置错误信息 */
   setError: (error: string | null) => void
+  /** 打开文本查看器 */
+  openTextViewer: (file: FileContent) => void
+  /** 打开图片查看器 */
+  openImageViewer: (image: ViewerImage) => void
+  /** 关闭查看器 */
+  closeViewer: () => void
+  /** 调节字号 */
+  setViewerFontSize: (size: number) => void
+  /** 切换行号显示 */
+  toggleLineNumbers: () => void
+  /** 切换 markdown 渲染/源码 */
+  toggleViewerSource: () => void
   /** 导航到上级目录 */
   goUp: () => void
   /** 进入子目录 */
@@ -73,6 +103,11 @@ const initialState = {
   searchQuery: '',
   loading: false,
   error: null,
+  viewerMode: null as ViewerMode,
+  viewerImage: null,
+  viewerFontSize: 14,
+  viewerShowLineNumbers: true,
+  viewerShowSource: false,
 }
 
 export const useFileStore = create<FileState>((set, get) => ({
@@ -91,6 +126,27 @@ export const useFileStore = create<FileState>((set, get) => ({
   setLoading: (loading) => set({ loading }),
 
   setError: (error) => set({ error }),
+
+  openTextViewer: (file) => set({
+    currentFile: file,
+    viewerMode: 'text',
+    viewerImage: null,
+    viewerShowSource: false,
+  }),
+
+  openImageViewer: (image) => set({
+    viewerImage: image,
+    viewerMode: 'image',
+    currentFile: null,
+  }),
+
+  closeViewer: () => set({ viewerMode: null, viewerImage: null }),
+
+  setViewerFontSize: (size) => set({ viewerFontSize: Math.max(10, Math.min(24, size)) }),
+
+  toggleLineNumbers: () => set((s) => ({ viewerShowLineNumbers: !s.viewerShowLineNumbers })),
+
+  toggleViewerSource: () => set((s) => ({ viewerShowSource: !s.viewerShowSource })),
 
   goUp: () => {
     const { currentPath } = get()

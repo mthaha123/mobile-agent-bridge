@@ -18,7 +18,7 @@ export interface ProjectState {
 
   setDirectory: (dir: string) => void
   setProject: (info: { directory: string; project?: { name?: string } }) => void
-  switchProject: (dir?: string) => Promise<void>
+  switchProject: (dir?: string) => Promise<boolean>
   fetchCurrentProject: () => Promise<void>
   listProjects: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
