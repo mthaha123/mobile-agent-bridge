@@ -169,6 +169,17 @@ const MOCK_PAYLOADS = {
     size: 52,
     path: "/mock-project/README.md",
   },
+  "file.read.long": {
+    content: "# Long Single-Line File\n\n" +
+      "{\"name\":\"mock-project\",\"version\":\"1.0.0\",\"scripts\":{\"dev\":\"node dev.js\",\"build\":\"node build.js\"}," +
+      "\"dependencies\":{\"react\":\"18.3.1\",\"react-native\":\"0.76.9\",\"react-native-blob-util\":\"0.24.0\"," +
+      "\"zustand\":\"4.5.0\",\"ws\":\"8.18.0\",\"lucide-react-native\":\"0.469.0\",\"react-markdown\":\"9.0.1\"," +
+      "\"@react-navigation/native\":\"6.1.18\",\"@react-navigation/stack\":\"6.4.17\"}," +
+      "\"devDependencies\":{\"typescript\":\"5.4.5\",\"jest\":\"29.7.0\",\"@types/react\":\"18.3.3\"}}",
+    encoding: "utf-8",
+    size: 512,
+    path: "/mock-project/package.json",
+  },
   "file.search": [
     { file: "src/index.ts", line: 1, content: "import { createServer } from 'http'", match: "import" },
   ],
@@ -274,7 +285,14 @@ wss.on("connection", (ws) => {
     const method = frame.method || ""
     const id = frame.id || "0"
 
-    let payload = MOCK_PAYLOADS[method] || getDefaultPayload(method)
+    let key = method
+    if (method === "file.read" && String(frame.params?.path || "").endsWith("package.json")) {
+      key = "file.read.long"
+    }
+    if (method === "file.read" && String(frame.params?.path || "").endsWith("README.md")) {
+      key = "file.read"
+    }
+    let payload = MOCK_PAYLOADS[key] || MOCK_PAYLOADS[method] || getDefaultPayload(method)
 
     // 特殊处理: message.send 中以 __push__: 开头的 magic message
     // 格式: __push__:<method>:<JSON-payload>

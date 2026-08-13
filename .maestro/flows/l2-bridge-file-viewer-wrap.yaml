@@ -1,0 +1,53 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 — 文件查看器换行/不换行模式切换
+- launchApp
+
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 20000
+
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 进入 Files 页面
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "package.json"
+    timeout: 15000
+
+# 打开 package.json（mock 返回超长单行 minified JSON）
+- tapOn: "package.json"
+- extendedWaitUntil:
+    visible: "不换行"
+    timeout: 15000
+
+# 默认换行模式：长行被折行，footer 显示"不换行"按钮
+- assertVisible: "不换行"
+
+# 切换到不换行模式
+- tapOn: "不换行"
+- extendedWaitUntil:
+    visible: "换行"
+    timeout: 10000
+
+# 确认内容仍在
+- assertVisible: "package.json"
+
+# 切回换行模式
+- tapOn: "换行"
+- extendedWaitUntil:
+    visible: "不换行"
+    timeout: 10000
+
+# 返回文件列表
+- tapOn: "←"
+- assertVisible: "Search files..."

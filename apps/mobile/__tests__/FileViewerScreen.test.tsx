@@ -53,6 +53,50 @@ describe('FileViewerScreen — text', () => {
     expect(useFileStore.getState().viewerShowLineNumbers).toBe(false)
   })
 
+  it('wrap mode is enabled by default and wraps long lines', () => {
+    openTextFile('/test/file.ts', 'short\n' + 'x'.repeat(500))
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    expect(useFileStore.getState().viewerWrap).toBe(true)
+    const text = textOf(tree)
+    expect(text).toContain('short')
+    expect(text).toContain('x'.repeat(200))
+  })
+
+  it('toggleViewerWrap switches to no-wrap mode', () => {
+    openTextFile('/test/file.ts', 'a\nb')
+    expect(useFileStore.getState().viewerWrap).toBe(true)
+    act(() => { useFileStore.getState().toggleViewerWrap() })
+    expect(useFileStore.getState().viewerWrap).toBe(false)
+  })
+
+  it('no-wrap mode renders a horizontal ScrollView with unwrapped line content', () => {
+    useFileStore.setState({ viewerWrap: false })
+    openTextFile('/test/file.ts', 'line1\nline2')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const horizScroll = tree.root.findAll(
+      (n: any) => n.props?.horizontal === true,
+    )
+    expect(horizScroll.length).toBeGreaterThan(0)
+    const text = textOf(tree)
+    expect(text).toContain('line1')
+    expect(text).toContain('line2')
+  })
+
+  it('footer wrap button toggles wrap mode', () => {
+    openTextFile('/test/file.ts', 'hello')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const pressables = tree.root.findAll((n: any) => typeof n.props?.onPress === 'function')
+    const wrapBtn = pressables.find((n: any) => {
+      let t = ''
+      function walk(node: any) { if (!node) return; if (typeof node === 'string') t += node; if (node.children) node.children.forEach(walk) }
+      walk(n)
+      return t.includes('不换行')
+    })
+    expect(wrapBtn).toBeTruthy()
+    act(() => { wrapBtn!.props.onPress() })
+    expect(useFileStore.getState().viewerWrap).toBe(false)
+  })
+
   it('A+ increases font size and A- decreases, clamped to [10,24]', () => {
     openTextFile('/test/file.ts', 'hello')
     act(() => { useFileStore.getState().setViewerFontSize(24) })

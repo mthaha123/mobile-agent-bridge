@@ -60,6 +60,8 @@ export interface FileState {
   viewerShowLineNumbers: boolean
   /** markdown 文件：是否显示源码（false=渲染） */
   viewerShowSource: boolean
+  /** 文本查看器：是否折行（true=换行模式，false=不换行+横向滚动） */
+  viewerWrap: boolean
 
   /** 设置当前路径 */
   setCurrentPath: (path: string) => void
@@ -87,6 +89,8 @@ export interface FileState {
   toggleLineNumbers: () => void
   /** 切换 markdown 渲染/源码 */
   toggleViewerSource: () => void
+  /** 切换换行/不换行模式 */
+  toggleViewerWrap: () => void
   /** 导航到上级目录 */
   goUp: () => void
   /** 进入子目录 */
@@ -108,6 +112,7 @@ const initialState = {
   viewerFontSize: 14,
   viewerShowLineNumbers: true,
   viewerShowSource: false,
+  viewerWrap: true,
 }
 
 export const useFileStore = create<FileState>((set, get) => ({
@@ -147,6 +152,8 @@ export const useFileStore = create<FileState>((set, get) => ({
   toggleLineNumbers: () => set((s) => ({ viewerShowLineNumbers: !s.viewerShowLineNumbers })),
 
   toggleViewerSource: () => set((s) => ({ viewerShowSource: !s.viewerShowSource })),
+
+  toggleViewerWrap: () => set((s) => ({ viewerWrap: !s.viewerWrap })),
 
   goUp: () => {
     const { currentPath } = get()

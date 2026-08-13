@@ -46,10 +46,12 @@ export const FileViewerScreen: React.FC = () => {
   const viewerFontSize = useFileStore((s) => s.viewerFontSize)
   const viewerShowLineNumbers = useFileStore((s) => s.viewerShowLineNumbers)
   const viewerShowSource = useFileStore((s) => s.viewerShowSource)
+  const viewerWrap = useFileStore((s) => s.viewerWrap)
   const closeViewer = useFileStore((s) => s.closeViewer)
   const setViewerFontSize = useFileStore((s) => s.setViewerFontSize)
   const toggleLineNumbers = useFileStore((s) => s.toggleLineNumbers)
   const toggleViewerSource = useFileStore((s) => s.toggleViewerSource)
+  const toggleViewerWrap = useFileStore((s) => s.toggleViewerWrap)
   const setLoading = useFileStore((s) => s.setLoading)
 
   const client = useAuthStore((s) => s.client)
@@ -118,20 +120,49 @@ export const FileViewerScreen: React.FC = () => {
     }
 
     const lines = currentFile.content.split('\n')
-    return (
-      <ScrollView style={styles.codeScroll}>
-        {lines.map((line, i) => (
-          <View key={i} style={styles.codeLine}>
-            {viewerShowLineNumbers && (
-              <Text style={[styles.lineNumber, { fontSize: viewerFontSize - 2 }]}>
-                {i + 1}
+    if (viewerWrap) {
+      return (
+        <ScrollView style={styles.codeScroll}>
+          {lines.map((line, i) => (
+            <View key={i} style={styles.codeLine}>
+              {viewerShowLineNumbers && (
+                <Text style={[styles.lineNumber, { fontSize: viewerFontSize - 2 }]}>
+                  {i + 1}
+                </Text>
+              )}
+              <Text style={[styles.codeContent, { fontSize: viewerFontSize }]}>
+                {line.length > 0 ? line : ' '}
               </Text>
-            )}
-            <Text style={[styles.codeContent, { fontSize: viewerFontSize }]}>
-              {line.length > 0 ? line : ' '}
-            </Text>
+            </View>
+          ))}
+        </ScrollView>
+      )
+    }
+    // 不换行模式：横向滚动，长行保持一行
+    const maxLineWidth = lines.reduce((m, l) => Math.max(m, l.length), 0)
+    return (
+      <ScrollView style={styles.codeScroll} contentContainerStyle={{ paddingBottom: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator style={styles.noWrapScroll}>
+          <View>
+            {lines.map((line, i) => (
+              <View key={i} style={styles.noWrapLine}>
+                {viewerShowLineNumbers && (
+                  <Text style={[styles.noWrapLineNumber, { fontSize: viewerFontSize - 2 }]}>
+                    {i + 1}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    maxLineWidth > 200 ? styles.codeContentNoWrapLong : styles.codeContentNoWrap,
+                    { fontSize: viewerFontSize },
+                  ]}
+                >
+                  {line.length > 0 ? line : ' '}
+                </Text>
+              </View>
+            ))}
           </View>
-        ))}
+        </ScrollView>
       </ScrollView>
     )
   }
@@ -191,6 +222,11 @@ export const FileViewerScreen: React.FC = () => {
           {viewerMode === 'text' && (
             <TouchableOpacity onPress={toggleLineNumbers} style={styles.footerBtn}>
               <Text style={styles.footerBtnText}>{viewerShowLineNumbers ? '行号开' : '行号关'}</Text>
+            </TouchableOpacity>
+          )}
+          {viewerMode === 'text' && !showRendered && (
+            <TouchableOpacity onPress={toggleViewerWrap} style={styles.footerBtn}>
+              <Text style={styles.footerBtnText}>{viewerWrap ? '不换行' : '换行'}</Text>
             </TouchableOpacity>
           )}
           {viewerMode === 'text' && (
@@ -280,6 +316,37 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     flex: 1,
     lineHeight: 22,
+  },
+  noWrapScroll: {
+    backgroundColor: '#16213e',
+  },
+  noWrapLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    minWidth: '100%',
+  },
+  noWrapLineNumber: {
+    color: '#6b7a99',
+    fontFamily: 'monospace',
+    width: 48,
+    textAlign: 'right',
+    marginRight: 12,
+    lineHeight: 22,
+  },
+  codeContentNoWrap: {
+    color: '#d4d4d4',
+    fontFamily: 'monospace',
+    flexShrink: 0,
+    lineHeight: 22,
+  },
+  codeContentNoWrapLong: {
+    color: '#d4d4d4',
+    fontFamily: 'monospace',
+    flexShrink: 0,
+    lineHeight: 22,
+    minWidth: 1200,
   },
   renderedWrap: {
     padding: 16,
