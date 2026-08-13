@@ -33,6 +33,9 @@ scripts/e2e/screenshots/
 .maestro/lib/
 .maestro/maestro.cmd
 
+# 部署工具二进制（cloudflared.exe 等，运行脚本保留，工具本体不入库）
+scripts/tools/
+
 # Generated/temp
 .sisyphus/
 
