@@ -51,6 +51,18 @@ function extractMessageText(m: any): string {
   return ''
 }
 
+/**
+ * 从 SDK v2 message 记录（{ info, parts }）提取文本与角色。
+ * v2 结构: { info: { id, sessionID, role, time }, parts: [{ type:'text', text }] }
+ */
+function extractV2MessageText(m: any): string {
+  const parts = Array.isArray(m.parts) ? m.parts : []
+  return parts
+    .filter((p: any) => p && p.type === 'text' && typeof p.text === 'string')
+    .map((p: any) => p.text)
+    .join('')
+}
+
 export interface Session {
   id: string
   name: string
@@ -160,15 +172,28 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const mapped = raw
         .filter((m) => m && typeof m === 'object')
         .map((m) => {
+          // SDK v2 message 记录: { info: { id, role }, parts: [{ type:'text', text }] }
+          if (m.info && typeof m.info === 'object') {
+            const info = m.info as Record<string, unknown>
+            const text = extractV2MessageText(m)
+            return {
+              id: (info.id as string) || m.id,
+              role: info.role as string,
+              content: text,
+              text,
+              rawContent: m.parts ?? text,
+            }
+          }
           const role = m.role || m.type
           const content = extractMessageText(m)
           return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)) }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
-      // 真实 SDK 默认返回最新在前（desc）的事件对象（带 type 字段）。
-      // 显式 asc 时返回时间正序；仅非 asc（desc/默认）且为 SDK 事件格式时才反转成正序。
+      // 真实 SDK 默认返回最新在前（desc）的事件对象（带 type 字段）或 v2 记录（info/parts）。
+      // 显式 asc 时返回时间正序；仅非 asc（desc/默认）且为 SDK 格式时才反转成正序。
       const isSdkEventFormat = raw.some((m) => m && typeof m.type === 'string')
-      const list = (opts?.order !== 'asc' && isSdkEventFormat) ? mapped.reverse() : mapped
+      const isV2RecordFormat = raw.some((m) => m && typeof m.info === 'object')
+      const list = (opts?.order !== 'asc' && (isSdkEventFormat || isV2RecordFormat)) ? mapped.reverse() : mapped
       const cursor = result && typeof result === 'object' && !Array.isArray(result)
         ? (result as Record<string, unknown>).cursor
         : undefined

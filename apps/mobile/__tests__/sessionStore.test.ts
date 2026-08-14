@@ -306,6 +306,41 @@ describe('getSessionMessages', () => {
     ])
   })
 
+  it('parses SDK v2 message records ({ info, parts }), newest-first, and reverses to chronological', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      {
+        info: { id: 'msg_a2', sessionID: 'sess-1', role: 'assistant', time: { created: 2000 } },
+        parts: [{ id: 'p1', type: 'text', text: 'Reply' }],
+      },
+      {
+        info: { id: 'msg_u1', sessionID: 'sess-1', role: 'user', time: { created: 1000 } },
+        parts: [{ id: 'p2', type: 'text', text: 'Hello?' }],
+      },
+    ])
+
+    const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
+
+    expect(result.messages).toEqual([
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }] },
+      { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }] },
+    ])
+  })
+
+  it('drops non-user/assistant v2 records', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { info: { id: 'msg_sys', role: 'system' }, parts: [{ type: 'text', text: 'sys' }] },
+      { info: { id: 'msg_a1', role: 'assistant' }, parts: [{ type: 'text', text: 'reply' }] },
+    ])
+
+    const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
+
+    expect(result.messages).toEqual([
+      { id: 'msg_a1', role: 'assistant', content: 'reply', text: 'reply', rawContent: [{ type: 'text', text: 'reply' }] },
+    ])
+  })
+
   it('returns empty array on error and sets error', async () => {
     const clientCall = mockClientCall()
     clientCall.mockRejectedValue(new Error('messages failed'))
