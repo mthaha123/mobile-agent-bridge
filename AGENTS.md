@@ -9,12 +9,29 @@
 项目 `.opencode/plugin/bash-timeout-guard.ts` 是一个 opencode plugin，自动拦截所有 bash 调用，强制限制 `timeout ≤ 180s`：
 
 - **`tool.execute.before`**：把 bash 的 `timeout` 统一 cap 到 180s（3 分钟上限）。opencode bash 工具原生消费该参数，**超过 180s 会自动强制 kill 进程树**，任何 bash 命令最长跑 3 分钟。
+- **危险 spawn 阻断**：同一 hook 还会检测命令中是否出现 `spawn(detached:true + stdio:pipe)`（长驻进程持有管道句柄 → 工具层等待管道 EOF 永不收敛 → 静默挂起）。命中即**强制改写命令为 `Write-Output '[强制阻断]...'; exit 99`**，命令不会执行，agent 会收到阻断提示。
 - **`tool.execute.after`**：若 bash 结果标记超时（`Command exceeded timeout`），**向 agent 注入明确警告**（输出追加 `[超时]...已被强制终止`），提醒不要超过 180s。
+
+⚠️ 危险 spawn 模式（`spawn` + `detached:true` + `stdio:pipe`）会被插件**强制阻断**，即使 agent 想这么写也执行不了。正确做法是 `Start-Process -WindowStyle Hidden`（长驻进程）或 `Start-Job`（开发服务器）。
 
 这意味着：
 - 长后台任务（E2E 测试/APK 构建）**绝不传 timeout 或传很小的 timeout**（仅够启动进程本身），任务本身用 `Start-Process -WindowStyle Hidden` 或 `Start-Job` 启动
 - 日志查询/结果检查命令的 timeout 设 ≤ 15s，用短查询轮询取代长 sleep
 - **当 agent 看到 bash 被强制终止（超时）或插件 cap 提示时，立即切换到 fire-and-forget + 短查询轮询模式**，而不是试图增加 timeout 重试。插件的 cap 是强制性的，bash 最长 3 分钟，调大 timeout 不会放过。
+
+## opencode 工具结算缺陷（重要认知）
+
+opencode 的工具执行有超时强制 kill（`timeout` 参数 + 180s cap 均生效），但**"工具调用的结算（settle）"存在已知缺陷**，GitHub 已确认为官方 bug（截至 2026-08 仍在修复中）：
+
+- **Issue #40066**：bash 工具调用后 session 无响应（无输出/无 heartbeat/无 timeout，实测持续 12h+）；工具 part 在 session DB 中一直 `state.status="running"` 永不结算；重启后**从未执行过的调用被错误标记为 `interrupted`**。
+- **Issue #41932**（V2 AI 包 P0 审计）："Settle or fail pending streamed tool calls at message_stop"、"Every announced local tool call must settle exactly once"——pending 工具调用在终止时应被结算或失败，但现在可能**永不结算**。
+
+**行为结论**：
+- `exceeded timeout` 与 `Tool execution was interrupted` 是两条不同路径：前者是超时后强制 kill 并正常返回（agent 可继续）；后者是工具层主动放弃等待，**结果可能未送达 agent → agent 停在等待态，无后续动作（静默）**。
+- **"没有输出" ≠ "命令结束"**：bash 判定结束依赖进程退出 + 管道 EOF；detached 孙进程持有管道写端/仍在进程树 → 管道永不 EOF → 工具调用不返回。
+- **这不是 agent 偷懒**，而是工具调用从未 settle，agent 在等一个不会来的返回。
+
+**应对**：长驻后台进程必须用 `Start-Process -WindowStyle Hidden`（完全脱离进程树/控制台，不继承管道写端），使命令本体正常退出、无句柄残留 → 工具调用正常结算返回，既不超时也不 interrupted。禁止任何形式的 `spawn` + `detached` 在 bash 命令行里派生长驻进程（已被插件强制阻断）。
 
 ---
 
@@ -31,6 +48,25 @@
 - **禁止** `Start-Process -NoNewWindow`（共享 console 导致工具误判阻塞）。
 - **禁止** `Start-Sleep`（不等、不轮询，由测试脚本自行处理就绪等待）。
 - 环境变量在 `Start-Job` 的 `-ScriptBlock` 内部设置（继承自调用进程的 `$env:` 已过期）。
+
+## 一键启动三件套（start-all.mjs）
+
+`scripts/start-all.mjs` 统一启动 **opencode serve (4096) → bridge (8080) → cloudflared 隧道**：
+
+- **启动（fire-and-forget，立即返回）**：
+  ```powershell
+  Start-Process -WindowStyle Hidden -FilePath node -ArgumentList 'D:\code\mobile-agent-bridge\scripts\start-all.mjs' -WorkingDirectory 'D:\code\mobile-agent-bridge'
+  ```
+- **短查询状态（≤15s）**：`node scripts/start-all.mjs --status`（PID/端口/隧道 URL）
+- **精确停止**：`node scripts/start-all.mjs --stop`（读 `*.pid` 按 PID kill，禁止 `-im opencode.exe`）
+- **显式等待就绪（勿在 bash 工具同步跑）**：`node scripts/start-all.mjs --wait`（每轮打印进度）
+
+⚠️ **不要把 `start-all.mjs` 直接在 bash 里同步运行**——它 spawn 出三个长驻进程，即使 `detached + stdio:"ignore"`，bash 工具仍判进程树未收敛 → 永不返回（实测 >3min 无响应）。必须用 `Start-Process` 让脚本本身脱离进程树，再配合 `--status` 短查询轮询。这符合"工具结算缺陷"一节：长驻进程从根上不进入命令进程树。
+
+关键参数（脚本内硬编码，与部署一致）：
+- serve：spawn `opencode.exe` 绝对路径，`cwd=D:\code`，注入 `OPENCODE_SERVER_PASSWORD=""` + `OPENCODE_API_KEY`（env→注册表→auth.json 三级解析）
+- bridge：`BRIDGE_PORT=8080 BRIDGE_PASSWORD=test123 OPENCODE_URL=http://localhost:4096`
+- 隧道：`cloudflared tunnel --url http://localhost:8080`
 
 ## E2E 后台运行（Start-Process 模式）
 
