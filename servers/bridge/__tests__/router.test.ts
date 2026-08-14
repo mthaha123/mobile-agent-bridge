@@ -77,6 +77,7 @@ function createMockSdk() {
     },
   }
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
+  backend.rawSessionMessages = jest.fn<any>().mockResolvedValue([])
   return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig }
 }
 
@@ -474,16 +475,17 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toEqual([{ id: "s1", title: "T" }])
   })
 
-  it("should unwrap { data } in session.messages", async () => {
-    const { mockV3Session } = createMockSdk()
-    mockV3Session.messages.mockResolvedValueOnce({ data: { data: [{ id: "m1", type: "user", text: "hi" }], cursor: {} } })
+  it("should return raw session messages via rawSessionMessages", async () => {
+    const { backend } = createMockSdk()
+    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce([{ id: "m1", type: "user", text: "hi" }])
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.messages",
       params: { sessionID: "sess_123" },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ messages: [{ id: "m1", type: "user", text: "hi" }], cursor: {} })
+    expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", {})
+    expect(messages[0].payload).toEqual({ messages: [{ id: "m1", type: "user", text: "hi" }], cursor: undefined })
   })
 
   it("should unwrap { data } in session.get", async () => {
@@ -530,29 +532,29 @@ describe("RPC Router", () => {
     expect(messages[0].error).toContain("sessionId")
   })
 
-  it("should call session.messages with sessionID", async () => {
-    const { mockV3Session } = createMockSdk()
+  it("should call rawSessionMessages with sessionID", async () => {
+    const { backend } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.messages",
       params: { sessionID: "sess_123" },
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockV3Session.messages).toHaveBeenCalledWith({ sessionID: "sess_123" })
-    // 返回 { messages, cursor }，保留分页游标
-    expect(messages[0].payload).toEqual({ messages: [], cursor: {} })
+    expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", {})
+    // 返回 { messages, cursor }
+    expect(messages[0].payload).toEqual({ messages: [], cursor: undefined })
   })
 
-  it("should forward limit/order/cursor to session.messages", async () => {
-    const { mockV3Session } = createMockSdk()
-    mockV3Session.messages.mockResolvedValueOnce({ data: { data: [{ id: "m1" }], cursor: { previous: "p1" } } })
+  it("should forward limit/order/cursor to rawSessionMessages", async () => {
+    const { backend } = createMockSdk()
+    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce([{ id: "m1" }])
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.messages",
       params: { sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" },
     }, testPayload)
-    expect(mockV3Session.messages).toHaveBeenCalledWith({ sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" })
-    expect(messages[0].payload).toEqual({ messages: [{ id: "m1" }], cursor: { previous: "p1" } })
+    expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", { limit: 30, order: "desc", cursor: "abc" })
+    expect(messages[0].payload).toEqual({ messages: [{ id: "m1" }], cursor: undefined })
   })
 
   it("should reject session.messages without id", async () => {

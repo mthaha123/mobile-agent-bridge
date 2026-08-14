@@ -97,6 +97,41 @@ export class OpenCodeBackend {
     }
   }
 
+  /**
+   * 直接读取 session 消息（绕过 SDK 的 /api 前缀）。
+   *
+   * 背景：opencode serve 的 `/api/session/{id}/message` 只返回「当前 project」的消息，
+   * 跨 project 的历史 session 会返回空 {data:[]}；而裸 `/session/{id}/message` 全量返回。
+   * SDK client 固定走 /api 前缀，故这里用 http 直接请求裸路径。
+   */
+  async rawSessionMessages(sessionID: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<unknown> {
+    const base = this.baseUrl.replace(/\/+$/, "")
+    const qs: string[] = []
+    if (opts?.limit !== undefined) qs.push(`limit=${opts.limit}`)
+    if (opts?.order) qs.push(`order=${opts.order}`)
+    if (opts?.cursor) qs.push(`cursor=${encodeURIComponent(opts.cursor)}`)
+    const path = `/session/${encodeURIComponent(sessionID)}/message${qs.length ? '?' + qs.join('&') : ''}`
+    const url = new URL(base + path)
+    const body: string = await new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
+        path: url.pathname + url.search,
+        method: "GET",
+        timeout: 120000,
+      }, (res) => {
+        let b = ""
+        res.on("data", (c) => { b += c })
+        res.on("end", () => resolve(b))
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
+      req.on("error", reject)
+      req.end()
+    })
+    return JSON.parse(body)
+  }
+
   /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
    *  用于 config.agents/providers/model.list/command.list 等只读全局配置查询，
    *  它们不依赖 project.switch。已初始化时复用当前 client。 */

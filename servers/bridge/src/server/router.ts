@@ -156,13 +156,14 @@ registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.messages requires sessionId parameter")
   // 分页透传（opencode v2 messages 支持 limit/order/cursor）
-  const params: { sessionID: string; limit?: number; order?: 'asc' | 'desc'; cursor?: string } = { sessionID: id }
-  if (p.limit !== undefined) params.limit = p.limit as number
-  if (p.order) params.order = p.order as 'asc' | 'desc'
-  if (p.cursor) params.cursor = p.cursor as string
-  const result = await sdkCall<{ data: unknown; cursor?: { previous?: string; next?: string } }>(() => sdk().v2.session.messages(params))
-  // 返回 { messages, cursor }，保留分页游标供客户端加载更早消息
-  return { messages: result?.data ?? [], cursor: result?.cursor }
+  const opts: { limit?: number; order?: 'asc' | 'desc'; cursor?: string } = {}
+  if (p.limit !== undefined) opts.limit = p.limit as number
+  if (p.order) opts.order = p.order as 'asc' | 'desc'
+  if (p.cursor) opts.cursor = p.cursor as string
+  // 用裸 /session/{id}/message 读取（SDK /api 前缀只返回当前 project 消息，历史 session 会空）
+  const raw = await getBackend().rawSessionMessages(id, opts)
+  const arr = Array.isArray(raw) ? raw : (raw as any)?.messages ?? []
+  return { messages: arr, cursor: (raw as any)?.cursor }
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))
