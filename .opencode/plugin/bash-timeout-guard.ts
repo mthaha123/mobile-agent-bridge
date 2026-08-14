@@ -19,6 +19,25 @@ function isDangerousSpawn(command: string): boolean {
   return DANGEROUS_SPAWN.test(command)
 }
 
+// ── 长时间阻塞轮询检测 ─────────────────────────────────────────────
+// AGENTS.md 核心约束：禁止 Start-Sleep / sleep 固定长时间轮询。
+// 长后台任务用 Start-Process fire-and-forget，查询用 ≤15s 短命令间歇重试；
+// 在 bash 里 sleep 会让工具调用执行期静默无输出（堆积即"长时间无动作"）。
+const LONG_SLEEP =
+  /(?:Start-Sleep|(?:^|[;&|\s])sleep)\s+(?:-Seconds\s+)?["']?(\d{2,})(?:\.\d+)?["']?/i
+
+const SLEEP_HINT =
+  `该命令包含 AGENTS.md 禁止的长时间阻塞轮询（Start-Sleep / sleep ≥10s）。` +
+  `长后台任务应 fire-and-forget 启动，查询用 ≤15s 短命令间歇重试，` +
+  `禁止在 bash 里 sleep 固定长时间（会造成工具调用静默无输出）。`
+
+function isLongSleep(command: string): boolean {
+  const m = LONG_SLEEP.exec(command)
+  if (!m) return false
+  const seconds = parseFloat(m[1])
+  return seconds >= 10
+}
+
 function blockCommand(hint: string): string {
   const safe = hint.replace(/'/g, "''")
   return `Write-Output '[强制阻断] ${safe}'; exit 99`
@@ -33,6 +52,13 @@ export const BashTimeoutGuard: Plugin = async () => {
       if (typeof output.args.command === "string" && isDangerousSpawn(output.args.command)) {
         console.log(`[BashTimeoutGuard] 检测到危险 spawn 模式，已强制阻断`)
         output.args.command = blockCommand(BLOCK_HINT)
+        return
+      }
+
+      // 长时间阻塞轮询：改写命令，执行前即失败并给出指引
+      if (typeof output.args.command === "string" && isLongSleep(output.args.command)) {
+        console.log(`[BashTimeoutGuard] 检测到长时间阻塞轮询（Start-Sleep/sleep），已强制阻断`)
+        output.args.command = blockCommand(SLEEP_HINT)
         return
       }
 

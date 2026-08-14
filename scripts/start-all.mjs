@@ -32,7 +32,7 @@ const CLOUDFLARED = path.join(rootDir, "scripts", "tools", "cloudflared.exe")
 const SERVE_PORT = 4096
 const BRIDGE_PORT = 8080
 const BRIDGE_PASSWORD = "test123"
-const SERVE_CWD = "D:\\code"
+const SERVE_CWD = "D:\\code\\mobile-agent-bridge"
 const BRIDGE_CWD = path.join(rootDir, "servers", "bridge")
 const TUNNEL_URL = `http://localhost:${BRIDGE_PORT}`
 

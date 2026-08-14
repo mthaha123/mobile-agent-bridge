@@ -10,9 +10,10 @@
 
 - **`tool.execute.before`**：把 bash 的 `timeout` 统一 cap 到 180s（3 分钟上限）。opencode bash 工具原生消费该参数，**超过 180s 会自动强制 kill 进程树**，任何 bash 命令最长跑 3 分钟。
 - **危险 spawn 阻断**：同一 hook 还会检测命令中是否出现 `spawn(detached:true + stdio:pipe)`（长驻进程持有管道句柄 → 工具层等待管道 EOF 永不收敛 → 静默挂起）。命中即**强制改写命令为 `Write-Output '[强制阻断]...'; exit 99`**，命令不会执行，agent 会收到阻断提示。
+- **长时间阻塞轮询阻断**：同一 hook 还检测 `Start-Sleep`/`sleep`（≥10s）的固定长等待。命中即**强制改写为阻断提示**，命令不会执行——长后台任务应 fire-and-forget 启动，查询用 ≤15s 短命令间歇重试。
 - **`tool.execute.after`**：若 bash 结果标记超时（`Command exceeded timeout`），**向 agent 注入明确警告**（输出追加 `[超时]...已被强制终止`），提醒不要超过 180s。
 
-⚠️ 危险 spawn 模式（`spawn` + `detached:true` + `stdio:pipe`）会被插件**强制阻断**，即使 agent 想这么写也执行不了。正确做法是 `Start-Process -WindowStyle Hidden`（长驻进程）或 `Start-Job`（开发服务器）。
+⚠️ 危险 spawn 模式（`spawn` + `detached:true` + `stdio:pipe`）和长时间 `Start-Sleep`/`sleep` 轮询会被插件**强制阻断**，即使 agent 想这么写也执行不了。正确做法是 `Start-Process -WindowStyle Hidden`（长驻进程）或 `Start-Job`（开发服务器）；等待就绪用 ≤15s 短命令间歇重试。
 
 这意味着：
 - 长后台任务（E2E 测试/APK 构建）**绝不传 timeout 或传很小的 timeout**（仅够启动进程本身），任务本身用 `Start-Process -WindowStyle Hidden` 或 `Start-Job` 启动

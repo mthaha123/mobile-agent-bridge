@@ -1,0 +1,32 @@
+appId: com.mobileagentbridge
+---
+# 验证：历史 session 消息加载（SDK v2 {info,parts} 解析修复）
+# 连接真实 bridge → 选一个有消息的历史 session → 验证消息文本渲染
+- launchApp
+
+# 连接真实 Bridge（8080）
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 选择有消息的历史 session（"Find text reader component"）
+- tapOn: "Find text reader component.*"
+
+# 进入 ChatScreen
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 20000
+
+# 验证历史消息文本被渲染（该 session 有 assistant 消息）
+- scrollUntilVisible:
+    element:
+      text: "text reader"
+    direction: UP
+    timeout: 20000
