@@ -160,10 +160,8 @@ registerHandler("session.messages", async (p) => {
   if (p.limit !== undefined) opts.limit = p.limit as number
   if (p.order) opts.order = p.order as 'asc' | 'desc'
   if (p.cursor) opts.cursor = p.cursor as string
-  // 用裸 /session/{id}/message 读取（SDK /api 前缀只返回当前 project 消息，历史 session 会空）
-  const raw = await getBackend().rawSessionMessages(id, opts)
-  const arr = Array.isArray(raw) ? raw : (raw as any)?.messages ?? []
-  return { messages: arr, cursor: (raw as any)?.cursor }
+  // 双通道：v2 (/api) 优先，空则回退 v1 (/session) 裸数组；统一返回 { messages, cursor }
+  return getBackend().rawSessionMessages(id, opts)
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))
 registerHandler("session.active", async () => sdkCall(() => sdk().v2.session.active()))

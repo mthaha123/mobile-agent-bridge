@@ -77,7 +77,7 @@ function createMockSdk() {
     },
   }
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
-  backend.rawSessionMessages = jest.fn<any>().mockResolvedValue([])
+  backend.rawSessionMessages = jest.fn<any>().mockResolvedValue({ messages: [], cursor: undefined })
   return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig }
 }
 
@@ -477,7 +477,7 @@ describe("RPC Router", () => {
 
   it("should return raw session messages via rawSessionMessages", async () => {
     const { backend } = createMockSdk()
-    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce([{ id: "m1", type: "user", text: "hi" }])
+    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce({ messages: [{ id: "m1", type: "user", text: "hi" }], cursor: undefined })
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.messages",
@@ -547,7 +547,7 @@ describe("RPC Router", () => {
 
   it("should forward limit/order/cursor to rawSessionMessages", async () => {
     const { backend } = createMockSdk()
-    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce([{ id: "m1" }])
+    ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce({ messages: [{ id: "m1" }], cursor: undefined })
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.messages",
