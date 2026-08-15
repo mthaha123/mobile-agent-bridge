@@ -1,0 +1,31 @@
+appId: com.mobileagentbridge
+---
+# 验证：打开历史 session 消息正常渲染（limit 50 初始加载）
+- launchApp
+
+# 连接真实 Bridge（8080）
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 打开有消息的历史 session
+- tapOn: "Find text reader component.*"
+
+# 进入 ChatScreen
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 20000
+
+# 验证历史消息文本被渲染
+- scrollUntilVisible:
+    element:
+      text: "发现了关键文件.*"
+    direction: UP
+    timeout: 20000
