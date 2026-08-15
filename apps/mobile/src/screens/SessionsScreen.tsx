@@ -16,6 +16,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useUiStore } from '../stores/uiStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 export function formatRelativeTime(isoDate: string): string {
   const now = Date.now()
@@ -38,6 +40,8 @@ export function formatRelativeTime(isoDate: string): string {
 }
 
 export const SessionsScreen: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [switchDirInput, setSwitchDirInput] = useState('')
   const [showSwitchModal, setShowSwitchModal] = useState(false)
 
@@ -159,7 +163,7 @@ export const SessionsScreen: React.FC = () => {
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           {switching ? (
-            <ActivityIndicator size="small" color="#4a9eff" />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Text style={styles.switchBtnText}>Switch</Text>
           )}
@@ -168,7 +172,7 @@ export const SessionsScreen: React.FC = () => {
 
       {loading && sessions.length === 0 && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4a9eff" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading sessions...</Text>
         </View>
       )}
@@ -241,10 +245,11 @@ export const SessionsScreen: React.FC = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -253,10 +258,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   headerBackText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 15,
   },
   headerTitle: {
@@ -273,7 +278,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   headerActionText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -283,16 +288,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   projectInfo: {
     flex: 1,
     marginRight: 12,
   },
   projectLabel: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -308,13 +313,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#4a9eff',
+    borderColor: colors.primary,
   },
   switchBtnDisabled: {
     opacity: 0.5,
   },
   switchBtnText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -324,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 14,
     marginTop: 12,
   },
@@ -335,7 +340,7 @@ const styles = StyleSheet.create({
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     marginVertical: 6,
     padding: 16,
@@ -354,7 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sessionMetaText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 13,
   },
   sessionChevron: {
@@ -370,7 +375,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   modalContent: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 20,
     width: '100%',
@@ -387,14 +392,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   projectListItem: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 12,
     marginBottom: 6,
   },
   projectListItemActive: {
     borderWidth: 1,
-    borderColor: '#4a9eff',
+    borderColor: colors.primary,
   },
   projectListItemName: {
     color: '#eee',
@@ -402,12 +407,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   projectListItemDir: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
     marginTop: 2,
   },
   modalInput: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -426,17 +431,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   modalCancelText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 15,
   },
   modalConfirmBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 6,
-    backgroundColor: '#4a9eff',
+    backgroundColor: colors.primary,
   },
   modalConfirmText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -451,7 +456,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,

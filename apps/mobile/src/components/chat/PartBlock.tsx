@@ -4,6 +4,8 @@ import { PartProps, Part, getPartRenderer, registerPart } from '../../types/mess
 import { ToolPart } from './BasicTool'
 import { ToolErrorCard } from './ToolErrorCard'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 // ─── PartBlock 调度器 ────────────────────────────────────
 
@@ -60,17 +62,23 @@ const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?:
 
 // ─── Tool Part ────────────────────────────────────────────
 
-const ToolPartDisplay: React.FC<PartProps> = ({ part, message }) => (
-  <View style={styles.toolPart}>
-    <ToolPart data={part.data} messageRole={message.role} />
-  </View>
-)
+const ToolPartDisplay: React.FC<PartProps> = ({ part, message }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
+  return (
+    <View style={styles.toolPart}>
+      <ToolPart data={part.data} messageRole={message.role} />
+    </View>
+  )
+}
 registerPart('tool', ToolPartDisplay)
 
 // ─── Reasoning Part ────────────────────────────────────────
 
 const ReasoningDisplay: React.FC<PartProps> = ({ part }) => {
   const [expanded, setExpanded] = React.useState(false)
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   return (
     <View style={styles.reasoningBlock}>
       <ReasoningHeader expanded={expanded} onToggle={() => setExpanded(v => !v)} />
@@ -82,46 +90,62 @@ const ReasoningDisplay: React.FC<PartProps> = ({ part }) => {
 }
 registerPart('reasoning', ReasoningDisplay)
 
-export const ReasoningHeader: React.FC<{ expanded: boolean; onToggle: () => void }> = ({ expanded, onToggle }) => (
-  <TouchableOpacity style={styles.reasoningHeader} onPress={onToggle} activeOpacity={0.7}>
-    <Text style={styles.reasoningIcon}>🧠</Text>
-    <Text style={styles.reasoningLabel}>思考过程</Text>
-    <Text style={styles.reasoningArrow}>{expanded ? '▼' : '▶'}</Text>
-  </TouchableOpacity>
-)
+export const ReasoningHeader: React.FC<{ expanded: boolean; onToggle: () => void }> = ({ expanded, onToggle }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
+  return (
+    <TouchableOpacity style={styles.reasoningHeader} onPress={onToggle} activeOpacity={0.7}>
+      <Text style={styles.reasoningIcon}>🧠</Text>
+      <Text style={styles.reasoningLabel}>思考过程</Text>
+      <Text style={styles.reasoningArrow}>{expanded ? '▼' : '▶'}</Text>
+    </TouchableOpacity>
+  )
+}
 
 // ─── Error Part ────────────────────────────────────────────
 
-const ErrorPartDisplay: React.FC<PartProps> = ({ part }) => (
-  <View style={styles.errorPart}>
-    <ToolErrorCard
-      tool={String(part.data?.tool ?? 'Error')}
-      error={String(part.data?.error ?? part.data?.message ?? '')}
-      subtitle={String(part.data?.subtitle ?? '')}
-    />
-  </View>
-)
+const ErrorPartDisplay: React.FC<PartProps> = ({ part }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
+  return (
+    <View style={styles.errorPart}>
+      <ToolErrorCard
+        tool={String(part.data?.tool ?? 'Error')}
+        error={String(part.data?.error ?? part.data?.message ?? '')}
+        subtitle={String(part.data?.subtitle ?? '')}
+      />
+    </View>
+  )
+}
 registerPart('error', ErrorPartDisplay)
 
 // ─── File Part ─────────────────────────────────────────────
 
-const FilePartDisplay: React.FC<PartProps> = ({ part }) => (
-  <View style={styles.filePart}>
-    <Text style={styles.fileIcon}>📄</Text>
-    <Text style={styles.fileName} numberOfLines={1}>{String(part.data?.name ?? '')}</Text>
-  </View>
-)
+const FilePartDisplay: React.FC<PartProps> = ({ part }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
+  return (
+    <View style={styles.filePart}>
+      <Text style={styles.fileIcon}>📄</Text>
+      <Text style={styles.fileName} numberOfLines={1}>{String(part.data?.name ?? '')}</Text>
+    </View>
+  )
+}
 registerPart('file', FilePartDisplay)
 
 // ─── Compaction Part ───────────────────────────────────────
 
-const CompactionDisplay: React.FC<PartProps> = () => (
-  <View style={styles.compactionDivider}>
-    <View style={styles.compactionLine} />
-    <Text style={styles.compactionText}>— 上下文压缩 —</Text>
-    <View style={styles.compactionLine} />
-  </View>
-)
+const CompactionDisplay: React.FC<PartProps> = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
+  return (
+    <View style={styles.compactionDivider}>
+      <View style={styles.compactionLine} />
+      <Text style={styles.compactionText}>— 上下文压缩 —</Text>
+      <View style={styles.compactionLine} />
+    </View>
+  )
+}
 registerPart('compaction', CompactionDisplay)
 
 // ─── 导出 Part 类型 ────────────────────────────────────────
@@ -129,9 +153,10 @@ registerPart('compaction', CompactionDisplay)
 export { registerPart, getPartRenderer } from '../../types/message'
 export const MessageWrapperForFallback = MessageWrapper
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   textPart: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 22,
   },
@@ -139,7 +164,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   reasoningBlock: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     marginVertical: 4,
     overflow: 'hidden',
@@ -150,10 +175,10 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   reasoningIcon: { fontSize: 14, marginRight: 8 },
-  reasoningLabel: { color: '#888', fontSize: 13, flex: 1 },
-  reasoningArrow: { color: '#666', fontSize: 12 },
+  reasoningLabel: { color: colors.textTertiary, fontSize: 13, flex: 1 },
+  reasoningArrow: { color: colors.textTertiary, fontSize: 12 },
   reasoningText: {
-    color: '#aaa',
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 20,
     paddingHorizontal: 12,
@@ -165,13 +190,13 @@ const styles = StyleSheet.create({
   filePart: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 6,
     padding: 8,
     marginVertical: 2,
   },
   fileIcon: { fontSize: 14, marginRight: 8 },
-  fileName: { color: '#eee', fontSize: 13, flex: 1 },
+  fileName: { color: colors.text, fontSize: 13, flex: 1 },
   compactionDivider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -181,10 +206,10 @@ const styles = StyleSheet.create({
   compactionLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#333',
+    backgroundColor: colors.border,
   },
   compactionText: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 11,
     marginHorizontal: 8,
   },

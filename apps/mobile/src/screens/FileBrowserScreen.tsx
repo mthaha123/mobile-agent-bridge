@@ -15,6 +15,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useUiStore } from '../stores/uiStore'
 import ReactNativeBlobUtil from 'react-native-blob-util'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
 
@@ -33,6 +35,8 @@ const getMimeType = (filename: string): string => {
 }
 
 export const FileBrowserScreen: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const {
     currentPath,
     files,
@@ -232,7 +236,7 @@ export const FileBrowserScreen: React.FC = () => {
         <TextInput
           style={styles.searchInput}
           placeholder="Search files..."
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmitEditing={handleSearch}
@@ -245,7 +249,7 @@ export const FileBrowserScreen: React.FC = () => {
 
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4a9eff" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
 
@@ -365,24 +369,25 @@ function formatSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   backButton: {
     marginRight: 12,
   },
   backText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 16,
   },
   title: {
@@ -394,26 +399,26 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     padding: 12,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#0f3460',
+    borderBottomColor: colors.surfaceVariant,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 10,
     color: '#eee',
     marginRight: 8,
   },
   searchButton: {
-    backgroundColor: '#4a9eff',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingHorizontal: 16,
     justifyContent: 'center',
   },
   searchButtonText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontWeight: '600',
   },
   list: {
@@ -424,7 +429,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   fileIcon: {
     fontSize: 24,
@@ -438,12 +443,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   fileMeta: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
     marginTop: 2,
   },
   chevron: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 20,
   },
   loadingContainer: {
@@ -461,14 +466,14 @@ const styles = StyleSheet.create({
   searchResult: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   searchFile: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 14,
   },
   searchLine: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -484,13 +489,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   fileInfoModal: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 20,
     width: '85%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#0f3460',
+    borderColor: colors.surfaceVariant,
   },
   fileInfoTitle: {
     color: '#eee',
@@ -503,10 +508,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   fileInfoLabel: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 14,
     flex: 1,
   },
@@ -518,13 +523,13 @@ const styles = StyleSheet.create({
   },
   fileInfoAction: {
     marginTop: 16,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
   },
   fileInfoActionText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '500',
   },

@@ -10,6 +10,8 @@ import {
   Platform,
 } from 'react-native'
 import { useQuestionStore, SingleQuestion } from '../stores/questionStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 let _replyCall:
   | ((id: string, answers: string[]) => Promise<void>)
@@ -32,6 +34,8 @@ export function setQuestionRejectCall(
 }
 
 export const QuestionSheet: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const visible = useQuestionStore((s) => s.visible)
   const pending = useQuestionStore((s) => s.pending)
   const removeQuestion = useQuestionStore((s) => s.removeQuestion)
@@ -159,7 +163,7 @@ export const QuestionSheet: React.FC = () => {
                           setCustomInputs((prev) => ({ ...prev, [qi]: t }))
                         }
                         placeholder="Type your answer..."
-                        placeholderTextColor="#666"
+                        placeholderTextColor={colors.textTertiary}
                         multiline
                       />
                     ) : null}
@@ -193,14 +197,15 @@ export const QuestionSheet: React.FC = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: 20,
@@ -222,7 +227,7 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#aaa',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   questionText: {
@@ -248,12 +253,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#2ecc71',
   },
   actionButtonText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
   option: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 14,
     marginBottom: 8,
@@ -261,7 +266,7 @@ const styles = StyleSheet.create({
   optionSelected: {
     backgroundColor: '#1a5276',
     borderWidth: 1,
-    borderColor: '#4a9eff',
+    borderColor: colors.primary,
   },
   optionLabel: {
     fontSize: 15,
@@ -269,15 +274,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   optionLabelSelected: {
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   optionDesc: {
     fontSize: 12,
-    color: '#888',
+    color: colors.textTertiary,
     marginTop: 4,
   },
   customInput: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     color: '#eee',
     fontSize: 15,
@@ -287,18 +292,18 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   submitButton: {
-    backgroundColor: '#4a9eff',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
   },
   submitText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
   noItems: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 15,
     textAlign: 'center',
     marginTop: 40,

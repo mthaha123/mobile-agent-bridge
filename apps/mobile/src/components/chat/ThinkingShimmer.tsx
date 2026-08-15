@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 interface ThinkingShimmerProps {
   message?: string
@@ -10,6 +12,8 @@ export const ThinkingShimmer: React.FC<ThinkingShimmerProps> = ({
   message = 'Thinking',
   animated = true,
 }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [dotCount, setDotCount] = useState(0)
 
   useEffect(() => {
@@ -33,7 +37,8 @@ const pulseKeyframes = {
   to: { opacity: 1 },
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -44,12 +49,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4a9eff',
+    backgroundColor: colors.primary,
     marginRight: 10,
     opacity: 1,
   },
   text: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 13,
     fontStyle: 'italic',
   },

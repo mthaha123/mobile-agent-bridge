@@ -10,6 +10,8 @@ import { ToolCallProgress } from '../stores/toolProgressStore'
 import { getToolInfo, getToolRenderer } from '../types/message'
 import { ShellOutput } from './chat/ShellOutput'
 import { DiffDisplay } from './chat/DiffDisplay'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 function str(input: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -35,6 +37,8 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
   expanded = false,
   onToggle,
 }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const tool = call.tool
   const info = getToolInfo(tool, call.input as Record<string, unknown>)
   const CustomRenderer = getToolRenderer(tool)
@@ -71,9 +75,10 @@ export const ToolRenderer: React.FC<ToolRendererProps> = ({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
     borderRadius: 8,
     marginHorizontal: 12,
     marginVertical: 4,
@@ -88,11 +93,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   toolIcon: { fontSize: 16, marginRight: 8 },
-  toolName: { color: '#eee', fontSize: 14, fontWeight: '600', flex: 1 },
+  toolName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   statusIcon: { fontSize: 14 },
-  subtitle: { color: '#888', fontSize: 12, marginBottom: 6 },
+  subtitle: { color: colors.textTertiary, fontSize: 12, marginBottom: 6 },
   resultPreview: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 13,
     fontFamily: 'monospace',
     lineHeight: 20,

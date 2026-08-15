@@ -5,8 +5,12 @@ import { useProjectStore } from '../stores/projectStore'
 import { useConfigStore } from '../stores/configStore'
 import { useUiStore } from '../stores/uiStore'
 import { useToolStore } from '../stores/toolStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 export const SettingsScreen: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const client = useAuthStore((s) => s.client)
   const bridgeUrl = useAuthStore((s) => s.bridgeUrl)
   const directory = useProjectStore((s) => s.directory)
@@ -189,10 +193,11 @@ export const SettingsScreen: React.FC = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -207,7 +212,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionLabel: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -217,13 +222,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 14,
     marginBottom: 6,
   },
   rowLabel: {
-    color: '#aaa',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   rowValue: {
@@ -235,19 +240,19 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   editBtnText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '500',
   },
   disconnectBtn: {
-    backgroundColor: '#c0392b',
+    backgroundColor: colors.errorBg,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
   },
   disconnectBtnText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -258,7 +263,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   modalContent: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 20,
     maxHeight: '80%',
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   configEditor: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     color: '#eee',
     borderRadius: 8,
     padding: 12,
@@ -286,19 +291,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   cancelBtnText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 15,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
   saveBtn: {
-    backgroundColor: '#4a9eff',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
   saveBtnText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '600',
   },

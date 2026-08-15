@@ -3,10 +3,14 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { getToolInfo, getToolRenderer, registerToolRenderer } from '../../types/message'
 import { ShellOutput } from './ShellOutput'
 import { DiffDisplay } from './DiffDisplay'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 // ─── 工具 Part 渲染器 ────────────────────────────────────
 
 export const ToolPart: React.FC<{ data: Record<string, unknown>; messageRole: string }> = ({ data, messageRole }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const tool = String(data.tool ?? '')
   const info = getToolInfo(tool, (data.input ?? {}) as Record<string, unknown>)
   const [expanded, setExpanded] = useState(false)
@@ -23,7 +27,7 @@ export const ToolPart: React.FC<{ data: Record<string, unknown>; messageRole: st
     if (error) return <Text style={styles.errorPreview}>Error: {String(error).slice(0, 200)}</Text>
     if (result) return <Text style={styles.resultPreview} numberOfLines={10}>{String(result)}</Text>
     return null
-  }, [CustomRenderer, data])
+  }, [CustomRenderer, data, styles])
 
   return (
     <View style={styles.toolCard}>
@@ -70,9 +74,10 @@ registerToolRenderer('edit', ({ data }) => (
   />
 ))
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   toolCard: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -83,15 +88,15 @@ const styles = StyleSheet.create({
   },
   toolIcon: { fontSize: 16, marginRight: 8, width: 24, textAlign: 'center' },
   toolInfo: { flex: 1, marginRight: 8 },
-  toolTitle: { color: '#eee', fontSize: 14, fontWeight: '600' },
-  toolSubtitle: { color: '#888', fontSize: 12, marginTop: 1 },
+  toolTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  toolSubtitle: { color: colors.textTertiary, fontSize: 12, marginTop: 1 },
   statusSuccess: { color: '#51cf66', fontSize: 14, marginRight: 6 },
   statusError: { color: '#ff6b6b', fontSize: 14, marginRight: 6 },
   statusRunning: { fontSize: 14, marginRight: 6 },
-  chevron: { color: '#666', fontSize: 12 },
+  chevron: { color: colors.textTertiary, fontSize: 12 },
   toolBody: {
     borderTopWidth: 1,
-    borderTopColor: '#0f3460',
+    borderTopColor: colors.surfaceVariant,
     padding: 10,
   },
   errorPreview: {
@@ -100,7 +105,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   resultPreview: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 13,
     fontFamily: 'monospace',
     lineHeight: 20,

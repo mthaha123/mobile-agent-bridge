@@ -22,6 +22,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
 import ReactNativeBlobUtil from 'react-native-blob-util'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 const MAX_FONT = 24
 const MIN_FONT = 10
@@ -40,6 +42,8 @@ const getMimeType = (filename: string): string => {
 }
 
 export const FileViewerScreen: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const currentFile = useFileStore((s) => s.currentFile)
   const viewerMode = useFileStore((s) => s.viewerMode)
   const viewerImage = useFileStore((s) => s.viewerImage)
@@ -251,26 +255,27 @@ function formatSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 10,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   headerBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   headerBack: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 20,
     fontWeight: '600',
   },
@@ -286,7 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerActionText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -295,7 +300,7 @@ const styles = StyleSheet.create({
   },
   codeScroll: {
     flex: 1,
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
   },
   codeLine: {
     flexDirection: 'row',
@@ -312,13 +317,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   codeContent: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontFamily: 'monospace',
     flex: 1,
     lineHeight: 22,
   },
   noWrapScroll: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
   },
   noWrapLine: {
     flexDirection: 'row',
@@ -336,13 +341,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   codeContentNoWrap: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontFamily: 'monospace',
     flexShrink: 0,
     lineHeight: 22,
   },
   codeContentNoWrapLong: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontFamily: 'monospace',
     flexShrink: 0,
     lineHeight: 22,
@@ -361,12 +366,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#0f0f23',
+    backgroundColor: colors.tabBar,
     borderTopWidth: 1,
-    borderTopColor: '#16213e',
+    borderTopColor: colors.border,
   },
   footerInfo: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
     flex: 1,
   },
@@ -380,7 +385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   footerBtnText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },

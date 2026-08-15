@@ -9,6 +9,8 @@ import {
   TextInput,
 } from 'react-native'
 import { useConfigStore } from '../stores/configStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 interface SlashSheetProps {
   visible: boolean
@@ -19,6 +21,8 @@ interface SlashSheetProps {
 }
 
 export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent, filter }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
   const commands = useConfigStore((s) => s.commands) as Array<{ name?: string; command?: string; description?: string }>
 
@@ -125,14 +129,15 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: 20,
@@ -150,7 +155,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#888',
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     marginTop: 12,
     marginBottom: 8,
@@ -158,7 +163,7 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 12,
     marginBottom: 6,
@@ -183,12 +188,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   itemDesc: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
     marginTop: 2,
   },
   emptyText: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 40,

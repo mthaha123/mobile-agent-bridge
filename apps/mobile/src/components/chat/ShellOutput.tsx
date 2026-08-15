@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 interface ShellOutputProps {
   result: unknown
@@ -7,6 +9,8 @@ interface ShellOutputProps {
 }
 
 export const ShellOutput: React.FC<ShellOutputProps> = ({ result, input }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const command = String(input?.command ?? input?.cmd ?? '')
   const output = result ? String(result) : ''
   const lines = output ? output.split('\n') : []
@@ -51,9 +55,10 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({ result, input }) => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   shellContainer: {
-    backgroundColor: '#0d1117',
+    backgroundColor: colors.markdownCodeBg,
     borderRadius: 6,
     overflow: 'hidden',
   },
@@ -63,7 +68,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1a1a2e',
+    borderBottomColor: colors.background,
   },
   scrollX: {
     maxHeight: 300,
@@ -82,7 +87,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   lineText: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 12,
     fontFamily: 'monospace',
     lineHeight: 18,
@@ -100,14 +105,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#1a1a2e',
+    borderTopColor: colors.background,
   },
   showMoreText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 12,
   },
   lineCount: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 11,
     textAlign: 'right',
     paddingHorizontal: 8,

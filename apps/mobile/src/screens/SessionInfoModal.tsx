@@ -11,6 +11,8 @@ import {
 import { useDiffStore, FileDiff } from '../stores/diffStore'
 import { useTodoStore, TodoItem } from '../stores/todoStore'
 import { useSessionStore, Session } from '../stores/sessionStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 type Tab = 'diff' | 'todo'
 
@@ -19,6 +21,8 @@ export const SessionInfoModal: React.FC<{
   sessionId: string | null
   onClose: () => void
 }> = ({ visible, sessionId, onClose }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [tab, setTab] = useState<Tab>('diff')
 
   const diffs = useDiffStore((s) => (sessionId ? s.diffs[sessionId] ?? [] : []))
@@ -162,14 +166,15 @@ function formatTime(t: string): string {
   }
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: 20,
@@ -196,31 +201,31 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
   },
   tabActive: {
     backgroundColor: '#1a5276',
   },
   tabText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 14,
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   body: {
     maxHeight: 400,
   },
   emptyText: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 40,
   },
   item: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -233,8 +238,8 @@ const styles = StyleSheet.create({
   statusBadge: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#888',
-    backgroundColor: '#1a1a2e',
+    color: colors.textTertiary,
+    backgroundColor: colors.background,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -266,15 +271,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   patch: {
-    color: '#aaa',
+    color: colors.textSecondary,
     fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
     borderRadius: 4,
     padding: 6,
   },
   todoItem: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -285,7 +290,7 @@ const styles = StyleSheet.create({
   },
   todoStatus: {
     fontSize: 16,
-    color: '#888',
+    color: colors.textTertiary,
     marginRight: 8,
     marginTop: 1,
   },
@@ -299,7 +304,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   todoPriority: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 11,
     marginTop: 6,
     marginLeft: 24,
@@ -311,12 +316,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: '#0f3460',
+    borderTopColor: colors.surfaceVariant,
   },
   sessionStatItem: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,

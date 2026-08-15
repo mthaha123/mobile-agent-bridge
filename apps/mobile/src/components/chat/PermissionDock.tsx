@@ -2,8 +2,12 @@ import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useToolStore } from '../../stores/toolStore'
 import { useAuthStore } from '../../stores/authStore'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 export const PermissionDock: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const approvals = useToolStore(s => s.pendingApprovals)
   const approve = useToolStore(s => s.approve)
   const reject = useToolStore(s => s.reject)
@@ -57,56 +61,57 @@ function getReplyCall() {
   }
 }
 
-const styles = StyleSheet.create({
-  dockArea: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 6,
-  },
-  dockPrompt: {
-    backgroundColor: '#16213e',
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#0f3460',
-  },
-  dockHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#0f3460',
-  },
-  dockIcon: { fontSize: 14, marginRight: 8 },
-  dockTitle: { color: '#eee', fontSize: 13, fontWeight: '600' },
-  dockBody: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  toolName: { color: '#eee', fontSize: 14, fontWeight: '500', marginBottom: 4 },
-  toolArgs: { color: '#888', fontSize: 12, fontFamily: 'monospace' },
-  dockFooter: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#0f3460',
-  },
-  rejectBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(231, 76, 60, 0.15)',
-  },
-  approveBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(46, 204, 113, 0.15)',
-  },
-  alwaysBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(74, 158, 255, 0.15)',
-  },
-  btnText: { color: '#eee', fontSize: 13, fontWeight: '600' },
-})
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    dockArea: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      gap: 6,
+    },
+    dockPrompt: {
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.surfaceVariant,
+    },
+    dockHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.surfaceVariant,
+    },
+    dockIcon: { fontSize: 14, marginRight: 8 },
+    dockTitle: { color: colors.text, fontSize: 13, fontWeight: '600' },
+    dockBody: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    toolName: { color: colors.text, fontSize: 14, fontWeight: '500', marginBottom: 4 },
+    toolArgs: { color: colors.textTertiary, fontSize: 12, fontFamily: 'monospace' },
+    dockFooter: {
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceVariant,
+    },
+    rejectBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: 'rgba(231, 76, 60, 0.15)',
+    },
+    approveBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: 'rgba(46, 204, 113, 0.15)',
+    },
+    alwaysBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: 'rgba(74, 158, 255, 0.15)',
+    },
+    btnText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  })

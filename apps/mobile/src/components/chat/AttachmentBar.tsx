@@ -1,8 +1,12 @@
 import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native'
 import { useAttachmentStore, Attachment } from '../../stores/attachmentStore'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 export const AttachmentBar: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const attachments = useAttachmentStore((s) => s.attachments)
   const removeAttachment = useAttachmentStore((s) => s.removeAttachment)
 
@@ -23,6 +27,8 @@ export const AttachmentBar: React.FC = () => {
 }
 
 const AttachmentChip: React.FC<{ attachment: Attachment; onRemove: () => void }> = ({ attachment, onRemove }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   return (
     <View style={styles.chip}>
       {attachment.type === 'image' ? (
@@ -40,7 +46,8 @@ const AttachmentChip: React.FC<{ attachment: Attachment; onRemove: () => void }>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   bar: {
     maxHeight: 60,
     paddingHorizontal: 8,
@@ -52,7 +59,7 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 16,
     paddingLeft: 6,
     paddingRight: 4,
@@ -70,7 +77,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   chipName: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 12,
     flexShrink: 1,
   },
@@ -84,7 +91,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   chipCloseText: {
-    color: '#ccc',
+    color: colors.text,
     fontSize: 10,
     fontWeight: '700',
   },

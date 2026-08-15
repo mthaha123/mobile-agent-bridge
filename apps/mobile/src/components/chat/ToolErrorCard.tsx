@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Clipboard } from 'react-native'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 interface ToolErrorCardProps {
   tool: string
@@ -9,6 +11,8 @@ interface ToolErrorCardProps {
 }
 
 export const ToolErrorCard: React.FC<ToolErrorCardProps> = ({ tool, error, title, subtitle }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [expanded, setExpanded] = useState(true)
   const [copied, setCopied] = useState(false)
 
@@ -42,7 +46,8 @@ export const ToolErrorCard: React.FC<ToolErrorCardProps> = ({ tool, error, title
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   errorCard: {
     backgroundColor: 'rgba(231, 76, 60, 0.1)',
     borderRadius: 8,
@@ -57,15 +62,15 @@ const styles = StyleSheet.create({
   },
   errorIcon: { fontSize: 16, marginRight: 8 },
   errorTool: { color: '#ff6b6b', fontSize: 14, fontWeight: '600', flex: 1 },
-  errorSubtitle: { color: '#888', fontSize: 12, marginRight: 8, maxWidth: 120 },
-  chevron: { color: '#666', fontSize: 12 },
+  errorSubtitle: { color: colors.textTertiary, fontSize: 12, marginRight: 8, maxWidth: 120 },
+  chevron: { color: colors.textTertiary, fontSize: 12 },
   errorBody: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(231, 76, 60, 0.2)',
     padding: 10,
   },
   errorText: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 13,
     fontFamily: 'monospace',
     lineHeight: 20,
@@ -79,7 +84,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   copyText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 12,
     fontWeight: '600',
   },

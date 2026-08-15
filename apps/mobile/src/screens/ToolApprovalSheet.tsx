@@ -18,6 +18,8 @@ import {
   Platform,
 } from 'react-native'
 import { useToolStore } from '../stores/toolStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 // ─── Module-level replyCall ──────────────────────────────
 // 由外部（如通知处理器）在 enqueue ToolApproval 时注册，
@@ -35,6 +37,8 @@ export function setToolReplyCall(
 // ─── Component ───────────────────────────────────────────
 
 export const ToolApprovalSheet: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const visible = useToolStore((s) => s.visible)
   const pendingApprovals = useToolStore((s) => s.pendingApprovals)
   const approve = useToolStore((s) => s.approve)
@@ -151,14 +155,15 @@ export const ToolApprovalSheet: React.FC = () => {
 
 // ─── Styles ──────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: 20,
@@ -194,7 +199,7 @@ const styles = StyleSheet.create({
   argValue: {
     fontSize: 14,
     color: '#eee',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 6,
     padding: 10,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
@@ -219,12 +224,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f39c12',
   },
   actionButtonText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
   noItems: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 15,
     textAlign: 'center',
     marginTop: 40,

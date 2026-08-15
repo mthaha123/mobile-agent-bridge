@@ -2,8 +2,12 @@ import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView } from 'react-native'
 import { useToolProgressStore, ToolCallProgress } from '../stores/toolProgressStore'
 import { ToolRenderer } from './ToolRenderer'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 export const ToolProgressCard: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const activeCalls = useToolProgressStore((s) => s.activeCalls)
   const running = activeCalls.filter(
     (c) => c.status === 'called' || c.status === 'progress',
@@ -27,6 +31,8 @@ export const ToolProgressCard: React.FC = () => {
 }
 
 const ToolCallItem: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -40,19 +46,20 @@ const ToolCallItem: React.FC<{ call: ToolCallProgress }> = ({ call }) => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#16213e',
+    borderTopColor: colors.border,
   },
   scroll: {
     gap: 8,
   },
   card: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     minWidth: 200,
     maxWidth: 300,

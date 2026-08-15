@@ -5,6 +5,8 @@
  */
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 interface ReasoningCollapsibleProps {
   /** 推理内容 */
@@ -23,6 +25,8 @@ export const ReasoningCollapsible: React.FC<ReasoningCollapsibleProps> = ({
   defaultExpanded = false,
   style,
 }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   if (!content) return null
@@ -69,6 +73,8 @@ export const ReasoningStream: React.FC<ReasoningStreamProps> = ({
   streaming = false,
   style,
 }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [expanded, setExpanded] = useState(false)
 
   if (!content && !streaming) return null
@@ -108,9 +114,10 @@ export const ReasoningStream: React.FC<ReasoningStreamProps> = ({
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
     borderRadius: 8,
     marginVertical: 4,
     overflow: 'hidden',
@@ -148,7 +155,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.link,
   },
   content: {
     padding: 12,
@@ -157,12 +164,12 @@ const styles = StyleSheet.create({
     borderTopColor: '#21262d',
   },
   contentText: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 13,
     lineHeight: 20,
   },
   preview: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 12,
     paddingHorizontal: 12,
     paddingBottom: 12,

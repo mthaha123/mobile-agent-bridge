@@ -17,8 +17,12 @@ import {
 } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 export const ConnectScreen: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [urlInput, setUrlInput] = useState('')
   const [passwordInput, setPasswordInput] = useState('')
   const [directoryInput, setDirectoryInput] = useState('')
@@ -93,10 +97,11 @@ export const ConnectScreen: React.FC = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -106,23 +111,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#eee',
+    color: colors.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: '#999',
+    color: colors.textTertiary,
     textAlign: 'center',
     marginBottom: 32,
   },
   card: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 20,
   },
   input: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,

@@ -30,6 +30,8 @@ import { PermissionDock } from '../components/chat/PermissionDock'
 import { QuestionDock } from '../components/chat/QuestionDock'
 import { AttachmentBar } from '../components/chat/AttachmentBar'
 import { useAttachmentStore } from '../stores/attachmentStore'
+import { useThemeColors } from '../theme/ThemeContext'
+import { ThemeColors } from '../theme/colors'
 
 /** 从 SDK tool part 的 state 提取可展示的输出文本（content 数组 → 拼接 text） */
 function extractToolOutput(state: any): string {
@@ -84,6 +86,9 @@ export const ChatScreen: React.FC = () => {
       popChat()
     }
   }, [chatSubScreen, activeSessionId])
+
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
 
   // 将 session.messages 返回的消息转换为 ChatMessage 并加入 store（按 messageID 去重）
   const applyLoadedMessages = (msgs: any[]) => {
@@ -412,7 +417,7 @@ export const ChatScreen: React.FC = () => {
         ListFooterComponent={renderFooter}
         ListHeaderComponent={hasMoreHistory ? (
           <View style={{ padding: 12, alignItems: 'center' }}>
-            <Text style={{ color: '#888', fontSize: 12 }}>{historyLoading ? '加载更早消息...' : '上滑加载更早消息'}</Text>
+            <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{historyLoading ? '加载更早消息...' : '上滑加载更早消息'}</Text>
           </View>
         ) : null}
         onScroll={(e) => {
@@ -449,7 +454,7 @@ export const ChatScreen: React.FC = () => {
             }
           }}
           placeholder="Type a message..."
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textTertiary}
           multiline={false}
           returnKeyType="send"
           onSubmitEditing={handleSend}
@@ -531,10 +536,11 @@ export const ChatScreen: React.FC = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -542,15 +548,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#16213e',
+    borderBottomColor: colors.border,
   },
   headerBackText: {
-    color: '#4a9eff',
+    color: colors.primary,
     fontSize: 15,
   },
   headerTitle: {
     flex: 1,
-    color: '#eee',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
@@ -576,20 +582,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
   },
   newSessionButton: {
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   newSessionButtonText: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -603,7 +609,7 @@ const styles = StyleSheet.create({
   // 用户消息 → 气泡（右对齐）
   userBubble: {
     maxWidth: '80%',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 12,
     borderBottomRightRadius: 4,
     paddingVertical: 8,
@@ -618,24 +624,24 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   userText: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     lineHeight: 21,
   },
   assistantText: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 22,
   },
   systemMessageText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 13,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 8,
   },
   messageMeta: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 11,
     marginBottom: 4,
   },
@@ -649,14 +655,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   waitingText: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 13,
     marginLeft: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     marginHorizontal: 12,
     marginVertical: 8,
@@ -673,11 +679,11 @@ const styles = StyleSheet.create({
   },
   cmdButtonText: {
     fontSize: 18,
-    color: '#8ab4f8',
+    color: colors.primary,
   },
   input: {
     flex: 1,
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     paddingVertical: 8,
   },
@@ -685,7 +691,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -693,19 +699,19 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   sendButtonText: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 18,
   },
   stopButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#e74c3c',
+    backgroundColor: colors.destructive,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stopButtonText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -718,7 +724,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   modelPickerCard: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 20,
     width: '100%',
@@ -726,7 +732,7 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   modelPickerTitle: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 16,
@@ -735,7 +741,7 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   modelPickerEmpty: {
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 14,
     textAlign: 'center',
     padding: 24,
@@ -744,18 +750,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 14,
     marginBottom: 6,
   },
   modelPickerItemText: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '500',
   },
   modelPickerItemArrow: {
-    color: '#555',
+    color: colors.textTertiary,
     fontSize: 20,
   },
 })

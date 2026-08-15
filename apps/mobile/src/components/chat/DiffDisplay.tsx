@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react'
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 interface DiffDisplayProps {
   oldString: string
@@ -8,6 +10,8 @@ interface DiffDisplayProps {
 }
 
 export const DiffDisplay: React.FC<DiffDisplayProps> = ({ oldString, newString, filePath }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const hunks = useMemo(() => buildDiffHunks(oldString, newString), [oldString, newString])
   if (!oldString && !newString) return null
 
@@ -69,18 +73,19 @@ function buildDiffHunks(oldStr: string, newStr: string): DiffHunk[] {
   return [{ lines }]
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   diffContainer: {
-    backgroundColor: '#0d1117',
+    backgroundColor: colors.markdownCodeBg,
     borderRadius: 6,
     overflow: 'hidden',
   },
   filePath: {
-    color: '#007AFF',
+    color: colors.link,
     fontSize: 12,
     padding: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#1a1a2e',
+    borderBottomColor: colors.background,
   },
   diffLine: {
     flexDirection: 'row',
@@ -96,13 +101,13 @@ const styles = StyleSheet.create({
   },
   diffMarker: {
     width: 14,
-    color: '#666',
+    color: colors.textTertiary,
     fontSize: 12,
     fontFamily: 'monospace',
     textAlign: 'center',
   },
   diffText: {
-    color: '#d4d4d4',
+    color: colors.text,
     fontSize: 12,
     fontFamily: 'monospace',
     lineHeight: 18,

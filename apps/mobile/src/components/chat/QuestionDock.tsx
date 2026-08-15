@@ -2,8 +2,12 @@ import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useQuestionStore, SingleQuestion } from '../../stores/questionStore'
 import { useAuthStore } from '../../stores/authStore'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 export const QuestionDock: React.FC = () => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const pending = useQuestionStore(s => s.pending)
   const visible = useQuestionStore(s => s.visible)
   const removeQuestion = useQuestionStore(s => s.removeQuestion)
@@ -37,6 +41,8 @@ interface QuestionItemProps {
 }
 
 const QuestionItem: React.FC<QuestionItemProps> = ({ question, onReject, onSubmit }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [selected, setSelected] = useState<Record<number, string[]>>({})
 
   const handleSelect = (qi: number, label: string, multiple?: boolean) => {
@@ -108,71 +114,72 @@ function replyQuestion(id: string, answers: string[]) {
   client.call('question.reply', { id, sessionId: found.sessionId, answers }).catch(() => {})
 }
 
-const styles = StyleSheet.create({
-  dockArea: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 6,
-  },
-  dockPrompt: {
-    backgroundColor: '#16213e',
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#0f3460',
-  },
-  dockHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#0f3460',
-  },
-  dockIcon: { fontSize: 14, marginRight: 8 },
-  dockTitle: { color: '#eee', fontSize: 13, fontWeight: '600' },
-  dockBody: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  questionBlock: {
-    marginBottom: 8,
-  },
-  questionText: {
-    color: '#ccc',
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  option: {
-    backgroundColor: '#0f3460',
-    borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 4,
-  },
-  optionSelected: {
-    backgroundColor: '#1a5276',
-    borderWidth: 1,
-    borderColor: '#4a9eff',
-  },
-  optionLabel: { color: '#ddd', fontSize: 14 },
-  optionLabelSelected: { color: '#fff' },
-  dockFooter: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#0f3460',
-  },
-  rejectBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(231, 76, 60, 0.15)',
-  },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(46, 204, 113, 0.15)',
-  },
-  btnText: { color: '#eee', fontSize: 13, fontWeight: '600' },
-})
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    dockArea: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      gap: 6,
+    },
+    dockPrompt: {
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.surfaceVariant,
+    },
+    dockHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.surfaceVariant,
+    },
+    dockIcon: { fontSize: 14, marginRight: 8 },
+    dockTitle: { color: colors.text, fontSize: 13, fontWeight: '600' },
+    dockBody: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    questionBlock: {
+      marginBottom: 8,
+    },
+    questionText: {
+      color: colors.text,
+      fontSize: 14,
+      marginBottom: 8,
+      lineHeight: 20,
+    },
+    option: {
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginBottom: 4,
+    },
+    optionSelected: {
+      backgroundColor: '#1a5276',
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    optionLabel: { color: colors.text, fontSize: 14 },
+    optionLabelSelected: { color: colors.textOnPrimary },
+    dockFooter: {
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceVariant,
+    },
+    rejectBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: 'rgba(231, 76, 60, 0.15)',
+    },
+    submitBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: 'rgba(46, 204, 113, 0.15)',
+    },
+    btnText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  })

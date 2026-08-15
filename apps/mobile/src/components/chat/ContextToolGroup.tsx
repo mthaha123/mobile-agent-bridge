@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { getToolInfo } from '../../types/message'
+import { useThemeColors } from '../../theme/ThemeContext'
+import { ThemeColors } from '../../theme/colors'
 
 const CONTEXT_TOOLS = new Set(['read', 'glob', 'grep', 'list'])
 
@@ -26,6 +28,8 @@ interface ContextToolGroupProps {
 }
 
 export const ContextToolGroup: React.FC<ContextToolGroupProps> = ({ tools }) => {
+  const colors = useThemeColors()
+  const styles = makeStyles(colors)
   const [expanded, setExpanded] = useState(false)
 
   const summary = useMemo(() => {
@@ -71,9 +75,10 @@ export const ContextToolGroup: React.FC<ContextToolGroupProps> = ({ tools }) => 
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   groupCard: {
-    backgroundColor: '#16213e',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     marginVertical: 4,
     overflow: 'hidden',
@@ -84,21 +89,21 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   groupIcon: { fontSize: 16, marginRight: 8 },
-  groupTitle: { color: '#eee', fontSize: 13, fontWeight: '500', flex: 1 },
+  groupTitle: { color: colors.text, fontSize: 13, fontWeight: '500', flex: 1 },
   groupCount: {
-    color: '#888',
+    color: colors.textTertiary,
     fontSize: 12,
-    backgroundColor: '#0f3460',
+    backgroundColor: colors.surfaceVariant,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
     marginRight: 6,
     overflow: 'hidden',
   },
-  chevron: { color: '#666', fontSize: 12 },
+  chevron: { color: colors.textTertiary, fontSize: 12 },
   groupBody: {
     borderTopWidth: 1,
-    borderTopColor: '#0f3460',
+    borderTopColor: colors.surfaceVariant,
     paddingVertical: 4,
   },
   groupItem: {
@@ -108,6 +113,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   itemIcon: { fontSize: 14, width: 22, textAlign: 'center' },
-  itemTitle: { color: '#ccc', fontSize: 13, fontWeight: '500', marginRight: 8 },
-  itemSubtitle: { color: '#888', fontSize: 12, flex: 1 },
+  itemTitle: { color: colors.text, fontSize: 13, fontWeight: '500', marginRight: 8 },
+  itemSubtitle: { color: colors.textTertiary, fontSize: 12, flex: 1 },
 })
