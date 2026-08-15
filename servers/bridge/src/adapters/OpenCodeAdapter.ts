@@ -121,7 +121,13 @@ export class OpenCodeBackend {
     }
 
     // 回退 v1 路由：裸数组（已升序）+ header 分页
-    const v1 = await this.httpGetWithHeaders(`${base}/session/${encodeURIComponent(sessionID)}/message`, opts)
+    // v1 分页参数是 before（非 cursor）；cursor 由 X-Next-Cursor 头返回
+    const v1Opts: { limit?: number; order?: 'asc' | 'desc'; before?: string } = {
+      limit: opts?.limit,
+      order: opts?.order,
+    }
+    if (opts?.cursor) v1Opts.before = opts.cursor
+    const v1 = await this.httpGetWithHeaders(`${base}/session/${encodeURIComponent(sessionID)}/message`, v1Opts)
     const arr = Array.isArray(v1.body) ? v1.body : ((v1.body as any)?.messages ?? [])
     // v1 分页：X-Next-Cursor 头 或 Link 头中 rel="next" 的 before 参数
     let cursor: unknown
@@ -142,7 +148,7 @@ export class OpenCodeBackend {
   }
 
   /** http GET 返回 { body, headers } */
-  private async httpGetWithHeaders(urlStr: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<{ body: unknown; headers: Record<string, string | string[] | undefined> }> {
+  private async httpGetWithHeaders(urlStr: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string; before?: string }): Promise<{ body: unknown; headers: Record<string, string | string[] | undefined> }> {
     const qs = this.buildQuery(opts)
     const url = new URL(urlStr + qs)
     return new Promise((resolve, reject) => {
@@ -191,11 +197,13 @@ export class OpenCodeBackend {
     })
   }
 
-  private buildQuery(opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): string {
+  private buildQuery(opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string; before?: string }): string {
     const qs: string[] = []
     if (opts?.limit !== undefined) qs.push(`limit=${opts.limit}`)
     if (opts?.order) qs.push(`order=${opts.order}`)
     if (opts?.cursor) qs.push(`cursor=${encodeURIComponent(opts.cursor)}`)
+    // v1 路由分页参数是 before（对应 X-Next-Cursor 头返回的值）
+    if (opts?.before) qs.push(`before=${encodeURIComponent(opts.before)}`)
     return qs.length ? '?' + qs.join('&') : ''
   }
 
