@@ -459,8 +459,8 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.list", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockV3Session.list).toHaveBeenCalledWith({})
-    // SDK { data: [...] } 包裹被解包为裸数组
+    expect(mockV3Session.list).toHaveBeenCalledWith({ limit: 500 })
+    // SDK { data: [...] } 被解包为裸数组
     expect(Array.isArray(messages[0].payload)).toBe(true)
   })
 
