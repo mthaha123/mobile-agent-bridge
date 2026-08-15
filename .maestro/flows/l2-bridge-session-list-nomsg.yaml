@@ -1,0 +1,24 @@
+appId: com.mobileagentbridge
+---
+# 验证：session 列表不再显示消息条数（serve 无 messageCount）
+- launchApp
+
+# 连接真实 Bridge（8080）
+- tapOn: "ws://192.168.1.100:8080/ws"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "Connect"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 会话列表加载后，验证不再出现 "messages" 字样（消息条数已移除）
+- extendedWaitUntil:
+    visible: "New session.*"
+    timeout: 15000
+
+# 断言列表中不包含 "messages" 文本（消息条数显示已移除）
+- assertNotVisible: "messages"

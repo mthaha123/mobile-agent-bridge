@@ -114,10 +114,6 @@ export const SessionsScreen: React.FC = () => {
           </Text>
           <View style={styles.sessionMeta}>
             <Text style={styles.sessionMetaText}>
-              {item.messageCount} message{item.messageCount !== 1 ? 's' : ''}
-            </Text>
-            <Text style={styles.sessionMetaSeparator}>·</Text>
-            <Text style={styles.sessionMetaText}>
               {formatRelativeTime(item.updatedAt)}
             </Text>
           </View>
@@ -360,11 +356,6 @@ const styles = StyleSheet.create({
   sessionMetaText: {
     color: '#888',
     fontSize: 13,
-  },
-  sessionMetaSeparator: {
-    color: '#555',
-    fontSize: 13,
-    marginHorizontal: 6,
   },
   sessionChevron: {
     color: '#555',

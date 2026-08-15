@@ -51,9 +51,6 @@ export const SessionInfoModal: React.FC<{
 
           {currentSession && (
             <View style={styles.sessionStatsRow}>
-              <Text style={styles.sessionStatItem}>
-                {currentSession.messageCount ?? 0} msgs
-              </Text>
               {currentSession.createdAt && (
                 <Text style={styles.sessionStatItem}>
                   Created {formatTime(currentSession.createdAt)}
