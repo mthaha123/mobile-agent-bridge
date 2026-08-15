@@ -26,6 +26,7 @@ export interface ChatState {
 
   setActiveSession: (sessionId: string | null) => void
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  prependMessages: (msgs: ChatMessage[]) => void
   updateLastAssistant: (text: string) => void
   appendAssistantDelta: (assistantMessageId: string, delta: string, eventId: number | string) => void
   advanceStreamId: (assistantMessageId: string, eventId: number | string) => void
@@ -87,6 +88,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return state
       }
       return { messages: [...state.messages, newMsg] }
+    })
+  },
+
+  prependMessages: (msgs) => {
+    set((state) => {
+      const known = new Set(state.messages.map((m) => m.messageID || m.id))
+      const fresh = msgs.filter((m) => !known.has(m.messageID || m.id))
+      if (fresh.length === 0) return state
+      // 更早的消息插到列表前（保持升序：fresh 在前，旧列表在后）
+      return { messages: [...fresh, ...state.messages] }
     })
   },
 

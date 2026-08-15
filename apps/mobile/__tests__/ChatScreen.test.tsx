@@ -627,7 +627,7 @@ describe('ChatScreen', () => {
       )
     })
 
-    expect(getSessionMessages).toHaveBeenCalledWith('s1', expect.anything(), { order: 'asc' })
+    expect(getSessionMessages).toHaveBeenCalledWith('s1', expect.anything(), { order: 'asc', limit: 50 })
     const msgs = useChatStore.getState().messages
     expect(msgs.map((m) => m.content)).toEqual(['First Q', 'First A', 'Second Q'])
   })

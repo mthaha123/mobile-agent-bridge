@@ -50,6 +50,9 @@ export const ChatScreen: React.FC = () => {
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
   const [slashFilter, setSlashFilter] = useState<string | undefined>()
   const [modelPickerVisible, setModelPickerVisible] = useState(false)
+  const [historyCursor, setHistoryCursor] = useState<string | undefined>()
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -124,24 +127,69 @@ export const ChatScreen: React.FC = () => {
     })
   }
 
-  // 初始加载：全量拉取该会话所有消息（opencode 分页游标不可用，只能全量）
+  // 初始加载：取最近 HISTORY_PAGE_SIZE 条（升序），保留 cursor 供上滑加载更早
+  const HISTORY_PAGE_SIZE = 50
   useEffect(() => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
     let cancelled = false
+    setHistoryCursor(undefined)
+    setHasMoreHistory(false)
     ;(async () => {
       const res = await useSessionStore.getState().getSessionMessages(
         activeSessionId, client.call.bind(client),
-        { order: 'asc' },
+        { order: 'asc', limit: HISTORY_PAGE_SIZE },
       )
       if (cancelled || !res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
+      const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       if (!cancelled) {
         applyLoadedMessages(list) // asc 顺序即时间正序，直接追加（addMessage 去重）
+        setHistoryCursor(cursor)
+        setHasMoreHistory(Boolean(cursor))
       }
     })()
     return () => { cancelled = true }
   }, [activeSessionId])
+
+  // 上滑到顶：用 cursor 加载更早的消息，prepend 到列表前
+  const handleLoadMoreHistory = async () => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client || !historyCursor || historyLoading) return
+    setHistoryLoading(true)
+    try {
+      const res = await useSessionStore.getState().getSessionMessages(
+        activeSessionId, client.call.bind(client),
+        { order: 'asc', limit: HISTORY_PAGE_SIZE, cursor: historyCursor },
+      )
+      if (!res) return
+      const list = Array.isArray(res) ? res : (res?.messages ?? [])
+      const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
+      // 转成 ChatMessage 后 prepend
+      const newMsgs: any[] = []
+      ;(list as any[]).forEach((msg: any) => {
+        const msgId = msg.id || undefined
+        let text = msg.content || msg.text || ''
+        const parts: import('../types/message').Part[] = []
+        if (Array.isArray(msg.rawContent)) {
+          msg.rawContent.forEach((p: any) => {
+            if (p.type === 'text') { text = p.text || text; parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } }) }
+            else if (p.type === 'tool') { parts.push({ id: p.id || `t_${Date.now()}`, type: 'tool', data: { callID: p.id || '', tool: p.tool || '', input: p.input ?? {}, state: p.state || 'done' } }) }
+            else if (p.type === 'reasoning') { parts.push({ id: p.id || `t_${Date.now()}`, type: 'reasoning', data: { text: p.text || '' } }) }
+            else { parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } }) }
+          })
+        }
+        newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text, text, parts: parts.length ? parts : undefined, rawContent: msg.rawContent })
+      })
+      useChatStore.getState().prependMessages(newMsgs as any)
+      setHistoryCursor(cursor)
+      setHasMoreHistory(Boolean(cursor))
+    } catch {
+      // 加载失败静默，保留现有 cursor 可重试
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
@@ -362,6 +410,19 @@ export const ChatScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         renderItem={renderMessage}
         ListFooterComponent={renderFooter}
+        ListHeaderComponent={hasMoreHistory ? (
+          <View style={{ padding: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#888', fontSize: 12 }}>{historyLoading ? '加载更早消息...' : '上滑加载更早消息'}</Text>
+          </View>
+        ) : null}
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y
+          // 接近顶部（最早消息）时加载更早历史
+          if (y < 60 && hasMoreHistory && !historyLoading) {
+            handleLoadMoreHistory()
+          }
+        }}
+        scrollEventThrottle={200}
         contentContainerStyle={styles.messageList}
         style={styles.messageListContainer}
       />

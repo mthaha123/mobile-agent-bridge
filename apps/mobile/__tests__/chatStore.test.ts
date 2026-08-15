@@ -128,6 +128,45 @@ describe('addMessage', () => {
 })
 
 // ---------------------------------------------------------------------------
+// prependMessages
+// ---------------------------------------------------------------------------
+
+describe('prependMessages', () => {
+  it('prepends older messages before existing ones', () => {
+    useChatStore.getState().addMessage({ role: 'user', content: 'recent' })
+    useChatStore.getState().prependMessages([
+      { id: 'old1', messageID: 'msg_old1', role: 'user', content: 'oldest', timestamp: 1 } as any,
+      { id: 'old2', messageID: 'msg_old2', role: 'assistant', content: 'older', timestamp: 2 } as any,
+    ])
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(3)
+    expect(msgs[0].content).toBe('oldest')
+    expect(msgs[1].content).toBe('older')
+    expect(msgs[2].content).toBe('recent')
+  })
+
+  it('dedupes by messageID when prepending', () => {
+    useChatStore.getState().addMessage({ role: 'user', content: 'recent', messageID: 'msg_exist' } as any)
+    useChatStore.getState().prependMessages([
+      { id: 'old1', messageID: 'msg_exist', role: 'user', content: 'recent', timestamp: 1 } as any,
+      { id: 'old2', messageID: 'msg_new', role: 'assistant', content: 'older', timestamp: 2 } as any,
+    ])
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0].content).toBe('older')
+    expect(msgs[1].content).toBe('recent')
+  })
+
+  it('keeps list unchanged when no fresh messages', () => {
+    useChatStore.getState().addMessage({ role: 'user', content: 'a', messageID: 'msg_a' } as any)
+    useChatStore.getState().prependMessages([
+      { id: 'x', messageID: 'msg_a', role: 'user', content: 'a', timestamp: 1 } as any,
+    ])
+    expect(useChatStore.getState().messages).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // setInputText
 // ---------------------------------------------------------------------------
 
