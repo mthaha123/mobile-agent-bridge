@@ -274,7 +274,7 @@ describe('getSessionMessages', () => {
     ])
   })
 
-  it('maps SDK event-format messages (type/text/content, newest first) and reverses to chronological', async () => {
+  it('maps SDK event-format messages (type/text/content), preserving input order', async () => {
     const clientCall = mockClientCall()
     clientCall.mockResolvedValue([
       {
@@ -287,8 +287,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result.messages).toEqual([
-      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: 'Hello?' },
       { id: 'msg_a1', role: 'assistant', content: 'Answer here', text: 'Answer here', rawContent: [{ type: 'reasoning', text: 'think' }, { type: 'text', text: 'Answer here' }] },
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: 'Hello?' },
     ])
   })
 
@@ -306,7 +306,7 @@ describe('getSessionMessages', () => {
     ])
   })
 
-  it('parses SDK v2 message records ({ info, parts }), newest-first, and reverses to chronological', async () => {
+  it('parses SDK v2 message records ({ info, parts }), preserving input order', async () => {
     const clientCall = mockClientCall()
     clientCall.mockResolvedValue([
       {
@@ -322,8 +322,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result.messages).toEqual([
-      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }] },
       { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }] },
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }] },
     ])
   })
 

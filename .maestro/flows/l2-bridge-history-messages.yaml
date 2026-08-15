@@ -24,9 +24,9 @@ appId: com.mobileagentbridge
     visible: "< Sessions"
     timeout: 20000
 
-# 验证历史消息文本被渲染（该 session 有 assistant 消息）
+# 验证历史消息文本被渲染（该 session 有 assistant 文本消息）
 - scrollUntilVisible:
     element:
-      text: "text reader"
+      text: "发现了关键文件.*"
     direction: UP
     timeout: 20000

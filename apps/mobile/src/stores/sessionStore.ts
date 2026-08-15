@@ -189,11 +189,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)) }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
-      // 真实 SDK 默认返回最新在前（desc）的事件对象（带 type 字段）或 v2 记录（info/parts）。
-      // 显式 asc 时返回时间正序；仅非 asc（desc/默认）且为 SDK 格式时才反转成正序。
-      const isSdkEventFormat = raw.some((m) => m && typeof m.type === 'string')
-      const isV2RecordFormat = raw.some((m) => m && typeof m.info === 'object')
-      const list = (opts?.order !== 'asc' && (isSdkEventFormat || isV2RecordFormat)) ? mapped.reverse() : mapped
+      // bridge 统一输出升序（旧→新）的 {info, parts} 消息，App 直接渲染，无需反转。
+      const list = mapped
       const cursor = result && typeof result === 'object' && !Array.isArray(result)
         ? (result as Record<string, unknown>).cursor
         : undefined
