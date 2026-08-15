@@ -6,10 +6,21 @@ interface MarkdownRendererProps {
   content: string
 }
 
+// 固定高对比深色主题：不依赖系统 colorScheme，确保在深色背景上清晰可读
+const MARKDOWN_THEME = {
+  colors: {
+    code: '#0d1117',
+    link: '#58a6ff',
+    text: '#e6edf3',
+    border: '#30363d',
+  },
+  spacing: {},
+}
+
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   let elements
   try {
-    elements = useMarkdown(content)
+    elements = useMarkdown(content, { theme: MARKDOWN_THEME as any, colorScheme: 'dark' as any })
   } catch {
     return <Text style={styles.fallback}>{content}</Text>
   }
@@ -18,5 +29,5 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
 }
 
 const styles = StyleSheet.create({
-  fallback: { color: '#d4d4d4', fontSize: 14, lineHeight: 22 },
+  fallback: { color: '#e6edf3', fontSize: 14, lineHeight: 22 },
 })
