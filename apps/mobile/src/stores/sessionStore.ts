@@ -31,7 +31,7 @@ function mapSession(raw: any): Session {
   const time = raw.time || {}
   return {
     id: raw.id || '',
-    name: raw.name || raw.title || `Session ${String(raw.id || '').slice(0, 8)}`,
+    name: raw.title || raw.name || `Session ${String(raw.id || '').slice(0, 8)}`,
     createdAt: raw.createdAt || (time.created ? new Date(time.created).toISOString() : ''),
     updatedAt: raw.updatedAt || (time.updated ? new Date(time.updated).toISOString() : ''),
     messageCount: typeof raw.messageCount === 'number' ? raw.messageCount : 0,

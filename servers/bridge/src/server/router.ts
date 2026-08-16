@@ -4,7 +4,7 @@ import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { fileList, fileRead, fileSearch, getFileInfo } from "./fileHandler.js"
-import { recordUserMessage, applyTitle, applyTitles } from "../state/sessionTitles.js"
+
 
 type Handler = (params: any, payload: TokenPayload | null) => Promise<any> | any
 
@@ -144,15 +144,14 @@ registerHandler("session.list", async (p) => {
   // App 未显式传 limit 时设一个大上限；显式传则尊重。
   params.limit = (p.limit !== undefined) ? p.limit : 500
   const list = unwrapData(await sdkCall(() => sdk().v2.session.list(params)))
-  // 合并 sessionId → 标题映射（覆盖默认名）
-  return Array.isArray(list) ? applyTitles(list) : list
+  return Array.isArray(list) ? list : list
 })
 
 registerHandler("session.get", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.get requires sessionId parameter")
   const s = unwrapData(await sdkCall(() => sdk().v2.session.get({ sessionID: id })))
-  return applyTitle((s && typeof s === "object" ? s : {}) as Record<string, unknown>)
+  return (s && typeof s === "object" ? s : {}) as Record<string, unknown>
 })
 registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
@@ -197,8 +196,6 @@ registerHandler("message.send", async (p) => {
   const sid = resolveSessionId(p)
   if (!sid) throw new Error("message.send requires sessionId parameter")
   if (!p.message) throw new Error("message.send requires message parameter")
-  // 记录首条用户消息 → 生成 session 标题
-  recordUserMessage(sid, String(p.message))
   return sdkCall(() => sdk().v2.session.prompt({
     sessionID: sid,
     prompt: { text: p.message as string },

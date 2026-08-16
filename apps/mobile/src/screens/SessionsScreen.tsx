@@ -117,6 +117,9 @@ export const SessionsScreen: React.FC = () => {
             {displayName}
           </Text>
           <View style={styles.sessionMeta}>
+            <Text style={styles.sessionId} numberOfLines={1}>
+              {item.id}
+            </Text>
             <Text style={styles.sessionMetaText}>
               {formatRelativeTime(item.updatedAt)}
             </Text>
@@ -357,6 +360,12 @@ const makeStyles = (colors: ThemeColors) =>
   sessionMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  sessionId: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginRight: 8,
+    flexShrink: 1,
   },
   sessionMetaText: {
     color: colors.textTertiary,
