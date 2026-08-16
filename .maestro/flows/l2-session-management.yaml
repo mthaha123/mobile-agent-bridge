@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# Layer 2 — Session Management: 创建 → 返回 → 详情 → 重命名
+# Layer 2 — Session Management: 创建 → 返回 → 详情（Diffs/Todos）
 - launchApp
 
 # 连接
@@ -41,34 +41,22 @@ appId: com.mobileagentbridge
     timeout: 15000
 
 # 打开 Session 详情
-- tapOn: "📋"
+- tapOn: "Session info"
 - extendedWaitUntil:
-    visible: "Fork"
+    visible: "Diffs \\(0\\)"
     timeout: 10000
 
-# 校验点 3: SessionInfoModal 弹出
-- assertVisible: "Fork"
+# 校验点 3: SessionInfoModal 弹出，含 Diffs/Todos 标签
+- assertVisible: "Diffs \\(0\\)"
+- assertVisible: "Todos \\(0\\)"
 
-# 重命名
-- tapOn: "✏️"
+# 点击遮罩关闭 Modal
+- tapOn:
+    point: "50%,8%"
 - extendedWaitUntil:
-    visible: "Session name"
+    notVisible: "Diffs \\(0\\)"
     timeout: 5000
-- eraseText: 50
-- inputText: "Renamed Session"
-- tapOn: "Save"
-- assertNotVisible: "Session name"
 
-# 点击 Fork → 弹出 "Forked" 确认 Alert
-- tapOn: "Fork"
-- extendedWaitUntil:
-    visible: "Forked"
-    timeout: 10000
-- assertVisible: "OK"
-- tapOn: "OK"
-
-# Alert 关闭后 Modal 已关，返回 ChatScreen
-- extendedWaitUntil:
-    notVisible: "Forked"
-    timeout: 10000
-- assertVisible: "< Sessions"
+# 返回会话列表
+- tapOn: "Back to sessions"
+- assertVisible: "+ New"

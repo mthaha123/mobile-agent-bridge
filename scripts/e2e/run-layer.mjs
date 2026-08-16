@@ -27,6 +27,13 @@ const flowsDir = resolve(rootDir, ".maestro", "flows")
 const USE_MOCK = process.argv.includes("--mock")
 const RUN_ALL = process.argv.includes("--all")
 
+// 需要真实 Bridge（serve）的 flow：mock 模式下无法提供真实历史会话数据，跳过
+const REAL_BRIDGE_ONLY = new Set([
+  "l2-bridge-history-messages",
+  "l2-bridge-history-pagination",
+  "l2-bridge-session-list-nomsg",
+])
+
 function parseLayers() {
   const layers = []
   for (let i = 2; i < process.argv.length; i++) {
@@ -227,6 +234,11 @@ async function main() {
     }
     console.log(`\n${green(`[Layer ${layer}] ${flows.length} 个 flow`)}`)
     for (const flow of flows) {
+      const flowName = flow.split(/[/\\]/).pop().replace(/\.yaml$/, "")
+      if (USE_MOCK && REAL_BRIDGE_ONLY.has(flowName)) {
+        console.log(yellow(`  ╰ SKIP ${flowName} (需真实 Bridge，mock 模式跳过)`))
+        continue
+      }
       await runFlow(resolve(flowsDir, flow))
     }
   }

@@ -33,10 +33,10 @@ appId: com.mobileagentbridge
     visible: "+ New"
     timeout: 10000
 
-# 选择刚创建的会话（标题为 "New session - <timestamp>"，位于列表顶部）
+# 选择刚创建的会话（首条消息已将该会话命名为 "Reply with the word: HELLO_..." 摘要，
+# 用 HELLO_ 片段匹配，避开 "New session" 开头的残留/未命名会话）
 - tapOn:
-    text: "New session.*"
-    index: 0
+    text: "Reply with the word: HELLO_.*"
 
 # 进入 ChatScreen
 - extendedWaitUntil:

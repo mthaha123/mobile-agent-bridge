@@ -16,7 +16,7 @@ export const ToolProgressCard: React.FC = () => {
   if (running.length === 0) return null
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessible accessibilityLabel="tool-progress-card">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

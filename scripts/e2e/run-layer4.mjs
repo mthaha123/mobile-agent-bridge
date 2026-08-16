@@ -21,7 +21,7 @@
  *   APK_PATH      — APK 文件路径（默认自动查找 release APK）
  */
 import { spawn, execSync } from "node:child_process"
-import { resolve, dirname } from "node:path"
+import { resolve, dirname, basename } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createRequire } from "node:module"
 import fs from "node:fs"
@@ -35,7 +35,7 @@ const OPENCODE_PATH = process.env.OPENCODE_PATH ||
 const OPENCODE_PORT = process.env.OPENCODE_PORT || "4096"
 const BRIDGE_PORT = process.env.BRIDGE_PORT || "19985"
 const BRIDGE_PASSWORD = process.env.BRIDGE_PASSWORD || "test123"
-const BRIDGE_DEFAULT_MODEL = process.env.BRIDGE_DEFAULT_MODEL || "opencode-go/deepseek-v4-flash"
+const BRIDGE_DEFAULT_MODEL = (process.env.BRIDGE_DEFAULT_MODEL || "opencode-go/deepseek-v4-flash").trim()
 
 // opencode-go provider 在 models.dev 定义 env=OPENCODE_API_KEY。
 // serve 模式不读 auth.json 的 opencode-go 条目，必须显式注入该 env（env → 注册表 → auth.json 三级解析）。
@@ -132,6 +132,7 @@ async function main() {
         ...process.env,
         BRIDGE_PORT,
         BRIDGE_PASSWORD,
+        BRIDGE_DEFAULT_MODEL,
         OPENCODE_URL: `http://localhost:${OPENCODE_PORT}`,
       },
     },
@@ -204,26 +205,34 @@ async function main() {
     const flow = targets[i]
     // flow 之间延时，避免 Maestro driver 并发/重启竞争导致启动超时
     if (i > 0) {
-      log(`   [delay] 等待 driver 释放 5s...`)
-      await sleep(5000)
+      log(`   [delay] 等待 driver 释放 10s...`)
+      await sleep(10000)
     }
     log(`   运行: ${flow}`)
-    const start = Date.now()
-    try {
-      execSync(`"${resolve(ROOT, ".maestro/maestro.cmd")}" test "${flow}"`, {
-        cwd: ROOT,
-        stdio: "pipe",
-        timeout: 300000, // 5min per flow
-      })
-      const elapsed = ((Date.now() - start) / 1000).toFixed(0)
-      log(`   ✅ ${flow} (${elapsed}s)`)
-      passed++
-    } catch (e) {
-      const elapsed = ((Date.now() - start) / 1000).toFixed(0)
-      const stderr = e.stderr ? e.stderr.toString().slice(0, 500) : ""
-      log(`   ❌ ${flow} (${elapsed}s)`)
-      if (stderr) log(`      stderr: ${stderr}`)
-      failed++
+    let ok = false
+    for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+      if (attempt > 1) {
+        log(`   [retry] 第 ${attempt} 次重试 ${path.basename(flow)} (等待 10s)...`)
+        await sleep(10000)
+      }
+      const start = Date.now()
+      try {
+        execSync(`"${resolve(ROOT, ".maestro/maestro.cmd")}" test "${flow}"`, {
+          cwd: ROOT,
+          stdio: "pipe",
+          timeout: 300000, // 5min per flow
+        })
+        const elapsed = ((Date.now() - start) / 1000).toFixed(0)
+        log(`   ✅ ${flow} (${elapsed}s)`)
+        passed++
+        ok = true
+      } catch (e) {
+        const elapsed = ((Date.now() - start) / 1000).toFixed(0)
+        const stderr = e.stderr ? e.stderr.toString().slice(0, 500) : ""
+        log(`   ❌ ${flow} (${elapsed}s)`)
+        if (stderr) log(`      stderr: ${stderr}`)
+        if (attempt === 2) failed++
+      }
     }
   }
 

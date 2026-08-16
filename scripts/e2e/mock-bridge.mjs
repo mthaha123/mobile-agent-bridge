@@ -182,6 +182,7 @@ const MOCK_PAYLOADS = {
   },
   "file.search": [
     { file: "src/index.ts", line: 1, content: "import { createServer } from 'http'", match: "import" },
+    { file: "package.json", line: 1, content: "{\"name\":\"mock-project\"}", match: "package" },
   ],
   "file.info": {
     name: "package.json",

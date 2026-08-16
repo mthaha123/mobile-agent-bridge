@@ -76,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { useConfigStore } = await import('./configStore')
       const call = client.call.bind(client)
       await Promise.all([
+        useConfigStore.getState().fetchConfig(call),
         useConfigStore.getState().fetchAgents(call),
         useConfigStore.getState().fetchProviders(call),
         useConfigStore.getState().fetchCommands(call),

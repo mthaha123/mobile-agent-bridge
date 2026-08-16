@@ -346,6 +346,32 @@ describe("RPC Router", () => {
     })
   })
 
+  it("should trim trailing whitespace in string model id (cmd env gotcha)", async () => {
+    const { mockV3Session } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.create",
+      params: { model: "provider/deepseek-v4-flash-free " }, // 尾随空格（cmd set VAR=val && 会吞入空格）
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV3Session.create).toHaveBeenCalledWith({
+      model: { id: "deepseek-v4-flash-free", providerID: "provider" },
+    })
+  })
+
+  it("should trim whitespace around provider/model parts", async () => {
+    const { mockV3Session } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.create",
+      params: { model: " opencode / deepseek-v4-flash-free " },
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV3Session.create).toHaveBeenCalledWith({
+      model: { id: "deepseek-v4-flash-free", providerID: "opencode" },
+    })
+  })
+
   it("should call session.create with empty params when none provided", async () => {
     const { mockV3Session } = createMockSdk()
     const { ws, messages } = createMockWs()

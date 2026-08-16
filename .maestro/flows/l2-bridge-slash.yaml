@@ -24,7 +24,7 @@ appId: com.mobileagentbridge
 # 打开 SlashSheet
 - tapOn: "Open commands"
 - extendedWaitUntil:
-    visible: "Commands & Agents"
+    visible: "命令 & Agent"
     timeout: 5000
 
 # 验证 Commands 区域
@@ -42,7 +42,7 @@ appId: com.mobileagentbridge
 # 点击一个命令验证 onSelect 关闭 Sheet
 - tapOn: "help"
 - extendedWaitUntil:
-    notVisible: "Commands & Agents"
+    notVisible: "命令 & Agent"
     timeout: 3000
 
 # 回到会话列表

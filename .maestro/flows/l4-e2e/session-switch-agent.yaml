@@ -17,9 +17,9 @@ appId: com.mobileagentbridge
     visible: "命令 & Agent"
     timeout: 10000
 
-# 关闭 SlashSheet（点空白处）
+# 关闭 SlashSheet（点卡片外空白处，卡片占底部 ~70%，y=1500 在卡片上会点中空函数；点顶部区域）
 - tapOn:
-    point: "540,1500"
+    point: "540,400"
 
 # 点击 ⚙ 打开模型选择
 - tapOn: "Model settings"

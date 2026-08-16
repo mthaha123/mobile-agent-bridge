@@ -113,13 +113,13 @@ registerHandler("project.list", async () => {
 function resolveModel(model: unknown): { id: string; providerID: string; variant?: string } | undefined {
   if (!model) return undefined
   if (typeof model === "string") {
-    const parts = model.split("/")
+    const parts = model.split("/").map((s) => s.trim())
     if (parts.length >= 2) return { id: parts[1], providerID: parts[0], variant: parts[2] }
-    return { id: model, providerID: model }
+    return { id: model.trim(), providerID: model.trim() }
   }
   if (typeof model === "object" && model !== null) {
     const m = model as Record<string, unknown>
-    if (typeof m.id === "string" && typeof m.providerID === "string") return { id: m.id, providerID: m.providerID, variant: m.variant as string | undefined }
+    if (typeof m.id === "string" && typeof m.providerID === "string") return { id: m.id.trim(), providerID: m.providerID.trim(), variant: m.variant as string | undefined }
   }
   return undefined
 }

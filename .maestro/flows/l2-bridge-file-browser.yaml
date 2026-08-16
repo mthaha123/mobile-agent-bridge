@@ -34,7 +34,7 @@ appId: com.mobileagentbridge
 - tapOn: "package.json"
 
 # 返回文件列表
-- tapOn: "Close preview"
+- tapOn: "Close viewer"
 
 # 验证 parent directory 导航
 - tapOn: "src"

@@ -46,17 +46,13 @@ appId: com.mobileagentbridge
     notVisible: "Edit Config"
     timeout: 5000
 
-# 滚动到中间（VCS + Providers + Agents）
+# 滚动到中间（Providers + Agents）
 - swipe:
     direction: UP
     duration: 500
 - swipe:
     direction: UP
     duration: 300
-
-# VCS 信息
-- assertVisible: "git"
-- assertVisible: "main"
 
 # Providers 列表
 - assertVisible: "Anthropic"
