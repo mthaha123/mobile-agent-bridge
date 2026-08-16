@@ -61,7 +61,7 @@ const makeStyles = (colors: ThemeColors) =>
     padding: 10,
   },
   errorIcon: { fontSize: 16, marginRight: 8 },
-  errorTool: { color: '#ff6b6b', fontSize: 14, fontWeight: '600', flex: 1 },
+  errorTool: { color: colors.destructive, fontSize: 14, fontWeight: '600', flex: 1 },
   errorSubtitle: { color: colors.textTertiary, fontSize: 12, marginRight: 8, maxWidth: 120 },
   chevron: { color: colors.textTertiary, fontSize: 12 },
   errorBody: {

@@ -90,8 +90,8 @@ const makeStyles = (colors: ThemeColors) =>
   toolInfo: { flex: 1, marginRight: 8 },
   toolTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   toolSubtitle: { color: colors.textTertiary, fontSize: 12, marginTop: 1 },
-  statusSuccess: { color: '#51cf66', fontSize: 14, marginRight: 6 },
-  statusError: { color: '#ff6b6b', fontSize: 14, marginRight: 6 },
+  statusSuccess: { color: colors.success, fontSize: 14, marginRight: 6 },
+  statusError: { color: colors.destructive, fontSize: 14, marginRight: 6 },
   statusRunning: { fontSize: 14, marginRight: 6 },
   chevron: { color: colors.textTertiary, fontSize: 12 },
   toolBody: {
@@ -100,7 +100,7 @@ const makeStyles = (colors: ThemeColors) =>
     padding: 10,
   },
   errorPreview: {
-    color: '#ff6b6b',
+    color: colors.error,
     fontSize: 13,
     fontFamily: 'monospace',
   },

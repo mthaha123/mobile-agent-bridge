@@ -172,7 +172,7 @@ const makeStyles = (colors: ThemeColors) =>
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#eee',
+    color: colors.text,
     marginBottom: 16,
   },
   toolName: {
@@ -191,14 +191,14 @@ const makeStyles = (colors: ThemeColors) =>
   argKey: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#999',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   argValue: {
     fontSize: 14,
-    color: '#eee',
+    color: colors.text,
     backgroundColor: colors.surfaceVariant,
     borderRadius: 6,
     padding: 10,

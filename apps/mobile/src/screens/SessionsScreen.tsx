@@ -220,7 +220,7 @@ export const SessionsScreen: React.FC = () => {
               value={switchDirInput}
               onChangeText={setSwitchDirInput}
               placeholder="/home/user/project"
-              placeholderTextColor="#555"
+              placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -265,7 +265,7 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 15,
   },
   headerTitle: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
   },
@@ -304,7 +304,7 @@ const makeStyles = (colors: ThemeColors) =>
     marginBottom: 2,
   },
   projectDir: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -349,7 +349,7 @@ const makeStyles = (colors: ThemeColors) =>
     flex: 1,
   },
   sessionName: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
@@ -363,7 +363,7 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 13,
   },
   sessionChevron: {
-    color: '#555',
+    color: colors.textTertiary,
     fontSize: 22,
     marginLeft: 8,
   },
@@ -382,7 +382,7 @@ const makeStyles = (colors: ThemeColors) =>
     maxWidth: 400,
   },
   modalTitle: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 16,
@@ -402,7 +402,7 @@ const makeStyles = (colors: ThemeColors) =>
     borderColor: colors.primary,
   },
   projectListItemName: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '500',
   },
@@ -417,7 +417,7 @@ const makeStyles = (colors: ThemeColors) =>
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#eee',
+    color: colors.text,
     marginBottom: 20,
   },
   modalActions: {

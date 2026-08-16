@@ -49,7 +49,7 @@ export const ConnectScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             placeholder="ws://192.168.1.100:8080/ws"
-            placeholderTextColor="#555"
+            placeholderTextColor={colors.textTertiary}
             value={urlInput}
             onChangeText={setUrlInput}
             autoCapitalize="none"
@@ -59,7 +59,7 @@ export const ConnectScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             placeholder="password (optional)"
-            placeholderTextColor="#555"
+            placeholderTextColor={colors.textTertiary}
             value={passwordInput}
             onChangeText={setPasswordInput}
             secureTextEntry
@@ -70,7 +70,7 @@ export const ConnectScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             placeholder="project directory (e.g. /home/user/project)"
-            placeholderTextColor="#555"
+            placeholderTextColor={colors.textTertiary}
             value={directoryInput}
             onChangeText={setDirectoryInput}
             autoCapitalize="none"
@@ -132,7 +132,7 @@ const makeStyles = (colors: ThemeColors) =>
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#eee',
+    color: colors.text,
     marginBottom: 12,
   },
   error: {
@@ -153,7 +153,7 @@ const makeStyles = (colors: ThemeColors) =>
     opacity: 0.6,
   },
   buttonText: {
-    color: '#eee',
+    color: colors.textOnPrimary,
     fontSize: 16,
     fontWeight: '600',
   },

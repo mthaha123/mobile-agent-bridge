@@ -146,7 +146,7 @@ const makeStyles = (colors: ThemeColors) =>
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#eee',
+    color: colors.text,
     marginBottom: 8,
   },
   body: {
@@ -170,20 +170,20 @@ const makeStyles = (colors: ThemeColors) =>
   },
   itemIcon: {
     fontSize: 16,
-    color: '#8ab4f8',
+    color: colors.link,
     width: 28,
     textAlign: 'center',
     fontWeight: '700',
   },
   agentIcon: {
-    color: '#51cf66',
+    color: colors.success,
   },
   itemContent: {
     flex: 1,
     marginLeft: 8,
   },
   itemLabel: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '500',
   },

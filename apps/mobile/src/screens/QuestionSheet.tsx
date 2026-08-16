@@ -214,7 +214,7 @@ const makeStyles = (colors: ThemeColors) =>
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#eee',
+    color: colors.text,
     marginBottom: 16,
   },
   body: {
@@ -232,7 +232,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   questionText: {
     fontSize: 16,
-    color: '#ccc',
+    color: colors.textSecondary,
     marginBottom: 12,
     lineHeight: 22,
   },
@@ -270,7 +270,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   optionLabel: {
     fontSize: 15,
-    color: '#ddd',
+    color: colors.text,
     fontWeight: '500',
   },
   optionLabelSelected: {
@@ -284,7 +284,7 @@ const makeStyles = (colors: ThemeColors) =>
   customInput: {
     backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     padding: 12,
     minHeight: 60,

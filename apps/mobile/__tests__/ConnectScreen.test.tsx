@@ -3,6 +3,8 @@ import TestRenderer, { act } from 'react-test-renderer'
 import { ConnectScreen } from '../src/screens/ConnectScreen'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
+import { getThemeColors } from '../src/theme/colors'
+import * as ThemeContext from '../src/theme/ThemeContext'
 import { resetAllStores, findAllInputs, findAllPressable, textOf } from './test-utils'
 
 const mockConnectFn = jest.fn().mockResolvedValue(undefined)
@@ -93,6 +95,103 @@ describe('ConnectScreen', () => {
     expect(dirInput).toBeDefined()
   })
 })
+
+// ─── 主题对比度回归 ───────────────────────────────────────
+
+describe('ConnectScreen — theme contrast', () => {
+  const realUseThemeColors = ThemeContext.useThemeColors
+  let spy: jest.SpyInstance
+
+  afterEach(() => {
+    spy?.mockRestore()
+  })
+
+  const mockTheme = (mode: 'light' | 'dark') => {
+    spy = jest.spyOn(ThemeContext, 'useThemeColors').mockReturnValue(getThemeColors(mode))
+  }
+
+  const findInputByPlaceholder = (tree: TestRenderer.ReactTestRenderer, prefix: string) => {
+    const input = findAllInputs(tree).find((i: any) => (i.props.placeholder || '').startsWith(prefix))
+    expect(input).toBeDefined()
+    return input as any
+  }
+
+  const findButtonText = (tree: TestRenderer.ReactTestRenderer): any => {
+    const json = tree.toJSON() as any
+    let found: any = undefined
+    const walk = (node: any): void => {
+      if (!node || typeof node !== 'object') return
+      if (node.type === 'Text' && String(node.children?.join?.('') || '').includes('Connect')) {
+        found = node
+        return
+      }
+      if (Array.isArray(node.children)) node.children.forEach(walk)
+    }
+    walk(json)
+    expect(found).toBeDefined()
+    return found
+  }
+
+  it('light theme: input text is dark with sufficient contrast', () => {
+    mockTheme('light')
+    const tree = TestRenderer.create(<ConnectScreen />)
+    expect(STYLE(findInputByPlaceholder(tree, 'ws://')).color).toBe('#1a1a1a')
+  })
+
+  it('light theme: button text uses textOnPrimary', () => {
+    mockTheme('light')
+    const tree = TestRenderer.create(<ConnectScreen />)
+    expect(STYLE(findButtonText(tree)).color).toBe('#ffffff')
+  })
+
+  it('light theme: input text is NOT hardcoded light (#eee)', () => {
+    mockTheme('light')
+    const tree = TestRenderer.create(<ConnectScreen />)
+    const inputStyle = STYLE(findInputByPlaceholder(tree, 'ws://'))
+    expect(inputStyle.color).not.toBe('#eee')
+    const lightBg = getThemeColors('light').surfaceVariant
+    const contrast = contrastRatio(inputStyle.color, lightBg)
+    expect(contrast).toBeGreaterThan(4.5)
+  })
+
+  it('dark theme: input text is light for contrast on dark surface', () => {
+    mockTheme('dark')
+    const tree = TestRenderer.create(<ConnectScreen />)
+    const inputStyle = STYLE(findInputByPlaceholder(tree, 'ws://'))
+    const contrast = contrastRatio(inputStyle.color, getThemeColors('dark').surfaceVariant)
+    expect(contrast).toBeGreaterThan(4.5)
+  })
+})
+
+function STYLE(node: any): Record<string, any> {
+  const s = node.props.style
+  return Array.isArray(s) ? Object.assign({}, ...s) : s || {}
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ]
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((c) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrastRatio(a: string, b: string): number {
+  const la = luminance(a)
+  const lb = luminance(b)
+  const lighter = Math.max(la, lb)
+  const darker = Math.min(la, lb)
+  return (lighter + 0.05) / (darker + 0.05)
+}
 
 // ─── 交互测试 ─────────────────────────────────────────────
 

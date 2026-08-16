@@ -281,7 +281,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   headerTitle: {
     flex: 1,
-    color: '#eee',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
     marginHorizontal: 8,
@@ -309,7 +309,7 @@ const makeStyles = (colors: ThemeColors) =>
     paddingVertical: 1,
   },
   lineNumber: {
-    color: '#6b7a99',
+    color: colors.textTertiary,
     fontFamily: 'monospace',
     width: 48,
     textAlign: 'right',
@@ -333,7 +333,7 @@ const makeStyles = (colors: ThemeColors) =>
     minWidth: '100%',
   },
   noWrapLineNumber: {
-    color: '#6b7a99',
+    color: colors.textTertiary,
     fontFamily: 'monospace',
     width: 48,
     textAlign: 'right',

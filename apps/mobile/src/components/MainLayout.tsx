@@ -100,7 +100,7 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 16,
     },
     bannerText: {
-      color: '#fff',
+      color: colors.textOnPrimary,
       fontSize: 13,
       fontWeight: '500',
       textAlign: 'center',

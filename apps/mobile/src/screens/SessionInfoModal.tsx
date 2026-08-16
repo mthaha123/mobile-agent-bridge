@@ -189,7 +189,7 @@ const makeStyles = (colors: ThemeColors) =>
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#eee',
+    color: colors.text,
     flex: 1,
   },
   tabs: {
@@ -246,11 +246,11 @@ const makeStyles = (colors: ThemeColors) =>
     marginRight: 8,
     textTransform: 'uppercase',
   },
-  statusAdded: { color: '#2ecc71' },
-  statusDeleted: { color: '#e74c3c' },
-  statusModified: { color: '#f39c12' },
+  statusAdded: { color: colors.success },
+  statusDeleted: { color: colors.error },
+  statusModified: { color: colors.warning },
   fileName: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
     flex: 1,
@@ -261,12 +261,12 @@ const makeStyles = (colors: ThemeColors) =>
     marginBottom: 4,
   },
   statAdded: {
-    color: '#2ecc71',
+    color: colors.success,
     fontSize: 12,
     fontWeight: '600',
   },
   statDeleted: {
-    color: '#e74c3c',
+    color: colors.error,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -295,10 +295,10 @@ const makeStyles = (colors: ThemeColors) =>
     marginTop: 1,
   },
   todoStatusDone: {
-    color: '#2ecc71',
+    color: colors.success,
   },
   todoContent: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     flex: 1,
     lineHeight: 20,

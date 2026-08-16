@@ -79,7 +79,7 @@ const makeStyles = (colors: ThemeColors) =>
     paddingVertical: 1,
   },
   lineNum: {
-    color: '#555',
+    color: colors.textTertiary,
     fontSize: 11,
     fontFamily: 'monospace',
     width: 32,

@@ -143,12 +143,12 @@ const makeStyles = (colors: ThemeColors) =>
     marginRight: 8,
   },
   title: {
-    color: '#8b949e',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
   },
   chevron: {
-    color: '#8b949e',
+    color: colors.textSecondary,
     fontSize: 12,
   },
   streamingIndicator: {
@@ -161,7 +161,7 @@ const makeStyles = (colors: ThemeColors) =>
     padding: 12,
     paddingTop: 0,
     borderTopWidth: 1,
-    borderTopColor: '#21262d',
+    borderTopColor: colors.borderStrong,
   },
   contentText: {
     color: colors.text,

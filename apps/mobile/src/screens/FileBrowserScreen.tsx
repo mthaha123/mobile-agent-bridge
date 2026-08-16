@@ -392,7 +392,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   title: {
     flex: 1,
-    color: '#eee',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -408,7 +408,7 @@ const makeStyles = (colors: ThemeColors) =>
     backgroundColor: colors.surfaceVariant,
     borderRadius: 8,
     padding: 10,
-    color: '#eee',
+    color: colors.text,
     marginRight: 8,
   },
   searchButton: {
@@ -439,7 +439,7 @@ const makeStyles = (colors: ThemeColors) =>
     flex: 1,
   },
   fileName: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 16,
   },
   fileMeta: {
@@ -478,7 +478,7 @@ const makeStyles = (colors: ThemeColors) =>
     marginTop: 2,
   },
   searchContent: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     marginTop: 4,
   },
@@ -498,7 +498,7 @@ const makeStyles = (colors: ThemeColors) =>
     borderColor: colors.surfaceVariant,
   },
   fileInfoTitle: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
@@ -516,7 +516,7 @@ const makeStyles = (colors: ThemeColors) =>
     flex: 1,
   },
   fileInfoValue: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     flex: 2,
     textAlign: 'right',

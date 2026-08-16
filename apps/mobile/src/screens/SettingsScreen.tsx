@@ -74,7 +74,7 @@ export const SettingsScreen: React.FC = () => {
         </View>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Status</Text>
-          <Text style={[styles.rowValue, { color: client?.connected ? '#2ecc71' : '#e74c3c' }]}>
+          <Text style={[styles.rowValue, { color: client?.connected ? colors.success : colors.error }]}>
             {client?.connected ? 'Connected' : 'Disconnected'}
           </Text>
         </View>
@@ -141,7 +141,7 @@ export const SettingsScreen: React.FC = () => {
               <View key={i} style={styles.row}>
                 <Text style={styles.rowLabel}>{String(r.tool || r.action || r.id || `Rule ${i + 1}`)}</Text>
                 <TouchableOpacity onPress={() => handleRemoveRule(String(r.id))}>
-                  <Text style={{ color: '#e74c3c', fontSize: 13 }}>Delete</Text>
+                  <Text style={{ color: colors.destructive, fontSize: 13 }}>Delete</Text>
                 </TouchableOpacity>
               </View>
             )
@@ -176,7 +176,7 @@ export const SettingsScreen: React.FC = () => {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder='{"theme": "dark"}'
-              placeholderTextColor="#555"
+              placeholderTextColor={colors.textTertiary}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setConfigEditVisible(false)}>
@@ -203,7 +203,7 @@ const makeStyles = (colors: ThemeColors) =>
     padding: 16,
   },
   title: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 24,
@@ -232,7 +232,7 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 14,
   },
   rowValue: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
     flex: 1,
@@ -269,14 +269,14 @@ const makeStyles = (colors: ThemeColors) =>
     maxHeight: '80%',
   },
   modalTitle: {
-    color: '#eee',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 16,
   },
   configEditor: {
     backgroundColor: colors.surfaceVariant,
-    color: '#eee',
+    color: colors.text,
     borderRadius: 8,
     padding: 12,
     fontSize: 13,
