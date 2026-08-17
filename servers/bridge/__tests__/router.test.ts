@@ -501,6 +501,21 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toEqual([{ id: "s1", title: "T" }])
   })
 
+  it("should sort sessions by time.updated descending", async () => {
+    const { mockV3Session } = createMockSdk()
+    mockV3Session.list.mockResolvedValueOnce({ data: { data: [
+      { id: "old", time: { updated: 100 } },
+      { id: "new", time: { updated: 300 } },
+      { id: "mid", time: { updated: 200 } },
+    ], cursor: {} } })
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload.map((s: { id: string }) => s.id)).toEqual(["new", "mid", "old"])
+  })
+
   it("should return raw session messages via rawSessionMessages", async () => {
     const { backend } = createMockSdk()
     ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce({ messages: [{ id: "m1", type: "user", text: "hi" }], cursor: undefined })

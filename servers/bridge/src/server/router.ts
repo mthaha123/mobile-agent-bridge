@@ -144,7 +144,14 @@ registerHandler("session.list", async (p) => {
   // App 未显式传 limit 时设一个大上限；显式传则尊重。
   params.limit = (p.limit !== undefined) ? p.limit : 500
   const list = unwrapData(await sdkCall(() => sdk().v2.session.list(params)))
-  return Array.isArray(list) ? list : list
+  // serve 按 time.created 降序返回，客户端更期望"最近更新"排最前，按 time.updated 重排
+  const sessions = Array.isArray(list) ? [...list] : []
+  sessions.sort((a, b) => {
+    const updatedA = a?.time?.updated ?? 0
+    const updatedB = b?.time?.updated ?? 0
+    return updatedB - updatedA
+  })
+  return sessions
 })
 
 registerHandler("session.get", async (p) => {
