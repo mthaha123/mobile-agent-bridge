@@ -98,38 +98,35 @@ export class OpenCodeBackend {
   }
 
   /**
-   * 读取 session 消息（v2 优先，v1 回退）。
+   * 读取 session 消息（双通道取全量）。
    *
    * 背景：opencode serve 有两条独立路由，读不同数据表：
    *   - `/api/session/{id}/message`（v2）：读 session_message 投影表，返回 {data, cursor}。
-   *     对旧版本创建的「历史 session」，消息只在 message/part（v1）表，session_message 为空 → {data:[]}。
-   *   - `/session/{id}/message`（旧版）：读 message/part 表，返回裸数组，分页在 Link/X-Next-Cursor 头。
+   *     活跃会话/projection 未刷新时可能只含部分消息（实测仅 2 条旧快照）。
+   *   - `/session/{id}/message`（v1）：读 message/part 原始表，返回裸数组，分页在 Link/X-Next-Cursor 头。
+   *     内容完整（含当前对话全部消息），但 time 字段可能缺失。
    *
-   * 因此这里双通道：先 v2，若 data 非空用之（含 body cursor 分页）；否则回退 v1（解析 header 分页）。
+   * 双通道都拉取，返回消息数更多的一侧，避免 v2 投影残缺导致 App 只看到几条旧消息。
    * 两条路由消息项结构一致（{info, parts}），统一输出 { messages, cursor }。
    */
   async rawSessionMessages(sessionID: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<{ messages: unknown[]; cursor?: unknown }> {
     const base = this.baseUrl.replace(/\/+$/, "")
 
-    // 优先 v2 路由
+    // v2 路由
     const v2 = await this.httpGetJson(`${base}/api/session/${encodeURIComponent(sessionID)}/message`, opts)
     const v2Data = (v2 as any)?.data
-    if (Array.isArray(v2Data) && v2Data.length > 0) {
-      // v2 默认降序（最新在前），统一输出升序（旧→新）供 App 直接渲染
-      const messages = (opts?.order === 'asc' || !Array.isArray(v2Data)) ? v2Data : [...v2Data].reverse()
-      return { messages, cursor: (v2 as any)?.cursor }
-    }
+    const v2Messages: unknown[] = Array.isArray(v2Data) ? v2Data : []
+    // v2 默认降序（最新在前），统一输出升序（旧→新）供 App 直接渲染
+    const v2Asc = opts?.order === 'asc' ? v2Messages : [...v2Messages].reverse()
 
-    // 回退 v1 路由：裸数组（已升序）+ header 分页
-    // v1 分页参数是 before（非 cursor）；cursor 由 X-Next-Cursor 头返回
+    // v1 路由：裸数组（已升序）+ header 分页
     const v1Opts: { limit?: number; order?: 'asc' | 'desc'; before?: string } = {
       limit: opts?.limit,
       order: opts?.order,
     }
     if (opts?.cursor) v1Opts.before = opts.cursor
     const v1 = await this.httpGetWithHeaders(`${base}/session/${encodeURIComponent(sessionID)}/message`, v1Opts)
-    const arr = Array.isArray(v1.body) ? v1.body : ((v1.body as any)?.messages ?? [])
-    // v1 分页：X-Next-Cursor 头 或 Link 头中 rel="next" 的 before 参数
+    const v1Arr = Array.isArray(v1.body) ? v1.body : ((v1.body as any)?.messages ?? [])
     let cursor: unknown
     const nextHeader = v1.headers?.["x-next-cursor"]
     if (nextHeader) {
@@ -138,7 +135,13 @@ export class OpenCodeBackend {
       const m = /<[^>]*before=([^&>]+)[^>]*>;\s*rel="?next"?/.exec(String(v1.headers.link))
       if (m) cursor = decodeURIComponent(m[1])
     }
-    return { messages: arr, cursor }
+
+    // 取消息数更多的一侧：v1 完整，v2 可能是残缺投影
+    const v1Asc = Array.isArray(v1Arr) ? v1Arr : []
+    if (v1Asc.length > v2Asc.length) {
+      return { messages: v1Asc, cursor }
+    }
+    return { messages: v2Asc, cursor: (v2 as any)?.cursor }
   }
 
   /** http GET 返回 JSON body（v2 结构） */
