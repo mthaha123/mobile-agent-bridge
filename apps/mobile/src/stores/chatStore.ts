@@ -35,7 +35,7 @@ export interface ChatState {
   upsertUserMessage: (messageID: string, content: string, timestamp?: number) => void
   ensureAssistantMessage: (messageID: string) => void
   applyServerMessage: (role: 'user' | 'assistant', messageID: string, content: string, timestamp?: number) => void
-  applyServerMessages: (msgs: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number }>, opts?: { limit?: number }) => void
+  applyServerMessages: (msgs: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number; parts?: Part[] }>, opts?: { limit?: number }) => void
   addToolPart: (part: Part, assistantMessageId?: string) => void
   updateToolPart: (callID: string, updates: Partial<Part['data']>) => void
   setInputText: (text: string) => void
@@ -390,9 +390,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const idx = messages.findIndex((m) => m.messageID === s.messageID)
           if (idx >= 0) {
             const cur = messages[idx]
-            if (cur.content !== s.content) {
+            const newParts = Array.isArray(s.parts) && s.parts.length > 0 ? s.parts : undefined
+            const contentChanged = cur.content !== s.content
+            const partsMissing = newParts && (!cur.parts || cur.parts.length === 0)
+            if (contentChanged || partsMissing) {
               const copy = [...messages]
-              copy[idx] = { ...cur, content: s.content, role: s.role, timestamp: Date.now(), created: s.timestamp ?? cur.created }
+              copy[idx] = {
+                ...cur,
+                content: contentChanged ? s.content : cur.content,
+                role: s.role,
+                timestamp: Date.now(),
+                created: s.timestamp ?? cur.created,
+                parts: partsMissing ? newParts : cur.parts,
+              }
               messages = copy
             }
           } else {
@@ -403,6 +413,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               timestamp: s.timestamp ?? Date.now(),
               created: s.timestamp,
               messageID: s.messageID,
+              parts: Array.isArray(s.parts) && s.parts.length > 0 ? s.parts : undefined,
             })
           }
         })

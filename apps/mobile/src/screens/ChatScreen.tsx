@@ -47,6 +47,40 @@ function extractToolOutput(state: any): string {
   return ''
 }
 
+/** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。 */
+function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
+  const parts: Part[] = []
+  let text = ''
+  let partId: string | undefined
+  if (Array.isArray(rawContent)) {
+    rawContent.forEach((p: any) => {
+      if (!p || typeof p !== 'object') return
+      if (p.type === 'text') {
+        const t = p.text || ''
+        text = t || text
+        partId = p.id || partId
+        parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: t } })
+      } else if (p.type === 'tool') {
+        parts.push({
+          id: p.id || p.callID || `tool_${Date.now()}`,
+          type: 'tool',
+          data: {
+            tool: p.name || p.tool || '',
+            input: p.state?.input ?? {},
+            status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
+            result: extractToolOutput(p.state),
+            error: p.state?.error ?? undefined,
+            title: p.state?.title ?? undefined,
+          },
+        })
+      } else if (p.type === 'reasoning') {
+        parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
+      }
+    })
+  }
+  return { parts, text, partId }
+}
+
 export const ChatScreen: React.FC = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false)
   const [slashSheetVisible, setSlashSheetVisible] = useState(false)
@@ -98,37 +132,11 @@ export const ChatScreen: React.FC = () => {
   const applyLoadedMessages = (msgs: any[]) => {
     msgs.forEach((msg: any) => {
       const msgId = msg.id || undefined
-      let partId: string | undefined
-      let text = msg.content || msg.text || ''
       const rawContent = msg.rawContent
-      const parts: import('../types/message').Part[] = []
-      if (Array.isArray(rawContent)) {
-        rawContent.forEach((p: any) => {
-          if (p.type === 'text') {
-            text = p.text || text
-            partId = p.id || undefined
-            parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } })
-          } else if (p.type === 'tool') {
-            parts.push({
-              id: p.id || p.callID || `tool_${Date.now()}`,
-              type: 'tool',
-              data: {
-                tool: p.name || p.tool || '',
-                input: p.state?.input ?? {},
-                status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
-                result: extractToolOutput(p.state),
-                error: p.state?.error ?? undefined,
-                title: p.state?.title ?? undefined,
-              },
-            })
-          } else if (p.type === 'reasoning') {
-            parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
-          }
-        })
-      }
+      const { parts, text, partId } = buildPartsFromRaw(rawContent)
       useChatStore.getState().addMessage({
         role: (msg.role as 'user' | 'assistant' | 'system') || 'assistant',
-        content: text,
+        content: text || msg.content || msg.text || '',
         messageID: msgId,
         partID: partId,
         parts: parts.length > 0 ? parts : undefined,
@@ -153,17 +161,19 @@ export const ChatScreen: React.FC = () => {
     // desc → 升序，按 created 时序批量合入（applyServerMessages 对未知消息按序插入，
     // 避免 SSE 断流恢复时漏掉的 user 消息被追加到其 assistant 之后 → 回答跑到问题上面）
     const asc = [...list].reverse()
-    const mapped: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number }> = []
+    const mapped: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number; parts?: Part[] }> = []
     asc.forEach((msg: any) => {
       const messageID = msg?.id || msg?.messageID
       if (!messageID) return
       const role = msg?.role === 'user' ? 'user' : 'assistant'
       const created = msg?.time?.created ?? msg?.timestamp
+      const { parts } = buildPartsFromRaw(msg?.rawContent)
       mapped.push({
         role,
         messageID,
         content: msg?.content || msg?.text || '',
         timestamp: typeof created === 'number' ? created : undefined,
+        parts: parts.length > 0 ? parts : undefined,
       })
     })
     useChatStore.getState().applyServerMessages(mapped)
@@ -216,17 +226,8 @@ export const ChatScreen: React.FC = () => {
       const newMsgs: any[] = []
       ;(list as any[]).forEach((msg: any) => {
         const msgId = msg.id || undefined
-        let text = msg.content || msg.text || ''
-        const parts: import('../types/message').Part[] = []
-        if (Array.isArray(msg.rawContent)) {
-          msg.rawContent.forEach((p: any) => {
-            if (p.type === 'text') { text = p.text || text; parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } }) }
-            else if (p.type === 'tool') { parts.push({ id: p.id || `t_${Date.now()}`, type: 'tool', data: { callID: p.id || '', tool: p.tool || '', input: p.input ?? {}, state: p.state || 'done' } }) }
-            else if (p.type === 'reasoning') { parts.push({ id: p.id || `t_${Date.now()}`, type: 'reasoning', data: { text: p.text || '' } }) }
-            else { parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: p.text || '' } }) }
-          })
-        }
-        newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text, text, parts: parts.length ? parts : undefined, rawContent: msg.rawContent })
+        const { parts, text } = buildPartsFromRaw(msg.rawContent)
+        newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text || msg.content || msg.text || '', text: text || msg.content || msg.text || '', parts: parts.length ? parts : undefined, rawContent: msg.rawContent })
       })
       useChatStore.getState().prependMessages(newMsgs as any)
       setHistoryCursor(cursor)

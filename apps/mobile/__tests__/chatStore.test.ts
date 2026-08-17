@@ -716,3 +716,42 @@ describe('updateToolPart', () => {
     expect(msgs[0].parts![0].data.status).toBe('called')
   })
 })
+
+describe('applyServerMessages (with parts)', () => {
+  it('inserts a new message with parts and keeps them', () => {
+    useChatStore.getState().applyServerMessages([
+      {
+        role: 'assistant',
+        messageID: 'sv-t1',
+        content: 'running',
+        timestamp: 1000,
+        parts: [{ id: 'p1', type: 'tool', data: { tool: 'bash', input: { command: 'ls' }, status: 'success' } } as any],
+      },
+    ])
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].parts).toHaveLength(1)
+    expect(msgs[0].parts![0].data.tool).toBe('bash')
+  })
+
+  it('merges parts into an existing message that previously had none (backfill-then-load race)', () => {
+    // 模拟方式 B 先插入：无 parts
+    useChatStore.getState().applyServerMessages([
+      { role: 'assistant', messageID: 'sv-t2', content: 'thinking...', timestamp: 2000 },
+    ])
+    // 模拟方式 A 后到：带 parts，应合并而非丢弃
+    useChatStore.getState().applyServerMessages([
+      {
+        role: 'assistant',
+        messageID: 'sv-t2',
+        content: 'thinking...',
+        timestamp: 2000,
+        parts: [{ id: 'p2', type: 'tool', data: { tool: 'read', input: { filePath: '/a.txt' }, status: 'success' } } as any],
+      },
+    ])
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].parts).toHaveLength(1)
+    expect(msgs[0].parts![0].data.tool).toBe('read')
+  })
+})
