@@ -319,7 +319,13 @@ export const ChatScreen: React.FC = () => {
   const handleSwitchModel = async (modelId: string) => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
-    await switchModel(activeSessionId, modelId, client.call.bind(client))
+    const target: any = (Array.isArray(models) ? models : []).find((m: any) => (m.id || m.name || m.label) === modelId)
+    const model = target && target.providerID
+      ? { id: String(target.id || target.name || modelId), providerID: String(target.providerID) }
+      : modelId
+    await switchModel(activeSessionId, model, client.call.bind(client))
+    // 刷新会话列表以更新标题栏的模型名/provider 显示
+    fetchSessions(client.call.bind(client))
   }
 
   const handleBack = () => {
@@ -437,7 +443,14 @@ export const ChatScreen: React.FC = () => {
             style={styles.infoButton}
             accessibilityLabel="Model settings"
           >
-            <Text style={styles.headerBackText}>⚙</Text>
+            <View style={styles.modelBadge}>
+              <Text style={styles.modelBadgeText} numberOfLines={1}>
+                {currentSession?.model?.name || currentSession?.model?.id || 'Select Model'}
+              </Text>
+              {currentSession?.model?.providerID ? (
+                <Text style={styles.modelBadgeProvider} numberOfLines={1}>{currentSession.model.providerID}</Text>
+              ) : null}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setInfoModalVisible(true)}
@@ -576,17 +589,26 @@ export const ChatScreen: React.FC = () => {
               )}
               {Array.isArray(models) && models.map((m: any, i: number) => {
                 const label = m.name || m.id || m.label || `Model ${i + 1}`
+                const provider = m.providerID || m.provider?.id || ''
+                const isCurrent = m.id === currentSession?.model?.id
                 return (
                   <TouchableOpacity
                     key={i}
-                    style={styles.modelPickerItem}
+                    style={[styles.modelPickerItem, isCurrent && styles.modelPickerItemActive]}
                     onPress={() => {
                       handleSwitchModel(m.id || label)
                       setModelPickerVisible(false)
                     }}
                   >
-                    <Text style={styles.modelPickerItemText}>{label}</Text>
-                    <Text style={styles.modelPickerItemArrow}>›</Text>
+                    <View style={styles.modelPickerItemLeft}>
+                      {provider ? (
+                        <View style={styles.modelProviderBadge}>
+                          <Text style={styles.modelProviderBadgeText} numberOfLines={1}>{provider}</Text>
+                        </View>
+                      ) : null}
+                      <Text style={styles.modelPickerItemText}>{label}</Text>
+                    </View>
+                    <Text style={styles.modelPickerItemArrow}>{isCurrent ? '✓' : '›'}</Text>
                   </TouchableOpacity>
                 )
               })}
@@ -825,5 +847,42 @@ const makeStyles = (colors: ThemeColors) =>
   modelPickerItemArrow: {
     color: colors.textTertiary,
     fontSize: 20,
+  },
+  modelPickerItemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  modelPickerItemActive: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  modelProviderBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 8,
+    maxWidth: 110,
+  },
+  modelProviderBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modelBadge: {
+    alignItems: 'flex-end',
+    marginRight: 8,
+    maxWidth: 150,
+  },
+  modelBadgeText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modelBadgeProvider: {
+    color: colors.textTertiary,
+    fontSize: 10,
   },
 })

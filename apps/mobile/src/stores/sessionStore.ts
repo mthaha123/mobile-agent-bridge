@@ -23,18 +23,29 @@ function normalizeItem<T>(result: unknown, key: string): T | null {
   return result as T ?? null
 }
 
-/** 将 SDK Session（title / time.created / time.updated）映射为 App Session（name / createdAt / updatedAt） */
+/** 将 SDK Session（title / time.created / time.updated / model）映射为 App Session（name / createdAt / updatedAt / model） */
 function mapSession(raw: any): Session {
   if (!raw || typeof raw !== 'object') {
     return { id: '', name: '', createdAt: '', updatedAt: '', messageCount: 0 }
   }
   const time = raw.time || {}
+  const rawModel = raw.model
+  let model: Session['model']
+  if (rawModel && typeof rawModel === 'object') {
+    model = {
+      id: String(rawModel.id || ''),
+      providerID: String(rawModel.providerID || ''),
+      name: typeof rawModel.name === 'string' ? rawModel.name : '',
+      variant: typeof rawModel.variant === 'string' ? rawModel.variant : undefined,
+    }
+  }
   return {
     id: raw.id || '',
     name: raw.title || raw.name || `Session ${String(raw.id || '').slice(0, 8)}`,
     createdAt: raw.createdAt || (time.created ? new Date(time.created).toISOString() : ''),
     updatedAt: raw.updatedAt || (time.updated ? new Date(time.updated).toISOString() : ''),
     messageCount: typeof raw.messageCount === 'number' ? raw.messageCount : 0,
+    model,
   }
 }
 
@@ -69,6 +80,7 @@ export interface Session {
   createdAt: string
   updatedAt: string
   messageCount: number
+  model?: { id: string; providerID?: string; name?: string; variant?: string }
 }
 
 export interface SessionState {
