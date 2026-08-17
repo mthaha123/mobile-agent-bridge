@@ -71,9 +71,13 @@ export const ChatScreen: React.FC = () => {
 
   const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<TextInput>(null)
+  // 用户当前是否停留在最新消息（底部）。false=正在上滑回看历史，不打扰。
+  const pinnedToBottomRef = useRef(true)
+  // 新会话打开后置位：内容首次渲染完成时强制滚到底部（即使内容很多也一次到位）。
+  const pendingScrollToEndRef = useRef(false)
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && pinnedToBottomRef.current && !pendingScrollToEndRef.current) {
       const timer = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: false })
       }, 100)
@@ -169,6 +173,8 @@ export const ChatScreen: React.FC = () => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
     let cancelled = false
+    // 新会话打开：等待内容首次渲染完成时强制滚到最新底部
+    pendingScrollToEndRef.current = true
     setHistoryCursor(undefined)
     setHasMoreHistory(false)
     ;(async () => {
@@ -458,9 +464,28 @@ export const ChatScreen: React.FC = () => {
         ) : null}
         onScroll={(e) => {
           const y = e.nativeEvent.contentOffset.y
+          const layoutHeight = e.nativeEvent.layoutMeasurement.height
+          const contentHeight = e.nativeEvent.contentSize.height
+          // 用户是否在底部（距离底部 < 60）：在底部则保持跟随最新；远离底部视为回看历史
+          pinnedToBottomRef.current = contentHeight - (y + layoutHeight) < 60
           // 接近顶部（最早消息）时加载更早历史
           if (y < 60 && hasMoreHistory && !historyLoading) {
             handleLoadMoreHistory()
+          }
+        }}
+        onContentSizeChange={() => {
+          // 每次内容尺寸变化都刷新底部判定；若会话刚打开则强制滚到最新底部一次
+          if (pendingScrollToEndRef.current) {
+            pendingScrollToEndRef.current = false
+            pinnedToBottomRef.current = true
+            requestAnimationFrame(() => {
+              flatListRef.current?.scrollToEnd({ animated: false })
+            })
+          } else if (pinnedToBottomRef.current) {
+            // 停留在底部时新消息/加载更多后仍跟随到底部
+            requestAnimationFrame(() => {
+              flatListRef.current?.scrollToEnd({ animated: false })
+            })
           }
         }}
         scrollEventThrottle={200}
