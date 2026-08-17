@@ -125,6 +125,39 @@ describe('addMessage', () => {
     useChatStore.getState().addMessage({ role: 'system', content: 'error occurred' })
     expect(useChatStore.getState().messages[0].role).toBe('system')
   })
+
+  it('merges parts when same messageID already exists without parts', () => {
+    useChatStore.getState().addMessage({ role: 'assistant', content: '', messageID: 'msg_tool1' })
+    useChatStore.getState().addMessage({
+      role: 'assistant',
+      content: '',
+      messageID: 'msg_tool1',
+      parts: [{ id: 'p1', type: 'tool', data: { tool: 'bash', input: { command: 'ls' } } }] as any,
+    })
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].parts).toHaveLength(1)
+    expect(msgs[0].parts?.[0].type).toBe('tool')
+  })
+
+  it('keeps existing parts untouched when re-adding same messageID with parts', () => {
+    useChatStore.getState().addMessage({
+      role: 'assistant',
+      content: 'hi',
+      messageID: 'msg_tool2',
+      parts: [{ id: 'p1', type: 'tool', data: { tool: 'read', input: { filePath: '/a' } } }] as any,
+    })
+    useChatStore.getState().addMessage({
+      role: 'assistant',
+      content: 'hi',
+      messageID: 'msg_tool2',
+      parts: [{ id: 'pX', type: 'tool', data: { tool: 'grep', input: {} } }] as any,
+    })
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].parts).toHaveLength(1)
+    expect(msgs[0].parts?.[0].data.tool).toBe('read')
+  })
 })
 
 // ---------------------------------------------------------------------------

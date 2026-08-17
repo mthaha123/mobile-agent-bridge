@@ -127,7 +127,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       // 去重：按 messageID 或 (role+content) 判断，避免历史消息重复加载
       if (msg.messageID) {
-        if (state.messages.some((m) => m.messageID === msg.messageID)) return state
+        const existing = state.messages.find((m) => m.messageID === msg.messageID)
+        if (existing) {
+          // 已存在：若新消息带 parts（工具/推理等）而现有消息缺失，则合并补全。
+          // 避免 backfill(无 parts) 先插入后，applyLoadedMessages(有 parts) 因去重被跳过导致工具块丢失。
+          if (Array.isArray(msg.parts) && msg.parts.length > 0 && (!existing.parts || existing.parts.length === 0)) {
+            const copy = [...state.messages]
+            const idx = copy.findIndex((m) => m.messageID === msg.messageID)
+            copy[idx] = { ...copy[idx], parts: msg.parts, content: msg.content || copy[idx].content }
+            return { messages: copy }
+          }
+          return state
+        }
       } else if (state.messages.some((m) => m.role === msg.role && m.content === msg.content)) {
         return state
       }
