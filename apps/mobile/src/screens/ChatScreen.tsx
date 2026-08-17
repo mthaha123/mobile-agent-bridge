@@ -134,6 +134,37 @@ export const ChatScreen: React.FC = () => {
 
   // 初始加载：取最近 HISTORY_PAGE_SIZE 条（升序），保留 cursor 供上滑加载更早
   const HISTORY_PAGE_SIZE = 50
+
+  // 兜底刷新：拉取最近消息，按 messageID 与 store 现有内容做幂等合并。
+  // 覆盖“事件流丢失/断线期间产生的消息”这类情况，确保页面内容最终与服务端一致。
+  const backfillLatestMessages = async () => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    const res = await useSessionStore.getState().getSessionMessages(
+      activeSessionId, client.call.bind(client),
+      { order: 'desc', limit: HISTORY_PAGE_SIZE },
+    )
+    if (!res) return
+    const list = Array.isArray(res) ? res : (res?.messages ?? [])
+    // desc → 升序，按 created 时序批量合入（applyServerMessages 对未知消息按序插入，
+    // 避免 SSE 断流恢复时漏掉的 user 消息被追加到其 assistant 之后 → 回答跑到问题上面）
+    const asc = [...list].reverse()
+    const mapped: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number }> = []
+    asc.forEach((msg: any) => {
+      const messageID = msg?.id || msg?.messageID
+      if (!messageID) return
+      const role = msg?.role === 'user' ? 'user' : 'assistant'
+      const created = msg?.time?.created ?? msg?.timestamp
+      mapped.push({
+        role,
+        messageID,
+        content: msg?.content || msg?.text || '',
+        timestamp: typeof created === 'number' ? created : undefined,
+      })
+    })
+    useChatStore.getState().applyServerMessages(mapped)
+  }
+
   useEffect(() => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
@@ -154,7 +185,12 @@ export const ChatScreen: React.FC = () => {
         setHasMoreHistory(Boolean(cursor))
       }
     })()
-    return () => { cancelled = true }
+    // 打开会话后立即合流一次 + 周期兜底刷新（事件驱动为主，轮询仅兜底）
+    backfillLatestMessages()
+    const timer = setInterval(() => {
+      if (!cancelled) backfillLatestMessages()
+    }, 25000)
+    return () => { cancelled = true; clearInterval(timer) }
   }, [activeSessionId])
 
   // 上滑到顶：用 cursor 加载更早的消息，prepend 到列表前

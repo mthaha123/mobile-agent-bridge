@@ -325,6 +325,39 @@ describe('appendAssistantDelta', () => {
     expect(msgs[0].messageID).toBe('msg-1')
   })
 
+  it('appends delta to the correct assistant message by messageID, not just last', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', content: 'q1', timestamp: 1 },
+        { id: 'm2', role: 'assistant', content: 'answer1', timestamp: 2, messageID: 'ans-1' },
+        { id: 'm3', role: 'user', content: 'q2', timestamp: 3 },
+        { id: 'm4', role: 'assistant', content: 'partial', timestamp: 4, messageID: 'ans-2' },
+      ],
+    })
+
+    useChatStore.getState().appendAssistantDelta('ans-1', ' more', 'evt_c')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs[1].content).toBe('answer1 more')
+    expect(msgs[3].content).toBe('partial')
+  })
+
+  it('creates a fresh assistant message when delta references unknown messageID', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', content: 'q', timestamp: 1 },
+      ],
+    })
+
+    useChatStore.getState().appendAssistantDelta('new-ans', 'fresh', 'evt_x')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[1].role).toBe('assistant')
+    expect(msgs[1].messageID).toBe('new-ans')
+    expect(msgs[1].content).toBe('fresh')
+  })
+
   it('advanceStreamId ignores string eventId (no numeric ordering possible)', () => {
     useChatStore.getState().appendAssistantDelta('msg-1', 'A', 0)
     useChatStore.getState().appendAssistantDelta('msg-1', 'C', 2)
@@ -403,6 +436,23 @@ describe('finalizeAssistantContent', () => {
     expect(msgs[1].content).toBe('new assistant')
   })
 
+  it('finalizes by messageID, not just the last assistant message', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', content: 'q1', timestamp: 1 },
+        { id: 'm2', role: 'assistant', content: 'ans1', timestamp: 2, messageID: 'ans-1' },
+        { id: 'm3', role: 'user', content: 'q2', timestamp: 3 },
+        { id: 'm4', role: 'assistant', content: 'ans2 partial', timestamp: 4, messageID: 'ans-2' },
+      ],
+    })
+
+    useChatStore.getState().finalizeAssistantContent('ans-1', 'ans1 FINAL')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs[1].content).toBe('ans1 FINAL')
+    expect(msgs[3].content).toBe('ans2 partial')
+  })
+
   it('cleans up stream state on finalize', () => {
     useChatStore.setState({
       streamStates: {
@@ -413,6 +463,128 @@ describe('finalizeAssistantContent', () => {
     useChatStore.getState().finalizeAssistantContent('msg-1', 'done')
 
     expect(useChatStore.getState().streamStates['msg-1']).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// upsertUserMessage / ensureAssistantMessage / applyServerMessage
+// ---------------------------------------------------------------------------
+
+describe('upsertUserMessage', () => {
+  it('inserts a new user message with the server messageID', () => {
+    useChatStore.getState().upsertUserMessage('um-1', 'hello from server')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('user')
+    expect(msgs[0].content).toBe('hello from server')
+    expect(msgs[0].messageID).toBe('um-1')
+  })
+
+  it('updates content for an existing messageID in place', () => {
+    useChatStore.getState().upsertUserMessage('um-1', 'first')
+    useChatStore.getState().upsertUserMessage('um-1', 'second')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('second')
+  })
+
+  it('backfills messageID on a locally-optimistic user message to avoid duplicates', () => {
+    useChatStore.getState().addMessage({ role: 'user', content: 'local send' })
+    useChatStore.getState().upsertUserMessage('um-9', 'local send')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].messageID).toBe('um-9')
+    expect(msgs[0].content).toBe('local send')
+  })
+
+  it('ignores empty messageID', () => {
+    useChatStore.getState().upsertUserMessage('', 'x')
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+})
+
+describe('ensureAssistantMessage', () => {
+  it('creates an assistant placeholder with the server messageID', () => {
+    useChatStore.getState().ensureAssistantMessage('ams-1')
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('assistant')
+    expect(msgs[0].content).toBe('')
+    expect(msgs[0].messageID).toBe('ams-1')
+  })
+
+  it('does not duplicate an existing messageID', () => {
+    useChatStore.setState({
+      messages: [{ id: 'm1', role: 'assistant', content: '', timestamp: 1, messageID: 'ams-1' }] as any,
+    })
+    useChatStore.getState().ensureAssistantMessage('ams-1')
+    expect(useChatStore.getState().messages).toHaveLength(1)
+  })
+})
+
+describe('applyServerMessage', () => {
+  it('inserts a message that does not exist yet', () => {
+    useChatStore.getState().applyServerMessage('assistant', 'sv-1', 'server content')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('assistant')
+    expect(msgs[0].content).toBe('server content')
+    expect(msgs[0].messageID).toBe('sv-1')
+  })
+
+  it('inserts a new message at the correct chronological position when it is older than existing messages (recovered after SSE gap)', () => {
+    // 场景：SSE 中断时 prompt.admitted 丢失，assistant 占位已由 live 事件创建
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'answer text', timestamp: 2000, messageID: 'ams-1' } as any,
+      ],
+    })
+
+    // 兜底 backfill 恢复出更早的用户消息，必须插到 assistant 之前而非列表末尾
+    useChatStore.getState().applyServerMessage('user', 'um-1', 'missed question', 1000)
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0].role).toBe('user')
+    expect(msgs[0].content).toBe('missed question')
+    expect(msgs[0].messageID).toBe('um-1')
+    expect(msgs[1].messageID).toBe('ams-1')
+  })
+
+  it('appends when the new message is newer than all existing messages', () => {
+    useChatStore.setState({
+      messages: [
+        { id: 'm1', role: 'assistant', content: 'old answer', timestamp: 1000, messageID: 'ams-1' } as any,
+      ],
+    })
+
+    useChatStore.getState().applyServerMessage('user', 'um-2', 'newer question', 3000)
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0].messageID).toBe('ams-1')
+    expect(msgs[1].messageID).toBe('um-2')
+  })
+
+  it('replaces content for an existing messageID', () => {
+    useChatStore.setState({
+      messages: [{ id: 'm1', role: 'assistant', content: 'old', timestamp: 1, messageID: 'sv-1' }] as any,
+    })
+    useChatStore.getState().applyServerMessage('assistant', 'sv-1', 'new authoritative')
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('new authoritative')
+  })
+
+  it('does not duplicate the same messageID', () => {
+    useChatStore.getState().applyServerMessage('user', 'sv-2', 'a')
+    useChatStore.getState().applyServerMessage('user', 'sv-2', 'a')
+    expect(useChatStore.getState().messages).toHaveLength(1)
   })
 })
 

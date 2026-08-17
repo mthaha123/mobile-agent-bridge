@@ -182,11 +182,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               content: text,
               text,
               rawContent: m.parts ?? text,
+              time: (info.time as Record<string, unknown>) ?? m.time,
             }
           }
           const role = m.role || m.type
           const content = extractMessageText(m)
-          return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)) }
+          return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)), time: m.time }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
       // bridge 统一输出升序（旧→新）的 {info, parts} 消息，App 直接渲染，无需反转。

@@ -679,4 +679,42 @@ describe('ChatScreen', () => {
     expect(text).toContain('Oldest Q')
     expect(text).toContain('Latest A')
   })
+
+  it('backfills a newer message that arrives after the initial snapshot', async () => {
+    const getSessionMessages = jest.fn().mockImplementation((_id, _cb, opts) => {
+      // 初始 asc 快照：只有 h1/h2
+      if (opts?.order === 'asc') {
+        return Promise.resolve({
+          messages: [
+            { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
+            { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
+          ],
+          cursor: undefined,
+        })
+      }
+      // desc 兜底刷新：已经多了一条 h3（事件流丢失窗口内产生的新消息）
+      return Promise.resolve({
+        messages: [
+          { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
+          { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
+          { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
+        ],
+        cursor: undefined,
+      })
+    })
+    useSessionStore.getState().getSessionMessages = getSessionMessages as any
+
+    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+
+    await act(async () => {
+      TestRenderer.create(<ChatScreen onNavigateToSessions={onNavigateToSessions} />)
+    })
+
+    const msgs = useChatStore.getState().messages
+    // h3 合流进来且 h1/h2 不去重失败
+    expect(msgs.map((m) => m.content)).toContain('Q2')
+    expect(msgs).toHaveLength(3)
+  })
 })

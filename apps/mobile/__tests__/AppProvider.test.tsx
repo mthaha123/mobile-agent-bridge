@@ -75,6 +75,125 @@ describe('project.changed handler', () => {
     expect(updateLastAssistant).toHaveBeenCalledWith('Hello ')
   })
 
+  it('ignores text delta from a different session than active', () => {
+    useChatStore.setState({ activeSessionId: 'sess-A' })
+    const { notifyHandler } = mockClientAndRender()
+    const append = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.text.delta', {
+        sessionID: 'sess-B',
+        assistantMessageID: 'msg-B',
+        delta: 'intruder',
+      })
+    })
+
+    expect(append).not.toHaveBeenCalled()
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('inserts a user message on session.next.prompt.admitted', () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.prompt.admitted', {
+        sessionID: 'sess-1',
+        messageID: 'um-1',
+        prompt: { text: 'remote question' },
+      })
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('user')
+    expect(msgs[0].content).toBe('remote question')
+    expect(msgs[0].messageID).toBe('um-1')
+  })
+
+  it('inserts a user message on session.next.prompted with string prompt', () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.prompted', {
+        sessionID: 'sess-1',
+        messageID: 'um-2',
+        prompt: 'plain prompt',
+      })
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('plain prompt')
+  })
+
+  it('ignores prompt event for a different session', () => {
+    useChatStore.setState({ activeSessionId: 'sess-A' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.prompt.admitted', {
+        sessionID: 'sess-B',
+        messageID: 'um-9',
+        prompt: { text: 'other' },
+      })
+    })
+
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('creates an assistant placeholder on session.next.text.started', () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.text.started', {
+        sessionID: 'sess-1',
+        assistantMessageID: 'ams-1',
+        textID: 'txt-1',
+      })
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('assistant')
+    expect(msgs[0].messageID).toBe('ams-1')
+  })
+
+  it('applies authoritative text on message.updated', () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('message.updated', {
+        sessionID: 'sess-1',
+        info: { id: 'msg-1', role: 'assistant', content: 'authoritative final' },
+      })
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('authoritative final')
+    expect(msgs[0].messageID).toBe('msg-1')
+  })
+
+  it('applies text content from message.part.updated when longer', () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('message.part.updated', {
+        sessionID: 'sess-1',
+        part: { type: 'text', messageID: 'msg-1', text: 'full body' },
+      })
+    })
+
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('full body')
+  })
+
   it('updates waiting status on session.status idle/busy', () => {
     const { notifyHandler } = mockClientAndRender()
 
