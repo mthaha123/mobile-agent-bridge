@@ -43,7 +43,7 @@ function setup(overrides?: { activeTab?: string; chatSubScreen?: string }) {
     })
     useChatStore.setState({
       activeSessionId: null, messages: [], inputText: '', waiting: false,
-      streamStates: {}, lastAppliedId: -1,
+      lastAppliedId: -1,
     })
     useSessionStore.setState({ sessions: [], loading: false, error: null })
     useProjectStore.setState({ directory: '/test', project: null, switching: false })

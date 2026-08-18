@@ -13,7 +13,6 @@ function resetStore() {
     runError: null,
     pendingSteps: 0,
     lastActivityAt: 0,
-    streamStates: {},
   })
 }
 

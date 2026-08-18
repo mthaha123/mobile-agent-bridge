@@ -10,7 +10,7 @@ export interface ChatMessage {
   content: string
   /** 流式进行中 / 已完结 */
   status?: 'streaming' | 'complete'
-  /** 文本流缓冲内聚到消息本身（替代旧全局 streamStates） */
+  /** 文本流缓冲内聚到消息本身 */
   deltaBuffer?: Record<number, string>
   lastAppliedDeltaId?: number
   parts?: Part[]
@@ -35,12 +35,6 @@ export interface ToolPartData {
 
 /** addMessage 接受宽松消息草稿：role 必填，其余可选 */
 export type NewChatMessage = Pick<ChatMessage, 'role'> & Partial<Omit<ChatMessage, 'id' | 'timestamp' | 'role'>>
-
-/** @deprecated 旧版全局文本流缓冲，仅保留以兼容旧断言，新实现不再读写 */
-interface TextStreamState {
-  lastAppliedId: number
-  buffer: Record<number, string>
-}
 
 type ClientCall = (method: string, params?: unknown) => Promise<unknown>
 
@@ -470,8 +464,6 @@ export interface ChatState {
   runError: string | null
   pendingSteps: number
   lastActivityAt: number
-  /** @deprecated 旧版全局文本流缓冲，仅供旧断言兼容；新实现不使用 */
-  streamStates: Record<string, TextStreamState>
 
   // ── 新 API ──
   setActiveSession(id: string | null): void
@@ -511,7 +503,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   runError: null,
   pendingSteps: 0,
   lastActivityAt: 0,
-  streamStates: {},
 
   setActiveSession: (sessionId) => {
     const prev = get().activeSessionId
@@ -526,7 +517,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       runError: null,
       pendingSteps: 0,
       lastActivityAt: Date.now(),
-      streamStates: {},
     })
   },
 
@@ -537,7 +527,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       runError: null,
       pendingSteps: 0,
       lastActivityAt: Date.now(),
-      streamStates: {},
     })
   },
 
@@ -886,13 +875,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   finalizeAssistantContent: (assistantMessageId, fullText) => {
     get().ingestEvent('session.next.text.ended', { assistantMessageID: assistantMessageId, text: fullText })
-    // 兼容：清理旧全局 streamStates 条目
-    set((state) => {
-      if (!state.streamStates[assistantMessageId]) return state
-      const streamStates = { ...state.streamStates }
-      delete streamStates[assistantMessageId]
-      return { streamStates }
-    })
   },
 
   ensureAssistantMessage: (messageID) => {
@@ -922,6 +904,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearMessages: () => {
-    set({ messages: [], waiting: false, pendingSteps: 0, runError: null, lastActivityAt: Date.now(), streamStates: {} })
+    set({ messages: [], waiting: false, pendingSteps: 0, runError: null, lastActivityAt: Date.now() })
   },
 }))

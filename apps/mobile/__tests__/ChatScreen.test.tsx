@@ -451,8 +451,7 @@ describe('ChatScreen', () => {
     expect(useChatStore.getState().activeSessionId).toBe('new-session-123')
   })
 
-  // ToolProgressCard is tested separately in components.test.tsx
-  // FlatList footer (where ToolProgressCard renders) is not rendered by TestRenderer mock
+  // FlatList footer content is not rendered by TestRenderer mock
 
   it('handleSearch early returns when no client', () => {
     useChatStore.setState({ waiting: true, messages: [], activeSessionId: 's1' })

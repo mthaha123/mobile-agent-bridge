@@ -455,8 +455,11 @@ describe('Delta stream reassembly', () => {
     appendAssistantDelta('m1', ' world', 2)
     finalizeAssistantContent('m1', 'Hello world!')
     expect(useChatStore.getState().messages[0].content).toBe('Hello world!')
-    // stream state cleaned up
-    expect(useChatStore.getState().streamStates['m1']).toBeUndefined()
+    // 文本缓冲已内聚到消息本身；finalize 后清理 deltaBuffer / 标记 complete
+    const msg = useChatStore.getState().messages[0]
+    expect(msg.status).toBe('complete')
+    expect(msg.deltaBuffer).toBeUndefined()
+    expect(msg.lastAppliedDeltaId).toBeUndefined()
   })
 
   it('finalizeAssistantContent creates message if none exists', () => {
