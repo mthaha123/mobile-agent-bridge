@@ -233,7 +233,78 @@ describe('project.changed handler', () => {
       args: { resources: ['src/**', 'config.ts'] },
       sessionId: 'sess-1',
       requestedAt: expect.any(Number),
+      sourceCallID: undefined,
     })
+  })
+
+  it('carries source.callID into enqueue on permission.v2.asked', () => {
+    const { notifyHandler } = mockClientAndRender()
+    const enqueue = jest.spyOn(useToolStore.getState(), 'enqueue')
+
+    TestRenderer.act(() => {
+      notifyHandler!('permission.v2.asked', {
+        id: 'req-2',
+        sessionID: 'sess-1',
+        action: 'bash',
+        resources: [],
+        source: { type: 'tool', messageID: 'msg-1', callID: 'call-9' },
+      })
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'req-2',
+      sourceCallID: 'call-9',
+    }))
+  })
+
+  it('does NOT enqueue approval on session.next.tool.called', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useToolStore.setState({ pendingApprovals: [] })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.tool.called', {
+        callID: 'call-1', sessionID: 'sess-1',
+        tool: 'read', input: { path: 'file.ts' },
+      })
+    })
+
+    expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
+  })
+
+  it('dequeues pending approval when tool succeeds (auto-allowed cleanup)', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useToolStore.setState({
+      pendingApprovals: [{
+        id: 'req-1', tool: 'read', args: {}, sessionId: 'sess-1',
+        requestedAt: Date.now(), sourceCallID: 'call-1',
+      }],
+    })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.tool.success', {
+        callID: 'call-1', sessionID: 'sess-1', content: 'ok',
+      })
+    })
+
+    expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
+  })
+
+  it('dequeues pending approval when tool fails', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useToolStore.setState({
+      pendingApprovals: [{
+        id: 'req-1', tool: 'read', args: {}, sessionId: 'sess-1',
+        requestedAt: Date.now(), sourceCallID: 'call-1',
+      }],
+    })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.tool.failed', {
+        callID: 'call-1', sessionID: 'sess-1', error: 'boom',
+      })
+    })
+
+    expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 
   it('handles project.changed without optional project field', () => {

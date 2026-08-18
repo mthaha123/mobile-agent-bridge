@@ -15,33 +15,40 @@ export const PermissionDock: React.FC = () => {
 
   if (approvals.length === 0) return null
 
+  // 每次只展示一张审批卡片，其余在队列中排队；当前卡片处理完成后自动显示下一个
+  const current = approvals[0]
+  const queuedCount = approvals.length - 1
+
   return (
     <View style={styles.dockArea}>
-      {approvals.map(item => (
-        <View key={item.id} style={styles.dockPrompt}>
-          <View style={styles.dockHeader}>
-            <Text style={styles.dockIcon}>🔒</Text>
-            <Text style={styles.dockTitle}>工具请求</Text>
-          </View>
-          <View style={styles.dockBody}>
-            <Text style={styles.toolName}>{item.tool}</Text>
-            <Text style={styles.toolArgs} numberOfLines={2}>
-              {JSON.stringify(item.args).slice(0, 150)}
-            </Text>
-          </View>
-          <View style={styles.dockFooter}>
-            <TouchableOpacity style={styles.rejectBtn} onPress={() => reject(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>Reject</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.approveBtn} onPress={() => approve(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>Approve</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.alwaysBtn} onPress={() => alwaysAllow(item.id, getReplyCall())}>
-              <Text style={styles.btnText}>Always Allow</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={styles.dockPrompt}>
+        <View style={styles.dockHeader}>
+          <Text style={styles.dockIcon}>🔒</Text>
+          <Text style={styles.dockTitle}>工具请求</Text>
         </View>
-      ))}
+        <View style={styles.dockBody}>
+          <Text style={styles.toolName}>{current.tool}</Text>
+          <Text style={styles.toolArgs} numberOfLines={2}>
+            {JSON.stringify(current.args).slice(0, 150)}
+          </Text>
+        </View>
+        <View style={styles.dockFooter}>
+          <TouchableOpacity style={styles.rejectBtn} onPress={() => reject(current.id, getReplyCall())}>
+            <Text style={styles.btnText}>Reject</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.approveBtn} onPress={() => approve(current.id, getReplyCall())}>
+            <Text style={styles.btnText}>Approve</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.alwaysBtn} onPress={() => alwaysAllow(current.id, getReplyCall())}>
+            <Text style={styles.btnText}>Always Allow</Text>
+          </TouchableOpacity>
+        </View>
+        {queuedCount > 0 ? (
+          <View style={styles.queuedBadge}>
+            <Text style={styles.queuedBadgeText}>+{queuedCount}</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   )
 }
@@ -68,7 +75,25 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 4,
       gap: 6,
     },
+    queuedBadge: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    queuedBadgeText: {
+      color: colors.textOnPrimary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
     dockPrompt: {
+      position: 'relative',
       backgroundColor: colors.surface,
       borderRadius: 10,
       overflow: 'hidden',

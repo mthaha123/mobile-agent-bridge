@@ -318,15 +318,20 @@ export const ChatScreen: React.FC = () => {
     await switchAgent(activeSessionId, agent, client.call.bind(client))
   }
 
-  const handleSwitchModel = async (modelId: string) => {
+  const handleSwitchModel = async (entry: any) => {
     const client = useAuthStore.getState().client
     if (!activeSessionId || !client) return
-    const target: any = (Array.isArray(models) ? models : []).find((m: any) => (m.id || m.name || m.label) === modelId)
-    const model = target && target.providerID
-      ? { id: String(target.id || target.name || modelId), providerID: String(target.providerID) }
-      : modelId
+    // 直接使用被点击条目的剩余 identity（id + providerID + variant），
+    // 避免按 id 重新查找——同名模型跨 provider 时可能选错 provider。
+    const model = entry && typeof entry === 'object'
+      ? {
+          id: String(entry.id || entry.name || ''),
+          providerID: entry.providerID ? String(entry.providerID) : undefined,
+          variant: entry.variant,
+        }
+      : entry
     await switchModel(activeSessionId, model, client.call.bind(client))
-    // 刷新会话列表以更新标题栏的模型名/provider 显示
+    // 刷新会话列表以更新标题栏的模型/provider 显示
     fetchSessions(client.call.bind(client))
   }
 
@@ -445,14 +450,7 @@ export const ChatScreen: React.FC = () => {
             style={styles.infoButton}
             accessibilityLabel="Model settings"
           >
-            <View style={styles.modelBadge}>
-              <Text style={styles.modelBadgeText} numberOfLines={1}>
-                {currentSession?.model?.name || currentSession?.model?.id || 'Select Model'}
-              </Text>
-              {currentSession?.model?.providerID ? (
-                <Text style={styles.modelBadgeProvider} numberOfLines={1}>{currentSession.model.providerID}</Text>
-              ) : null}
-            </View>
+            <Text style={styles.modelPickIcon}>🤖</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setInfoModalVisible(true)}
@@ -602,13 +600,19 @@ export const ChatScreen: React.FC = () => {
               {Array.isArray(models) && models.map((m: any, i: number) => {
                 const label = m.name || m.id || m.label || `Model ${i + 1}`
                 const provider = m.providerID || m.provider?.id || ''
-                const isCurrent = m.id === currentSession?.model?.id
+                // 同名模型可能来自不同 provider（如 deepseek-v4-flash 同时存在于
+                // opencode 与 opencode-go）。必须按 (id + providerID) 匹配，确保
+                // 只有真正正在使用的那个模型被标记为选中（✓）。
+                const currentModelId = currentSession?.model?.id
+                const currentProvider = currentSession?.model?.providerID
+                const isCurrent = currentModelId != null && m.id === currentModelId &&
+                  (!currentProvider || m.providerID === currentProvider)
                 return (
                   <TouchableOpacity
-                    key={i}
+                    key={`${m.providerID || ''}:${m.id || i}`}
                     style={[styles.modelPickerItem, isCurrent && styles.modelPickerItemActive]}
-                    onPress={() => {
-                      handleSwitchModel(m.id || label)
+                    onPress={async () => {
+                      await handleSwitchModel(m)
                       setModelPickerVisible(false)
                     }}
                   >
@@ -883,19 +887,9 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 11,
     fontWeight: '600',
   },
-  modelBadge: {
-    alignItems: 'flex-end',
-    marginRight: 8,
-    maxWidth: 150,
-  },
-  modelBadgeText: {
+  modelPickIcon: {
     color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modelBadgeProvider: {
-    color: colors.textTertiary,
-    fontSize: 10,
+    fontSize: 20,
   },
   runErrorBanner: {
     flexDirection: 'row',

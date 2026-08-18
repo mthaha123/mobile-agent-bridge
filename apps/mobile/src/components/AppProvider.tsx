@@ -228,26 +228,6 @@ if (messageID && text) {
             status: 'called',
           },
         }, payload?.assistantMessageID)
-        // 预埋：serve 未发 permission.v2.asked 时，工具调用也可进入审批队列。
-        // 仅当工具尚未在待审批队列中时 enqueue，避免与 permission.v2.asked 双弹。
-        {
-          const callID = payload?.callID || ''
-          const tool = payload?.tool || ''
-          const sessionId = payload?.sessionID || ''
-          const input = payload?.input || {}
-          const alreadyPending = useToolStore
-            .getState()
-            .pendingApprovals.some((a) => a.id === callID || (a.tool === tool && a.sessionId === sessionId))
-          if (callID && !alreadyPending) {
-            useToolStore.getState().enqueue({
-              id: callID,
-              tool,
-              args: input as Record<string, unknown>,
-              sessionId,
-              requestedAt: Date.now(),
-            })
-          }
-        }
       }
 
       // 工具执行进度
@@ -270,6 +250,8 @@ if (messageID && text) {
           status: 'success',
           result: extractToolResult(payload),
         })
+        // 工具已执行完成：即使曾因兜底进入审批队列也一并清除，避免已放行的请求残留
+        if (payload?.callID) useToolStore.getState().dequeue(payload.callID)
       }
 
       // 工具失败
@@ -282,6 +264,7 @@ if (messageID && text) {
           status: 'failed',
           error: payload?.error,
         })
+        if (payload?.callID) useToolStore.getState().dequeue(payload.callID)
       }
 
       // 步骤开始
@@ -307,14 +290,17 @@ if (messageID && text) {
         useChatStore.getState().setRunError(err)
       }
 
-      // 工具审批请求 v2
+      // 工具审批请求 v2（权威信号：只有 serve 真正需要审批时才入队）
       if (method === 'permission.v2.asked') {
+        const reqId = payload?.id || 'unknown'
+        const callID = payload?.source?.callID
         useToolStore.getState().enqueue({
-          id: payload?.id || 'unknown',
+          id: reqId,
           tool: payload?.action || 'unknown',
           args: { resources: payload?.resources || [] } as Record<string, unknown>,
           sessionId: payload?.sessionID || '',
           requestedAt: Date.now(),
+          sourceCallID: callID,
         })
       }
 

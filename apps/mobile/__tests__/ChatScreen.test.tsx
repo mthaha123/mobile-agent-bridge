@@ -7,6 +7,7 @@ import { useAuthStore } from '../src/stores/authStore'
 import { useSessionStore } from '../src/stores/sessionStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
+import { useConfigStore } from '../src/stores/configStore'
 import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { textOf } from './test-utils'
 import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
@@ -716,5 +717,82 @@ describe('ChatScreen', () => {
     // h3 合流进来且 h1/h2 不去重失败
     expect(msgs.map((m) => m.content)).toContain('Q2')
     expect(msgs).toHaveLength(3)
+  })
+
+  // ─── 模型选择（Model Picker）──────────────────────────────
+
+  it('模型选择：同名模型跨 provider 时只选中一个 ✓', () => {
+    useChatStore.setState({ activeSessionId: 's1' })
+    useSessionStore.setState({
+      sessions: [{
+        id: 's1', name: 'Chat', createdAt: '', updatedAt: '', messageCount: 0,
+        model: { id: 'deepseek-v4-flash', providerID: 'opencode' },
+      }],
+    })
+    useConfigStore.setState({
+      models: [
+        { id: 'deepseek-v4-flash', providerID: 'opencode-go', name: 'DeepSeek V4 Flash' },
+        { id: 'deepseek-v4-flash', providerID: 'opencode', name: 'DeepSeek V4 Flash' },
+        { id: 'gpt-5', providerID: 'opencode', name: 'GPT-5' },
+      ],
+    })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const modelBtn = tree.root.find(
+      (n: any) => n.props?.accessibilityLabel === 'Model settings',
+    )
+    act(() => { modelBtn.props.onPress() })
+    const text = textOf(tree)
+    const checks = (text.match(/✓/g) || []).length
+    expect(checks).toBe(1)
+  })
+
+  it('模型选择：点击条目按精确 provider 切换', async () => {
+    const mockCall = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') return Promise.resolve({ messages: [] })
+      if (method === 'session.list') return Promise.resolve({ sessions: [] })
+      if (method === 'session.switchModel') return Promise.resolve({ ok: true })
+      return Promise.resolve({})
+    })
+    const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+    useSessionStore.setState({
+      sessions: [{ id: 's1', name: 'Chat', createdAt: '', updatedAt: '', messageCount: 0 }],
+    })
+    useConfigStore.setState({
+      models: [
+        { id: 'deepseek-v4-flash', providerID: 'opencode-go', name: 'DeepSeek V4 Flash' },
+        { id: 'deepseek-v4-flash', providerID: 'opencode', name: 'DeepSeek V4 Flash' },
+        { id: 'gpt-5', providerID: 'opencode', name: 'GPT-5' },
+      ],
+    })
+    let tree: TestRenderer.ReactTestRenderer
+    await act(async () => {
+      tree = TestRenderer.create(<ChatScreen onNavigateToSessions={onNavigateToSessions} />)
+    })
+
+    const openModal = () => {
+      const modelBtn = tree!.root.find((n: any) => n.props?.accessibilityLabel === 'Model settings')
+      act(() => { modelBtn.props.onPress() })
+    }
+    openModal()
+
+    // 找包含 'GPT-5' 的模型条目：先定位该条目的 Text，再向上找到最近的可点击祖先
+    // （不能直接按文本匹配任意 onPress——Modal 外层 overlay 也含 onPress 且子树包含全部条目）
+    const gptTextNode = tree!.root.findAll((n: any) => n.type && n.props?.children === 'GPT-5')[0]
+    expect(gptTextNode).toBeTruthy()
+    let gptItem: any = gptTextNode
+    while (gptItem && typeof gptItem.props?.onPress !== 'function') {
+      gptItem = gptItem.parent
+    }
+    expect(gptItem).toBeTruthy()
+
+    await act(async () => { await gptItem!.props.onPress() })
+    expect(mockCall).toHaveBeenCalledWith('session.switchModel', {
+      sessionId: 's1',
+      model: { id: 'gpt-5', providerID: 'opencode', variant: undefined },
+    })
   })
 })

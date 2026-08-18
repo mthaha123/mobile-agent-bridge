@@ -15,6 +15,9 @@ export interface ToolApproval {
   sessionId: string
   /** 请求时间 */
   requestedAt: number
+  /** 关联的 tool callID（来自 permission.v2.asked 的 source.callID），
+   *  用于 tool.success/failed 时自动清理已放行的请求 */
+  sourceCallID?: string
 }
 
 export interface ToolState {
@@ -43,15 +46,27 @@ export const useToolStore = create<ToolState>((set, get) => ({
   savedRulesLoading: false,
 
   enqueue: (approval) => {
-    set((state) => ({
-      pendingApprovals: [...state.pendingApprovals, approval],
-      visible: true,
-    }))
+    set((state) => {
+      // 去重：同一请求 id 或同一 tool call 关联的请求不重复入队，
+      // 避免 session.next.tool.called 与 permission.v2.asked 双弹。
+      const dup = state.pendingApprovals.some(
+        (a) =>
+          a.id === approval.id ||
+          (approval.sourceCallID && a.sourceCallID === approval.sourceCallID),
+      )
+      if (dup) return state
+      return {
+        pendingApprovals: [...state.pendingApprovals, approval],
+        visible: true,
+      }
+    })
   },
 
   dequeue: (id) => {
     set((state) => {
-      const remaining = state.pendingApprovals.filter((a) => a.id !== id)
+      const remaining = state.pendingApprovals.filter(
+        (a) => a.id !== id && a.sourceCallID !== id,
+      )
       return {
         pendingApprovals: remaining,
         visible: remaining.length > 0,

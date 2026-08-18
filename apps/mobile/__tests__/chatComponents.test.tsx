@@ -126,7 +126,7 @@ describe('PermissionDock', () => {
     expect(useToolStore.getState().pendingApprovals).toHaveLength(0)
   })
 
-  it('renders multiple approvals', () => {
+  it('shows only first approval, queues rest with count badge', () => {
     useToolStore.setState({
       pendingApprovals: [
         approval,
@@ -136,7 +136,29 @@ describe('PermissionDock', () => {
     const tree = TestRenderer.create(<PermissionDock />)
     const t = textOf(tree)
     expect(t).toContain('read')
+    expect(t).not.toContain('write')
+    expect(t).toContain('+1')
+  })
+
+  it('advances to next queued approval after current is handled', async () => {
+    const client = mockClient()
+    useAuthStore.setState({ client: client as any })
+    useToolStore.setState({
+      pendingApprovals: [
+        approval,
+        { id: 'a2', tool: 'write', args: { path: '/b.ts' }, sessionId: 's1', requestedAt: 2 },
+      ],
+    })
+    let tree = TestRenderer.create(<PermissionDock />)
+    expect(textOf(tree)).toContain('read')
+
+    const approveBtn = findPressableByText(tree, 'Approve')!
+    await act(async () => { approveBtn.props.onPress() })
+
+    tree.update(<PermissionDock />)
+    const t = textOf(tree)
     expect(t).toContain('write')
+    expect(t).not.toContain('read')
   })
 })
 
