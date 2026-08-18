@@ -1,6 +1,7 @@
 appId: com.mobileagentbridge
 ---
-# Layer 3 - ToolProgressCard: magic message -> running card appears/disappears
+# Layer 3 - Tool Progress: magic message -> tool part renders in chat, status updates
+# ToolProgressCard was removed; tool progress is now rendered in MessageItem via PartBlock/BasicTool
 - launchApp:
     stopApp: true
 
@@ -22,30 +23,31 @@ appId: com.mobileagentbridge
     visible: "Open commands"
     timeout: 15000
 
-# 1. tool.called -> running card appears
+# 1. tool.called -> tool part appears in chat (BasicTool renders tool title)
 - tapOn: "Type a message..."
 - eraseText: 50
 - inputText: '__push__:session.next.tool.called:{"callID":"call-1","sessionID":"mock_s1","tool":"writeFile","input":{"path":"test.ts","content":"hello"}}'
 - pressKey: Enter
 
+# After tool.called, ingestEvent creates tool part -> PartBlock -> BasicTool renders tool name
+# BasicTool shows tool title from getToolInfo (e.g. "Write" for writeFile)
 - extendedWaitUntil:
-    visible: "tool-progress-card"
+    visible: "writeFile"
     timeout: 10000
 
-# 2. tool.progress -> card stays
+# 2. tool.progress -> tool part still visible
 - tapOn: "Type a message..."
 - eraseText: 50
 - inputText: '__push__:session.next.tool.progress:{"callID":"call-1","content":["Writing file..."]}'
 - pressKey: Enter
 
-- assertVisible: "tool-progress-card"
+- assertVisible: "writeFile"
 
-# 3. tool.success -> card disappears (chat tool part stays in history)
+# 3. tool.success -> tool part stays in chat history with completed status
 - tapOn: "Type a message..."
 - eraseText: 50
 - inputText: '__push__:session.next.tool.success:{"callID":"call-1","content":"File written","result":{"ok":true}}'
 - pressKey: Enter
 
-- extendedWaitUntil:
-    notVisible: "tool-progress-card"
-    timeout: 10000
+# Tool part remains in chat history (was ToolProgressCard that disappeared; now it persists as a PartBlock)
+- assertVisible: "writeFile"
