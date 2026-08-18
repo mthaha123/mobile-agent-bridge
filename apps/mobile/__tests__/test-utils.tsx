@@ -79,7 +79,6 @@ export function resetAllStores() {
     messages: [],
     inputText: '',
     waiting: false,
-    streamStates: {},
   })
   useToolStore.setState({ pendingApprovals: [], visible: false })
   useDiffStore.setState({ diffs: {} })

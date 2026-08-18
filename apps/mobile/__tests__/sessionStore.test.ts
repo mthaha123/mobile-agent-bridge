@@ -322,8 +322,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result.messages).toEqual([
-      { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }] },
-      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }] },
+      { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }], time: { created: 2000 } },
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }], time: { created: 1000 } },
     ])
   })
 

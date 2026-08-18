@@ -72,7 +72,7 @@ function replaceAt(messages: ChatMessage[], idx: number, msg: ChatMessage): Chat
 }
 
 function normalizeToolPartData(p: Part): ToolPartData {
-  return p.data as ToolPartData
+  return p.data as unknown as ToolPartData
 }
 
 // ─── 文本流 reducer ────────────────────────────────────────
@@ -403,7 +403,7 @@ function normalizeLoadedMessage(raw: LoadedMessage): LoadedMessage {
       messageID: info.id ?? m.id ?? '',
       content: text,
       text,
-      created: info.time?.created ?? m.time?.created,
+      created: (info.time as any)?.created ?? (m.time as any)?.created,
       parts: parts.length > 0 ? parts : undefined,
     }
   }
@@ -415,7 +415,7 @@ function normalizeLoadedMessage(raw: LoadedMessage): LoadedMessage {
   const parts = (m as any).parts
   const builtParts = Array.isArray(parts) && parts.length > 0 ? parts as Part[] : undefined
   return {
-    role: m.role ?? m.type,
+    role: m.role ?? (m.type as string),
     messageID: m.messageID ?? m.id ?? '',
     content,
     created: m.created ?? (m as any).time?.created ?? m.timestamp,

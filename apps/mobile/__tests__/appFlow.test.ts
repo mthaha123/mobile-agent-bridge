@@ -9,7 +9,6 @@ import { useSessionStore } from '../src/stores/sessionStore'
 import { useChatStore } from '../src/stores/chatStore'
 import { useToolStore } from '../src/stores/toolStore'
 import { useQuestionStore } from '../src/stores/questionStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useProjectStore } from '../src/stores/projectStore'
@@ -56,7 +55,6 @@ beforeEach(() => {
   })
   useToolStore.setState({ pendingApprovals: [], visible: false })
   useQuestionStore.setState({ pending: [], visible: false })
-  useToolProgressStore.setState({ activeCalls: [] })
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
   useProjectStore.setState({ directory: '', project: null, switching: false })
@@ -219,36 +217,45 @@ describe('Tool approval flow', () => {
 
 describe('Tool progress flow', () => {
   it('tracks full tool call lifecycle', () => {
+    useChatStore.setState({ activeSessionId: 's1' })
+    const ingest = (method: string, payload: any) => useChatStore.getState().ingestEvent(method, payload)
+    const toolData = () => {
+      const p = useChatStore.getState().messages.flatMap((m) => m.parts ?? []).find((x) => x.id === 'call-1')
+      if (!p) throw new Error('tool part call-1 not found')
+      return p.data as { status: string; tool: string; result?: string; outputPaths?: string[] }
+    }
+
     // session.next.tool.called
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 's1', tool: 'read', input: { path: 'file.ts' },
+    ingest('session.next.tool.called', {
+      sessionID: 's1', callID: 'call-1', tool: 'read', input: { path: 'file.ts' },
     })
-    let state = useToolProgressStore.getState()
-    expect(state.activeCalls).toHaveLength(1)
-    expect(state.activeCalls[0].tool).toBe('read')
-    expect(state.activeCalls[0].status).toBe('called')
+    expect(toolData()).toMatchObject({ tool: 'read', status: 'called' })
 
     // session.next.tool.progress
-    useToolProgressStore.getState().updateProgress('call-1', { content: ['reading file...'] })
-    state = useToolProgressStore.getState()
-    expect(state.activeCalls[0].status).toBe('progress')
-    expect(state.activeCalls[0].content).toEqual(['reading file...'])
+    ingest('session.next.tool.progress', { sessionID: 's1', callID: 'call-1' })
+    expect(toolData().status).toBe('progress')
 
     // session.next.tool.success
-    useToolProgressStore.getState().markSuccess('call-1', ['done'], 'result', ['/tmp/out'])
-    state = useToolProgressStore.getState()
-    expect(state.activeCalls[0].status).toBe('success')
-    expect(state.activeCalls[0].outputPaths).toEqual(['/tmp/out'])
+    ingest('session.next.tool.success', {
+      sessionID: 's1', callID: 'call-1', content: [{ type: 'text', text: 'done' }], outputPaths: ['/tmp/out'],
+    })
+    expect(toolData().status).toBe('success')
+    expect(toolData().outputPaths).toEqual(['/tmp/out'])
   })
 
   it('handles tool failure', () => {
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 's1', tool: 'read', input: {},
+    useChatStore.setState({ activeSessionId: 's1' })
+    useChatStore.getState().ingestEvent('session.next.tool.called', {
+      sessionID: 's1', callID: 'call-1', tool: 'read', input: {},
     })
-    useToolProgressStore.getState().markFailed('call-1', 'not found')
-    const state = useToolProgressStore.getState()
-    expect(state.activeCalls[0].status).toBe('failed')
-    expect(state.activeCalls[0].error).toBe('not found')
+    useChatStore.getState().ingestEvent('session.next.tool.failed', {
+      sessionID: 's1', callID: 'call-1', error: 'not found',
+    })
+    const p = useChatStore.getState().messages.flatMap((m) => m.parts ?? []).find((x) => x.id === 'call-1')
+    if (!p) throw new Error('tool part call-1 not found')
+    const data = p.data as { status: string; error?: string }
+    expect(data.status).toBe('failed')
+    expect(data.error).toBe('not found')
   })
 })
 
@@ -362,10 +369,10 @@ describe('Full app flow simulation', () => {
     useChatStore.getState().setWaiting(true)
 
     // Step 6: Tool progress arrives
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 's2', tool: 'writeFile', input: { path: 'src/utils.ts' },
+    useChatStore.getState().ingestEvent('session.next.tool.called', {
+      sessionID: 's2', callID: 'call-1', tool: 'writeFile', input: { path: 'src/utils.ts' },
     })
-    expect(useToolProgressStore.getState().activeCalls).toHaveLength(1)
+    expect(useChatStore.getState().messages.flatMap((m) => m.parts ?? [])).toHaveLength(1)
 
     // Step 7: Tool approval arrives
     useToolStore.getState().enqueue({
@@ -380,19 +387,28 @@ describe('Full app flow simulation', () => {
     expect(replyCall).toHaveBeenCalledWith('approve-1', 'once')
 
     // Step 9: Tool progress updates
-    useToolProgressStore.getState().updateProgress('call-1', { content: ['writing...'] })
-    expect(useToolProgressStore.getState().activeCalls[0].status).toBe('progress')
-    expect(useToolProgressStore.getState().activeCalls[0].content).toEqual(['writing...'])
+    useChatStore.getState().ingestEvent('session.next.tool.progress', {
+      sessionID: 's2', callID: 'call-1',
+    })
+    const toolPart = useChatStore.getState().messages.flatMap((m) => m.parts ?? []).find((x) => x.id === 'call-1')
+    if (!toolPart) throw new Error('tool part call-1 not found')
+    expect((toolPart.data as { status: string }).status).toBe('progress')
 
     // Step 10: Tool completes
-    useToolProgressStore.getState().markSuccess('call-1')
+    useChatStore.getState().ingestEvent('session.next.tool.success', {
+      sessionID: 's2', callID: 'call-1', content: [{ type: 'text', text: 'ok' }],
+    })
 
     // Step 11: AI response arrives
     useChatStore.getState().setWaiting(false)
     useChatStore.getState().addMessage({
       role: 'assistant', content: 'Added error handling to src/utils.ts',
     })
-    expect(useChatStore.getState().messages).toHaveLength(2)
+    expect(useChatStore.getState().messages.map((m) => m.role)).toEqual(['user', 'assistant', 'assistant'])
+    expect(useChatStore.getState().messages[2].content).toBe('Added error handling to src/utils.ts')
+    const finalToolPart = useChatStore.getState().messages.flatMap((m) => m.parts ?? []).find((x) => x.id === 'call-1')
+    if (!finalToolPart) throw new Error('tool part call-1 not found')
+    expect((finalToolPart.data as { status: string }).status).toBe('success')
     expect(useChatStore.getState().waiting).toBe(false)
   })
 })

@@ -8,7 +8,6 @@ import { useSessionStore } from '../src/stores/sessionStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useConfigStore } from '../src/stores/configStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { textOf } from './test-utils'
 import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
 
