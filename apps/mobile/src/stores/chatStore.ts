@@ -36,6 +36,12 @@ export interface ToolPartData {
 /** addMessage 接受宽松消息草稿：role 必填，其余可选 */
 export type NewChatMessage = Pick<ChatMessage, 'role'> & Partial<Omit<ChatMessage, 'id' | 'timestamp' | 'role'>>
 
+/** @deprecated 旧版全局文本流缓冲，仅保留以兼容旧断言，新实现不再读写 */
+interface TextStreamState {
+  lastAppliedId: number
+  buffer: Record<number, string>
+}
+
 type ClientCall = (method: string, params?: unknown) => Promise<unknown>
 
 /** 事件静默兜底：超过该时长无任何事件，强制回到 idle */
@@ -464,6 +470,8 @@ export interface ChatState {
   runError: string | null
   pendingSteps: number
   lastActivityAt: number
+  /** @deprecated 旧版全局文本流缓冲，仅供旧断言兼容；新实现不使用 */
+  streamStates: Record<string, TextStreamState>
 
   // ── 新 API ──
   setActiveSession(id: string | null): void
@@ -482,6 +490,17 @@ export interface ChatState {
   sendMessage(sessionId: string, text: string, clientCall: ClientCall): Promise<void>
   syncSessionMessages(sessionId: string, clientCall: ClientCall): Promise<void>
   abortMessage(sessionId: string, clientCall: ClientCall): Promise<void>
+
+  // ── 旧版兼容 shim ──
+  appendAssistantDelta(assistantMessageId: string, delta: string, eventId: number | string): void
+  updateLastAssistant(text: string): void
+  advanceStreamId(assistantMessageId: string, eventId: number | string): void
+  finalizeAssistantContent(assistantMessageId: string, fullText: string): void
+  ensureAssistantMessage(messageID: string): void
+  upsertUserMessage(messageID: string, content: string, timestamp?: number): void
+  applyServerMessage(role: 'user' | 'assistant', messageID: string, content: string, timestamp?: number): void
+  applyServerMessages(msgs: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number; parts?: Part[] }>, opts?: { limit?: number }): void
+  clearMessages(): void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -492,6 +511,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   runError: null,
   pendingSteps: 0,
   lastActivityAt: 0,
+  streamStates: {},
 
   setActiveSession: (sessionId) => {
     const prev = get().activeSessionId
@@ -506,6 +526,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       runError: null,
       pendingSteps: 0,
       lastActivityAt: Date.now(),
+      streamStates: {},
     })
   },
 
@@ -516,6 +537,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       runError: null,
       pendingSteps: 0,
       lastActivityAt: Date.now(),
+      streamStates: {},
     })
   },
 
@@ -826,5 +848,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const list = Array.isArray(result) ? result : ((result as any)?.messages ?? [])
     const asc = [...list].reverse()
     get().applyLoadedMessages(asc as any)
+  },
+
+  // ── 兼容 shim：转发到新逻辑 ──
+  appendAssistantDelta: (assistantMessageId, delta, eventId) => {
+    get().ingestEvent('session.next.text.delta', { assistantMessageID: assistantMessageId, delta, eventId })
+  },
+
+  updateLastAssistant: (text) => {
+    set((state) => {
+      const copy = [...state.messages]
+      const lastIdx = copy.length - 1
+      if (lastIdx >= 0 && copy[lastIdx].role === 'assistant') {
+        copy[lastIdx] = { ...copy[lastIdx], content: copy[lastIdx].content + text, timestamp: Date.now() }
+      } else {
+        copy.push({
+          id: nextId(),
+          role: 'assistant',
+          content: text,
+          status: 'streaming',
+          parts: [],
+          timestamp: Date.now(),
+        })
+      }
+      return { messages: copy }
+    })
+  },
+
+  advanceStreamId: (assistantMessageId, eventId) => {
+    if (typeof eventId !== 'number' || !assistantMessageId) return
+    set((state) => {
+      const messages = applyTextDelta(state.messages, assistantMessageId, '', eventId)
+      if (messages === state.messages) return state
+      return { messages }
+    })
+  },
+
+  finalizeAssistantContent: (assistantMessageId, fullText) => {
+    get().ingestEvent('session.next.text.ended', { assistantMessageID: assistantMessageId, text: fullText })
+    // 兼容：清理旧全局 streamStates 条目
+    set((state) => {
+      if (!state.streamStates[assistantMessageId]) return state
+      const streamStates = { ...state.streamStates }
+      delete streamStates[assistantMessageId]
+      return { streamStates }
+    })
+  },
+
+  ensureAssistantMessage: (messageID) => {
+    get().ingestEvent('session.next.text.started', { assistantMessageID: messageID })
+  },
+
+  upsertUserMessage: (messageID, content, timestamp) => {
+    set((state) => {
+      if (!messageID) return state
+      const messages = upsertUserMessageIn(state.messages, messageID, content, timestamp)
+      if (messages === state.messages) return state
+      return { messages }
+    })
+  },
+
+  applyServerMessage: (role, messageID, content, timestamp) => {
+    set((state) => {
+      if (!messageID) return state
+      const messages = upsertAuthoritativeMessage(state.messages, role, messageID, content, timestamp)
+      if (messages === state.messages) return state
+      return { messages }
+    })
+  },
+
+  applyServerMessages: (msgs, opts) => {
+    get().applyLoadedMessages(msgs as any)
+  },
+
+  clearMessages: () => {
+    set({ messages: [], waiting: false, pendingSteps: 0, runError: null, lastActivityAt: Date.now(), streamStates: {} })
   },
 }))
