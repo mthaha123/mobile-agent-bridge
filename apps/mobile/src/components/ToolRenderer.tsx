@@ -6,8 +6,7 @@
  */
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { ToolCallProgress } from '../stores/toolProgressStore'
-import { getToolInfo, getToolRenderer } from '../types/message'
+import { getToolInfo, getToolRenderer, ToolCallProgress } from '../types/message'
 import { ShellOutput } from './chat/ShellOutput'
 import { DiffDisplay } from './chat/DiffDisplay'
 import { useThemeColors } from '../theme/ThemeContext'
