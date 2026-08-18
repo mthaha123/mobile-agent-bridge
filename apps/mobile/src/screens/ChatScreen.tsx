@@ -347,7 +347,7 @@ export const ChatScreen: React.FC = () => {
             <Text style={styles.headerBackText}>{'< Sessions'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
-          <View style={styles.headerRight} />
+          <View style={styles.headerRightEmpty} />
         </View>
 
         <View style={styles.emptyContainer}>
@@ -447,20 +447,27 @@ export const ChatScreen: React.FC = () => {
         <View style={styles.headerRight}>
           <TouchableOpacity
             onPress={() => setModelPickerVisible(true)}
-            style={styles.infoButton}
+            style={styles.iconButton}
             accessibilityLabel="Model settings"
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           >
-            <Text style={styles.modelPickIcon}>🤖</Text>
+            <Text style={styles.headerIcon}>🤖</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setInfoModalVisible(true)}
-            style={styles.infoButton}
+            style={styles.iconButton}
             accessibilityLabel="Session info"
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           >
-            <Text style={styles.headerBackText}>📋</Text>
+            <Text style={styles.headerIcon}>📋</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleRefreshSessions} accessibilityLabel="Refresh">
-            <Text style={styles.headerBackText}>↻</Text>
+          <TouchableOpacity
+            onPress={handleRefreshSessions}
+            style={styles.iconButton}
+            accessibilityLabel="Refresh"
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          >
+            <Text style={styles.headerIcon}>↻</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -663,13 +670,26 @@ const makeStyles = (colors: ThemeColors) =>
     marginHorizontal: 8,
   },
   headerRight: {
-    width: 80,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: 2,
   },
-  infoButton: {
-    padding: 2,
+  // 空态（无会话）标题栏：右侧无图标，用固定宽度与左侧 '< Sessions' 文字平衡，保持标题居中
+  headerRightEmpty: {
+    width: 80,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIcon: {
+    color: colors.primary,
+    fontSize: 16,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   emptyContainer: {
     flex: 1,
@@ -886,10 +906,6 @@ const makeStyles = (colors: ThemeColors) =>
     color: '#fff',
     fontSize: 11,
     fontWeight: '600',
-  },
-  modelPickIcon: {
-    color: colors.primary,
-    fontSize: 20,
   },
   runErrorBanner: {
     flexDirection: 'row',
