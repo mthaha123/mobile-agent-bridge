@@ -44,7 +44,7 @@ export function getPartRenderer(type: PartType): React.FC<PartProps> | undefined
 
 // ─── Tool 类型 ──────────────────────────────────────────
 
-/** ToolRenderer 渲染用的工具调用描述（原 toolProgressStore.ToolCallProgress，随 store 删除迁至此） */
+/** ToolRenderer 渲染用的工具调用描述（随旧 toolProgressStore 删除迁至此） */
 export interface ToolCallProgress {
   callID: string
   sessionId: string
