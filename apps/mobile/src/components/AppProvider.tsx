@@ -95,6 +95,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       // 新用户消息入列（远程/其它端在同样会话里发消息）：插入 user 消息
       if (method === 'session.next.prompt.admitted' || method === 'session.next.prompted') {
         if (!isForActiveSession()) return
+        // 新一轮对话开始：清除上一次的失败提示
+        useChatStore.getState().clearRunError()
         const messageID = payload?.messageID || ''
         const text = payload?.prompt?.text || payload?.prompt || ''
 if (messageID && text) {
@@ -296,15 +298,13 @@ if (messageID && text) {
         }
       }
 
-      // 步骤失败
+      // 步骤失败：结束本次对话并醒目展示错误（红色错误条），输入框恢复可用
       if (method === 'session.next.step.failed') {
         if (!isForActiveSession()) return
         useChatStore.getState().setWaiting(false)
         const errorMsg = payload?.error?.message || payload?.error || 'Unknown error'
-        useChatStore.getState().addMessage({
-          role: 'system',
-          content: `AI step failed: ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`,
-        })
+        const err = typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)
+        useChatStore.getState().setRunError(err)
       }
 
       // 工具审批请求 v2
@@ -352,10 +352,7 @@ if (messageID && text) {
         if (isForActiveSession()) {
           useChatStore.getState().setWaiting(false)
           const errorMsg = payload?.error || 'unknown error'
-          useChatStore.getState().addMessage({
-            role: 'system',
-            content: `Error: ${errorMsg}`,
-          })
+          useChatStore.getState().setRunError(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg))
         }
       }
 
@@ -374,10 +371,7 @@ if (messageID && text) {
           payload?.error ||
           payload?.message ||
           `${method} (no details)`
-        useChatStore.getState().addMessage({
-          role: 'system',
-          content: `${method}: ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`,
-        })
+        useChatStore.getState().setRunError(`${method}: ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`)
       }
 
       // 文件变更

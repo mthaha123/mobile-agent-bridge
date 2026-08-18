@@ -93,6 +93,8 @@ export const ChatScreen: React.FC = () => {
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
   const waiting = useChatStore((s) => s.waiting)
+  const runError = useChatStore((s) => s.runError)
+  const clearRunError = useChatStore((s) => s.clearRunError)
   const setInputText = useChatStore((s) => s.setInputText)
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
@@ -464,6 +466,16 @@ export const ChatScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {runError ? (
+        <View style={styles.runErrorBanner} accessibilityRole="alert">
+          <Text style={styles.runErrorIcon}>⚠️</Text>
+          <Text style={styles.runErrorText} numberOfLines={3}>{runError}</Text>
+          <TouchableOpacity onPress={clearRunError} accessibilityLabel="Dismiss error" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.runErrorClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <FlatList
         ref={flatListRef}
@@ -884,5 +896,33 @@ const makeStyles = (colors: ThemeColors) =>
   modelBadgeProvider: {
     color: colors.textTertiary,
     fontSize: 10,
+  },
+  runErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    borderLeftWidth: 4,
+    borderLeftColor: colors.destructive,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 6,
+  },
+  runErrorIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  runErrorText: {
+    color: colors.destructive,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  runErrorClose: {
+    color: colors.textTertiary,
+    fontSize: 18,
+    marginLeft: 8,
+    paddingHorizontal: 4,
   },
 })

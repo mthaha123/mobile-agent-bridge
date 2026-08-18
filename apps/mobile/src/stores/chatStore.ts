@@ -23,9 +23,12 @@ export interface ChatState {
   messages: ChatMessage[]
   inputText: string
   waiting: boolean
+  runError: string | null
   streamStates: Record<string, TextStreamState>
 
   setActiveSession: (sessionId: string | null) => void
+  setRunError: (err: string | null) => void
+  clearRunError: () => void
   addMessage: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   prependMessages: (msgs: ChatMessage[]) => void
   updateLastAssistant: (text: string) => void
@@ -107,16 +110,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   inputText: '',
   waiting: false,
+  runError: null,
   streamStates: {},
 
   setActiveSession: (sessionId) => {
     const prev = get().activeSessionId
     if (prev !== sessionId) {
-      set({ activeSessionId: sessionId, messages: [], waiting: false, streamStates: {} })
+      set({ activeSessionId: sessionId, messages: [], waiting: false, runError: null, streamStates: {} })
     } else {
       set({ activeSessionId: sessionId })
     }
   },
+
+  setRunError: (err) => {
+    const runError = typeof err === 'string' && err.trim() ? err : null
+    set((state) => ({ runError, waiting: runError ? false : state.waiting }))
+  },
+
+  clearRunError: () => set({ runError: null }),
 
   addMessage: (msg) => {
     const newMsg: ChatMessage = {

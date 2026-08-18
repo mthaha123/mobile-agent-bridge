@@ -535,9 +535,9 @@ describe('session.next.reasoning.ended handler', () => {
 })
 
 describe('session.error handler', () => {
-  it('adds system error message and sets waiting=false', () => {
+  it('sets waiting=false and records runError', () => {
     const { notifyHandler } = mockClientAndRender()
-    useChatStore.setState({ waiting: true })
+    useChatStore.setState({ waiting: true, runError: null })
 
     TestRenderer.act(() => {
       notifyHandler!('session.error', {
@@ -546,8 +546,25 @@ describe('session.error handler', () => {
     })
 
     expect(useChatStore.getState().waiting).toBe(false)
-    const msgs = useChatStore.getState().messages
-    expect(msgs.some(m => m.role === 'system' && m.content.includes('Connection lost'))).toBe(true)
+    expect(useChatStore.getState().runError).toContain('Connection lost')
+  })
+})
+
+describe('session.next.step.failed handler', () => {
+  it('ends waiting and records runError (self-contained failure display)', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useChatStore.setState({ waiting: true, runError: null })
+
+    TestRenderer.act(() => {
+      notifyHandler!('session.next.step.failed', {
+        sessionID: 'sess-1',
+        assistantMessageID: 'msg-1',
+        error: { type: 'unknown', message: 'Provider request failed with HTTP 401' },
+      })
+    })
+
+    expect(useChatStore.getState().waiting).toBe(false)
+    expect(useChatStore.getState().runError).toContain('HTTP 401')
   })
 })
 
