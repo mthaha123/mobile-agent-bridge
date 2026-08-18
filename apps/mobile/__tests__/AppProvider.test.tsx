@@ -9,7 +9,6 @@ import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useChatStore } from '../src/stores/chatStore'
 import { useToolStore } from '../src/stores/toolStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useQuestionStore } from '../src/stores/questionStore'
@@ -58,10 +57,6 @@ describe('project.changed handler', () => {
 
   it('feeds text delta into chat store on session.next.text.delta', () => {
     const { notifyHandler } = mockClientAndRender()
-    const updateLastAssistant = jest.spyOn(
-      useChatStore.getState(),
-      'updateLastAssistant',
-    )
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.text.delta', {
@@ -72,13 +67,16 @@ describe('project.changed handler', () => {
       })
     })
 
-    expect(updateLastAssistant).toHaveBeenCalledWith('Hello ')
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].role).toBe('assistant')
+    expect(msgs[0].messageID).toBe('msg-1')
+    expect(msgs[0].content).toBe('Hello ')
   })
 
   it('ignores text delta from a different session than active', () => {
     useChatStore.setState({ activeSessionId: 'sess-A' })
     const { notifyHandler } = mockClientAndRender()
-    const append = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.text.delta', {
@@ -88,7 +86,6 @@ describe('project.changed handler', () => {
       })
     })
 
-    expect(append).not.toHaveBeenCalled()
     expect(useChatStore.getState().messages).toHaveLength(0)
   })
 
@@ -318,8 +315,14 @@ describe('project.changed handler', () => {
   })
 })
 
-describe('tool progress notification handlers', () => {
-  it('adds call on session.next.tool.called', () => {
+describe('tool progress notification handlers → chatStore tool parts', () => {
+  function lastToolPart(): any {
+    const msgs = useChatStore.getState().messages
+    const withParts = msgs.find((m) => Array.isArray(m.parts) && m.parts.length > 0)
+    return withParts?.parts?.[0]
+  }
+
+  it('adds running call as a tool part on session.next.tool.called', () => {
     const { notifyHandler } = mockClientAndRender()
     TestRenderer.act(() => {
       notifyHandler('session.next.tool.called', {
@@ -327,55 +330,62 @@ describe('tool progress notification handlers', () => {
         tool: 'read', input: { path: 'file.ts' },
       })
     })
-    const state = useToolProgressStore.getState()
-    expect(state.activeCalls).toHaveLength(1)
-    expect(state.activeCalls[0].callID).toBe('call-1')
-    expect(state.activeCalls[0].tool).toBe('read')
+    const part = lastToolPart()
+    expect(part?.id).toBe('call-1')
+    expect(part?.type).toBe('tool')
+    expect(part?.data.tool).toBe('read')
+    expect(part?.data.input).toEqual({ path: 'file.ts' })
+    expect(part?.data.status).toBe('called')
   })
 
-  it('updates progress on session.next.tool.progress', () => {
+  it('updates status to progress on session.next.tool.progress', () => {
     const { notifyHandler } = mockClientAndRender()
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 'sess-1', tool: 'read', input: {},
+    TestRenderer.act(() => {
+      notifyHandler('session.next.tool.called', {
+        callID: 'call-1', sessionID: 'sess-1', tool: 'read', input: {},
+      })
     })
     TestRenderer.act(() => {
       notifyHandler('session.next.tool.progress', {
         callID: 'call-1', content: 'reading...',
       })
     })
-    const call = useToolProgressStore.getState().activeCalls.find(c => c.callID === 'call-1')
-    expect(call?.status).toBe('progress')
-    expect(call?.content).toBe('reading...')
+    expect(lastToolPart()?.data.status).toBe('progress')
   })
 
-  it('marks success on session.next.tool.success', () => {
+  it('marks success with extracted result and outputPaths on session.next.tool.success', () => {
     const { notifyHandler } = mockClientAndRender()
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 'sess-1', tool: 'read', input: {},
+    TestRenderer.act(() => {
+      notifyHandler('session.next.tool.called', {
+        callID: 'call-1', sessionID: 'sess-1', tool: 'read', input: {},
+      })
     })
     TestRenderer.act(() => {
       notifyHandler('session.next.tool.success', {
-        callID: 'call-1', content: 'done', outputPaths: ['/tmp/out'],
+        callID: 'call-1', content: [{ type: 'text', text: 'done' }], outputPaths: ['/tmp/out'],
       })
     })
-    const call = useToolProgressStore.getState().activeCalls.find(c => c.callID === 'call-1')
-    expect(call?.status).toBe('success')
-    expect(call?.outputPaths).toEqual(['/tmp/out'])
+    const part = lastToolPart()
+    expect(part?.data.status).toBe('success')
+    expect(part?.data.result).toBe('done')
+    expect(part?.data.outputPaths).toEqual(['/tmp/out'])
   })
 
-  it('marks failed on session.next.tool.failed', () => {
+  it('marks failed with error on session.next.tool.failed', () => {
     const { notifyHandler } = mockClientAndRender()
-    useToolProgressStore.getState().addCall({
-      callID: 'call-1', sessionId: 'sess-1', tool: 'read', input: {},
+    TestRenderer.act(() => {
+      notifyHandler('session.next.tool.called', {
+        callID: 'call-1', sessionID: 'sess-1', tool: 'read', input: {},
+      })
     })
     TestRenderer.act(() => {
       notifyHandler('session.next.tool.failed', {
         callID: 'call-1', error: 'permission denied',
       })
     })
-    const call = useToolProgressStore.getState().activeCalls.find(c => c.callID === 'call-1')
-    expect(call?.status).toBe('failed')
-    expect(call?.error).toBe('permission denied')
+    const part = lastToolPart()
+    expect(part?.data.status).toBe('failed')
+    expect(part?.data.error).toBe('permission denied')
   })
 })
 
@@ -523,7 +533,6 @@ describe('session.next.text.ended handler', () => {
 describe('session.next.reasoning.delta handler', () => {
   it('appends reasoning delta to chat store', () => {
     const { notifyHandler } = mockClientAndRender()
-    const spy = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.reasoning.delta', {
@@ -533,13 +542,13 @@ describe('session.next.reasoning.delta handler', () => {
       })
     })
 
-    expect(spy).toHaveBeenCalledWith('msg-1', 'Thinking...', 1)
-    spy.mockRestore()
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('Thinking...')
   })
 
-  it('routes string eventId (SDK v3 evt_) to appendAssistantDelta', () => {
+  it('routes string eventId (SDK v3 evt_) to chat store append', () => {
     const { notifyHandler } = mockClientAndRender()
-    const spy = jest.spyOn(useChatStore.getState(), 'appendAssistantDelta')
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.text.delta', {
@@ -549,8 +558,7 @@ describe('session.next.reasoning.delta handler', () => {
       })
     })
 
-    expect(spy).toHaveBeenCalledWith('msg-1', 'Hello ', 'evt_fb6f255e9001TJs7iVnFH5LJz9')
-    spy.mockRestore()
+    expect(useChatStore.getState().messages[0].content).toBe('Hello ')
   })
 })
 
@@ -587,10 +595,9 @@ describe('createReplyCall with invalid id', () => {
 })
 
 describe('session.next.reasoning.ended handler', () => {
-  it('advances stream id and sets waiting=false', () => {
+  it('ends waiting on session.next.reasoning.ended', () => {
     const { notifyHandler } = mockClientAndRender()
     useChatStore.setState({ waiting: true })
-    const spy = jest.spyOn(useChatStore.getState(), 'advanceStreamId')
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.reasoning.ended', {
@@ -599,9 +606,7 @@ describe('session.next.reasoning.ended handler', () => {
       })
     })
 
-    expect(spy).toHaveBeenCalledWith('msg-1', 3)
     expect(useChatStore.getState().waiting).toBe(false)
-    spy.mockRestore()
   })
 })
 
@@ -759,9 +764,8 @@ describe('session.next.text.ended handler', () => {
 })
 
 describe('session.next.reasoning.delta handler', () => {
-  it('appends reasoning delta without eventId via updateLastAssistant', () => {
+  it('appends reasoning delta without eventId to chat store', () => {
     const { notifyHandler } = mockClientAndRender()
-    const spy = jest.spyOn(useChatStore.getState(), 'updateLastAssistant')
 
     TestRenderer.act(() => {
       notifyHandler!('session.next.reasoning.delta', {
@@ -770,8 +774,7 @@ describe('session.next.reasoning.delta handler', () => {
       })
     })
 
-    expect(spy).toHaveBeenCalledWith('Raw reasoning')
-    spy.mockRestore()
+    expect(useChatStore.getState().messages[0].content).toBe('Raw reasoning')
   })
 })
 
@@ -801,6 +804,7 @@ describe('setupClient', () => {
 
     const events = client.on.mock.calls.map((c: any[]) => c[0])
     expect(events).toContain('notification')
+    expect(events).toContain('connected')
     expect(events).toContain('auth_expired')
   })
 })

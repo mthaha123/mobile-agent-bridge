@@ -84,7 +84,13 @@ module.exports = {
   },
 
   // Layout
-  LayoutAnimation: { configureNext: jest.fn(), easeInEaseOut: jest.fn() },
+  LayoutAnimation: {
+    configureNext: jest.fn(),
+    easeInEaseOut: jest.fn(),
+    Presets: { easeInEaseOut: { duration: 300, update: { type: 2 } } },
+    Types: { easeInEaseOut: 2 },
+    Properties: { opacity: 1 },
+  },
   UIManager: {},
 
   // LogBox

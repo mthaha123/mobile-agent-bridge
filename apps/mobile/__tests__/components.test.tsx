@@ -1,9 +1,7 @@
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
-import { ToolProgressCard } from '../src/components/ToolProgressCard'
 import { SessionInfoModal } from '../src/screens/SessionInfoModal'
 import { QuestionSheet, setQuestionReplyCall } from '../src/screens/QuestionSheet'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useQuestionStore } from '../src/stores/questionStore'
@@ -48,78 +46,9 @@ function lastMatch<T>(arr: T[], predicate: (item: T) => boolean): T | undefined 
 
 beforeEach(() => {
   act(() => {
-    useToolProgressStore.setState({ activeCalls: [] })
     useDiffStore.setState({ diffs: {} })
     useTodoStore.setState({ todos: {} })
     useQuestionStore.setState({ pending: [], visible: false })
-  })
-})
-
-describe('ToolProgressCard', () => {
-  it('renders nothing when no active calls', () => {
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => { tree = TestRenderer.create(<ToolProgressCard />) })
-    expect(tree.toJSON()).toBeNull()
-  })
-
-  it('renders running tool calls', () => {
-    act(() => {
-      useToolProgressStore.getState().addCall({
-        callID: 'c1', sessionId: 's1', tool: 'read', input: { path: 'file.ts' },
-      })
-    })
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => { tree = TestRenderer.create(<ToolProgressCard />) })
-    expect(tree.toJSON()).not.toBeNull()
-  })
-
-  it('does not render for completed calls', () => {
-    act(() => {
-      useToolProgressStore.setState({
-        activeCalls: [{
-          callID: 'c1', sessionId: 's1', tool: 'read', input: {},
-          status: 'success', startedAt: 100,
-        }],
-      })
-    })
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => { tree = TestRenderer.create(<ToolProgressCard />) })
-    expect(tree.toJSON()).toBeNull()
-  })
-
-  it('renders running tool calls with correct tool name', () => {
-    act(() => {
-      useToolProgressStore.getState().addCall({
-        callID: 'call-1',
-        sessionId: 's1',
-        tool: 'bash',
-        input: { command: 'ls -la' },
-      })
-    })
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => { tree = TestRenderer.create(<ToolProgressCard />) })
-    expect(textOf(tree)).toContain('Shell')
-  })
-
-  it('renders multiple tool calls', () => {
-    act(() => {
-      useToolProgressStore.getState().addCall({
-        callID: 'call-1',
-        sessionId: 's1',
-        tool: 'bash',
-        input: { command: 'ls' },
-      })
-      useToolProgressStore.getState().addCall({
-        callID: 'call-2',
-        sessionId: 's1',
-        tool: 'read',
-        input: { path: '/test.ts' },
-      })
-    })
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => { tree = TestRenderer.create(<ToolProgressCard />) })
-    expect(textOf(tree)).toContain('Shell')
-    expect(textOf(tree)).toContain('Read')
   })
 })
 

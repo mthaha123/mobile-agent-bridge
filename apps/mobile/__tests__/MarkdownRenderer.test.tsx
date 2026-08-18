@@ -1,7 +1,7 @@
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { View } from 'react-native'
-import { MarkdownRenderer, renderMarkdown } from '../src/components/MarkdownRenderer'
+import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
 
 function textOf(node: any): string {
   if (!node) return ''
@@ -157,19 +157,6 @@ describe('MarkdownRenderer', () => {
     ;['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].forEach(h => expect(text).toContain(h))
   })
 
-  it('applies custom style prop', () => {
-    const tree = TestRenderer.create(
-      <MarkdownRenderer content="Hello" style={{ opacity: 0.5 }} />,
-    )
-    const json = tree.toJSON()
-    expect(json).not.toBeNull()
-    if (json && typeof json === 'object' && 'props' in json) {
-      expect(json.props.style).toEqual(
-        expect.arrayContaining([expect.objectContaining({ opacity: 0.5 })]),
-      )
-    }
-  })
-
   it('renders long content without crashing', () => {
     const lines = Array.from({ length: 100 }, (_, i) => `Line ${i + 1}: some text here`)
     const content = lines.join('\n')
@@ -204,22 +191,5 @@ describe('MarkdownRenderer', () => {
     const tree = TestRenderer.create(<MarkdownRenderer content="#Heading" />)
     const text = textOf(tree.toJSON())
     expect(text).not.toBe('')
-  })
-})
-
-describe('renderMarkdown', () => {
-  it('returns a React element for valid content', () => {
-    const el = renderMarkdown('Hello **world**')
-    expect(React.isValidElement(el)).toBe(true)
-  })
-
-  it('renders without crashing', () => {
-    const tree = TestRenderer.create(renderMarkdown('Test content'))
-    expect(textOf(tree.toJSON())).toContain('Test content')
-  })
-
-  it('wraps content in MarkdownRenderer', () => {
-    const el = renderMarkdown('Hello')
-    expect(el.type).toBe(MarkdownRenderer)
   })
 })

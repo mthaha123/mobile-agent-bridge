@@ -10,7 +10,6 @@ import { useAuthStore } from '../src/stores/authStore'
 import { useSessionStore } from '../src/stores/sessionStore'
 import { useChatStore } from '../src/stores/chatStore'
 import { useToolStore } from '../src/stores/toolStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useQuestionStore } from '../src/stores/questionStore'
@@ -80,10 +79,8 @@ export function resetAllStores() {
     messages: [],
     inputText: '',
     waiting: false,
-    streamStates: {},
   })
   useToolStore.setState({ pendingApprovals: [], visible: false })
-  useToolProgressStore.setState({ activeCalls: [] })
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
   useQuestionStore.setState({ pending: [], visible: false })

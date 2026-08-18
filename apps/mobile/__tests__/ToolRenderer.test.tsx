@@ -1,14 +1,13 @@
 /**
  * ToolRenderer — 单元测试 (react-test-renderer)
  *
- * ToolRenderer 是 Phase 1+2 重构后的紧凑型工具进度卡片（用于 ToolProgressCard），
- * 通过 getToolInfo() 渲染 图标 + 标题 + 副标题 + 状态图标，
+ * ToolRenderer 通过 getToolInfo() 渲染 图标 + 标题 + 副标题 + 状态图标，
  * 对 shell/bash 使用 ShellOutput，对 edit 使用 DiffDisplay，其余展示 result 预览。
  */
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
 import { ToolRenderer } from '../src/components/ToolRenderer'
-import { ToolCallProgress } from '../src/stores/toolProgressStore'
+import { ToolCallProgress } from '../src/types/message'
 
 const createMockCall = (overrides: Partial<ToolCallProgress> = {}): ToolCallProgress => ({
   callID: 'test-call-1',

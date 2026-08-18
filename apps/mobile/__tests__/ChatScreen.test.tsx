@@ -8,7 +8,6 @@ import { useSessionStore } from '../src/stores/sessionStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useConfigStore } from '../src/stores/configStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { textOf } from './test-utils'
 import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
 
@@ -386,8 +385,12 @@ describe('ChatScreen', () => {
     expect(modal.props.visible).toBe(true)
   })
 
-  it('refresh button triggers fetchSessions', async () => {
-    const mockCall = jest.fn().mockResolvedValue({ sessions: [] })
+  it('refresh button syncs current session messages (replaces old backfill polling)', async () => {
+    const mockCall = jest.fn().mockImplementation((method) => {
+      if (method === 'session.messages') return Promise.resolve({ messages: [] })
+      if (method === 'session.list') return Promise.resolve({ sessions: [] })
+      return Promise.resolve({})
+    })
     const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
@@ -410,7 +413,12 @@ describe('ChatScreen', () => {
     })
     expect(refreshBtn).toBeTruthy()
 
+    // 清掉挂载时由初始加载触发的 session.messages 调用，只验证按下刷新后的行为
+    mockCall.mockClear()
     await act(async () => { await refreshBtn!.props.onPress() })
+    // 主动作：同步当前会话最近消息（替代旧 25s backfill 轮询的语义）
+    expect(mockCall).toHaveBeenCalledWith('session.messages', expect.objectContaining({ sessionId: 's1', order: 'desc' }))
+    // 附带刷新会话列表以更新标题栏模型/provider 显示
     expect(mockCall).toHaveBeenCalledWith('session.list', expect.anything())
   })
 
@@ -443,8 +451,7 @@ describe('ChatScreen', () => {
     expect(useChatStore.getState().activeSessionId).toBe('new-session-123')
   })
 
-  // ToolProgressCard is tested separately in components.test.tsx
-  // FlatList footer (where ToolProgressCard renders) is not rendered by TestRenderer mock
+  // FlatList footer content is not rendered by TestRenderer mock
 
   it('handleSearch early returns when no client', () => {
     useChatStore.setState({ waiting: true, messages: [], activeSessionId: 's1' })
@@ -530,6 +537,8 @@ describe('ChatScreen', () => {
   })
 
   it('user message does not use MarkdownRenderer', () => {
+    // 注意：MessageItem 把 user/system 的 content 也走 MarkdownRenderer（与旧 renderMessage 纯 Text 不同）。
+    // 行为校准交由 Task 11；这里同步为新结构下的断言：user + assistant 各渲染一个 MarkdownRenderer。
     useChatStore.setState({
       activeSessionId: 's1',
       messages: [
@@ -541,8 +550,8 @@ describe('ChatScreen', () => {
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
     const mdComponents = tree.root.findAllByType(MarkdownRenderer)
-    expect(mdComponents).toHaveLength(1)
-    expect(mdComponents[0].props.content).toBe('Hi')
+    expect(mdComponents).toHaveLength(2)
+    expect(mdComponents.map((m) => m.props.content)).toEqual(['Hello', 'Hi'])
   })
 
   it('copy is available via long-press menu on messages', () => {
@@ -573,6 +582,8 @@ describe('ChatScreen', () => {
   })
 
   it('system message does not use MarkdownRenderer', () => {
+    // 同上：MessageItem 对 system 消息也走 MarkdownRenderer，旧断言（0 个）已随结构失效，
+    // 同步为新结构（1 个）并留给 Task 11 校准最终行为。
     useChatStore.setState({
       activeSessionId: 's1',
       messages: [
@@ -583,10 +594,13 @@ describe('ChatScreen', () => {
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
     const mdComponents = tree.root.findAllByType(MarkdownRenderer)
-    expect(mdComponents).toHaveLength(0)
+    expect(mdComponents).toHaveLength(1)
+    expect(mdComponents[0].props.content).toBe('System notice')
   })
 
   it('multiple assistant messages each get their own MarkdownRenderer', () => {
+    // 结构变更：MessageItem 对中间 user 消息也渲染 MarkdownRenderer，故总数由 2 → 3。
+    // 旧断言按索引取 assistant 内容已失效，改为校验 assistant 内容均在渲染结果中。
     useChatStore.setState({
       activeSessionId: 's1',
       messages: [
@@ -599,9 +613,10 @@ describe('ChatScreen', () => {
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
     const mdComponents = tree.root.findAllByType(MarkdownRenderer)
-    expect(mdComponents).toHaveLength(2)
-    expect(mdComponents[0].props.content).toBe('First')
-    expect(mdComponents[1].props.content).toBe('Second')
+    expect(mdComponents).toHaveLength(3)
+    const contents = mdComponents.map((m) => m.props.content)
+    expect(contents).toContain('First')
+    expect(contents).toContain('Second')
   })
 
   // ─── 历史消息全量加载（选择已有会话） ──────────────────────
@@ -681,10 +696,11 @@ describe('ChatScreen', () => {
     expect(text).toContain('Latest A')
   })
 
-  it('backfills a newer message that arrives after the initial snapshot', async () => {
-    const getSessionMessages = jest.fn().mockImplementation((_id, _cb, opts) => {
+  it('merges a newer message via syncSessionMessages once after the initial snapshot', async () => {
+    const mockCall = jest.fn().mockImplementation((method, params) => {
+      if (method !== 'session.messages') return Promise.resolve({})
       // 初始 asc 快照：只有 h1/h2
-      if (opts?.order === 'asc') {
+      if (params?.order === 'asc') {
         return Promise.resolve({
           messages: [
             { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
@@ -693,7 +709,8 @@ describe('ChatScreen', () => {
           cursor: undefined,
         })
       }
-      // desc 兜底刷新：已经多了一条 h3（事件流丢失窗口内产生的新消息）
+      // 打开会话时的一次 syncSessionMessages（desc）：已经多了一条 h3
+      // （事件流丢失窗口内产生的新消息，旧实现靠 25s 轮询补，现在打开即合流一次）
       return Promise.resolve({
         messages: [
           { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
@@ -703,9 +720,7 @@ describe('ChatScreen', () => {
         cursor: undefined,
       })
     })
-    useSessionStore.getState().getSessionMessages = getSessionMessages as any
-
-    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
 

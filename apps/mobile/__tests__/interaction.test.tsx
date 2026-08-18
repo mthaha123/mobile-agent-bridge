@@ -15,7 +15,6 @@ import { useChatStore } from '../src/stores/chatStore'
 import { useToolStore } from '../src/stores/toolStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useQuestionStore } from '../src/stores/questionStore'
-import { useToolProgressStore } from '../src/stores/toolProgressStore'
 import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 
@@ -45,7 +44,6 @@ beforeEach(() => {
   })
   useToolStore.setState({ pendingApprovals: [], visible: false })
   useQuestionStore.setState({ pending: [], visible: false })
-  useToolProgressStore.setState({ activeCalls: [] })
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
   useProjectStore.setState({ directory: '', project: null, switching: false })
@@ -205,19 +203,29 @@ describe('ChatScreen — user interaction', () => {
 
 describe('Tool progress + notification integration', () => {
   it('progress from called → progress → success', () => {
-    const store = useToolProgressStore.getState()
+    useChatStore.setState({ activeSessionId: 's1' })
+    const ingest = (method: string, payload: any) => useChatStore.getState().ingestEvent(method, payload)
+    const toolData = () => {
+      const p = useChatStore.getState().messages.flatMap((m) => m.parts ?? []).find((x) => x.id === 'c1')
+      if (!p) throw new Error('tool part c1 not found')
+      return p.data as { status: string; tool: string }
+    }
 
     // called
-    store.addCall({ callID: 'c1', sessionId: 's1', tool: 'writeFile', input: {} })
-    expect(useToolProgressStore.getState().activeCalls[0].status).toBe('called')
+    ingest('session.next.tool.called', {
+      sessionID: 's1', callID: 'c1', tool: 'writeFile', input: {},
+    })
+    expect(toolData()).toMatchObject({ status: 'called', tool: 'writeFile' })
 
     // progress
-    store.updateProgress('c1', { content: ['writing...'] })
-    expect(useToolProgressStore.getState().activeCalls[0].status).toBe('progress')
+    ingest('session.next.tool.progress', { sessionID: 's1', callID: 'c1' })
+    expect(toolData().status).toBe('progress')
 
     // success
-    store.markSuccess('c1')
-    expect(useToolProgressStore.getState().activeCalls[0].status).toBe('success')
+    ingest('session.next.tool.success', {
+      sessionID: 's1', callID: 'c1', content: [{ type: 'text', text: 'done' }],
+    })
+    expect(toolData().status).toBe('success')
   })
 
   it('notification handler enqueues tool and question', () => {

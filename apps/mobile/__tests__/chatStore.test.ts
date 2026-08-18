@@ -13,7 +13,6 @@ function resetChatStore() {
     messages: [],
     inputText: '',
     waiting: false,
-    streamStates: {},
   })
 }
 
@@ -68,7 +67,6 @@ describe('setActiveSession', () => {
       activeSessionId: 's1',
       messages: [{ id: 'm1', role: 'user', content: 'hi', timestamp: 1 }],
       waiting: true,
-      streamStates: { x: { lastAppliedId: 0, buffer: {} } },
     })
 
     useChatStore.getState().setActiveSession('s2')
@@ -76,7 +74,6 @@ describe('setActiveSession', () => {
     expect(useChatStore.getState().activeSessionId).toBe('s2')
     expect(useChatStore.getState().messages).toEqual([])
     expect(useChatStore.getState().waiting).toBe(false)
-    expect(useChatStore.getState().streamStates).toEqual({})
   })
 
   it('does not clear messages when setting same session id', () => {
@@ -238,18 +235,16 @@ describe('setWaiting', () => {
 // ---------------------------------------------------------------------------
 
 describe('clearMessages', () => {
-  it('clears messages, waiting, and streamStates', () => {
+  it('clears messages and waiting state', () => {
     useChatStore.setState({
       messages: [{ id: 'm1', role: 'user', content: 'hi', timestamp: 1 }],
       waiting: true,
-      streamStates: { x: { lastAppliedId: 0, buffer: {} } },
     })
 
     useChatStore.getState().clearMessages()
 
     expect(useChatStore.getState().messages).toEqual([])
     expect(useChatStore.getState().waiting).toBe(false)
-    expect(useChatStore.getState().streamStates).toEqual({})
   })
 })
 
@@ -446,14 +441,12 @@ describe('finalizeAssistantContent', () => {
         { id: 'm1', role: 'user', content: 'q', timestamp: 1 },
         { id: 'm2', role: 'assistant', content: 'partial', timestamp: 2 },
       ],
-      streamStates: { 'msg-1': { lastAppliedId: 5, buffer: {} } },
     })
 
     useChatStore.getState().finalizeAssistantContent('msg-1', 'final text')
 
     const msgs = useChatStore.getState().messages
     expect(msgs[1].content).toBe('final text')
-    expect(useChatStore.getState().streamStates['msg-1']).toBeUndefined()
   })
 
   it('creates assistant message when none exists', () => {
@@ -486,16 +479,21 @@ describe('finalizeAssistantContent', () => {
     expect(msgs[3].content).toBe('ans2 partial')
   })
 
-  it('cleans up stream state on finalize', () => {
+  it('clears delta buffer and marks message complete on finalize', () => {
     useChatStore.setState({
-      streamStates: {
-        'msg-1': { lastAppliedId: 3, buffer: { 4: 'buffered' } },
-      },
+      messages: [{
+        id: 'm1', role: 'assistant', content: 'partial', timestamp: 1, messageID: 'msg-1',
+        status: 'streaming', deltaBuffer: { 4: 'buffered' }, lastAppliedDeltaId: 3,
+      } as any],
     })
 
     useChatStore.getState().finalizeAssistantContent('msg-1', 'done')
 
-    expect(useChatStore.getState().streamStates['msg-1']).toBeUndefined()
+    const msg = useChatStore.getState().messages[0]
+    expect(msg.content).toBe('done')
+    expect(msg.status).toBe('complete')
+    expect(msg.deltaBuffer).toBeUndefined()
+    expect(msg.lastAppliedDeltaId).toBeUndefined()
   })
 })
 
