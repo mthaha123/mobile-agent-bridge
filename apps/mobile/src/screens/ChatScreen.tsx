@@ -1,37 +1,43 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
-  Clipboard,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
+import type { ChatMessage } from '../stores/chatStore'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
-import { ToolProgressCard } from '../components/ToolProgressCard'
+import { useToolStore } from '../stores/toolStore'
+import { useQuestionStore } from '../stores/questionStore'
+import { useConfigStore } from '../stores/configStore'
+import { useAttachmentStore } from '../stores/attachmentStore'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
-import { PartBlock, MessageWrapperForFallback } from '../components/chat/PartBlock'
-import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
-import { RichMessage, Part } from '../types/message'
-import { useConfigStore } from '../stores/configStore'
+import type { Part } from '../types/message'
+import { MessageList } from '../components/chat/MessageList'
+import { MessageItem } from '../components/chat/MessageItem'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
 import { PermissionDock } from '../components/chat/PermissionDock'
 import { QuestionDock } from '../components/chat/QuestionDock'
 import { AttachmentBar } from '../components/chat/AttachmentBar'
-import { useAttachmentStore } from '../stores/attachmentStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
+
+// Android 需要显式启用 LayoutAnimation
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true)
+}
 
 /** 从 SDK tool part 的 state 提取可展示的输出文本（content 数组 → 拼接 text） */
 function extractToolOutput(state: any): string {
@@ -89,6 +95,7 @@ export const ChatScreen: React.FC = () => {
   const [historyCursor, setHistoryCursor] = useState<string | undefined>()
   const [historyLoading, setHistoryLoading] = useState(false)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -105,21 +112,24 @@ export const ChatScreen: React.FC = () => {
   const popChat = useUiStore((s) => s.popChat)
   const chatSubScreen = useUiStore((s) => s.chatSubScreen)
 
-  const flatListRef = useRef<FlatList>(null)
   const inputRef = useRef<TextInput>(null)
-  // 用户当前是否停留在最新消息（底部）。false=正在上滑回看历史，不打扰。
-  const pinnedToBottomRef = useRef(true)
-  // 新会话打开后置位：内容首次渲染完成时强制滚到底部（即使内容很多也一次到位）。
+  // 新会话打开后置位：MessageList 收到 true 时强制滚到底部并回调 onPendingScrollDone
   const pendingScrollToEndRef = useRef(false)
 
-  useEffect(() => {
-    if (messages.length > 0 && pinnedToBottomRef.current && !pendingScrollToEndRef.current) {
-      const timer = setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: false })
-      }, 100)
-      return () => clearTimeout(timer)
+  // Dock 区域显隐动画：监听审批/问题/附件状态，显隐变化时用 LayoutAnimation 平滑过渡
+  const approvals = useToolStore((s) => s.pendingApprovals)
+  const questionVisible = useQuestionStore((s) => s.visible)
+  const pendingQuestions = useQuestionStore((s) => s.pending)
+  const attachments = useAttachmentStore((s) => s.attachments)
+  const dockVisible = approvals.length > 0 || (questionVisible && pendingQuestions.length > 0) || attachments.length > 0
+  const prevDockVisibleRef = useRef(false)
+
+  React.useLayoutEffect(() => {
+    if (prevDockVisibleRef.current !== dockVisible) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+      prevDockVisibleRef.current = dockVisible
     }
-  }, [messages.length, waiting])
+  }, [dockVisible])
 
   useEffect(() => {
     if (chatSubScreen === 'chat' && !activeSessionId) {
@@ -130,7 +140,9 @@ export const ChatScreen: React.FC = () => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
 
-  // 将 session.messages 返回的消息转换为 ChatMessage 并加入 store（按 messageID 去重）
+  // 将 session.messages 返回的消息转换为 ChatMessage 并加入 store（按 messageID 去重）。
+  // sessionStore 已把 v2 {info, parts} 归一化为 { id, role, content, text, rawContent, time }，
+  // 其中 rawContent 是原始 parts 数组，需 buildPartsFromRaw 映射为 App Part[]。
   const applyLoadedMessages = (msgs: any[]) => {
     msgs.forEach((msg: any) => {
       const msgId = msg.id || undefined
@@ -148,38 +160,6 @@ export const ChatScreen: React.FC = () => {
 
   // 初始加载：取最近 HISTORY_PAGE_SIZE 条（升序），保留 cursor 供上滑加载更早
   const HISTORY_PAGE_SIZE = 50
-
-  // 兜底刷新：拉取最近消息，按 messageID 与 store 现有内容做幂等合并。
-  // 覆盖“事件流丢失/断线期间产生的消息”这类情况，确保页面内容最终与服务端一致。
-  const backfillLatestMessages = async () => {
-    const client = useAuthStore.getState().client
-    if (!activeSessionId || !client) return
-    const res = await useSessionStore.getState().getSessionMessages(
-      activeSessionId, client.call.bind(client),
-      { order: 'desc', limit: HISTORY_PAGE_SIZE },
-    )
-    if (!res) return
-    const list = Array.isArray(res) ? res : (res?.messages ?? [])
-    // desc → 升序，按 created 时序批量合入（applyServerMessages 对未知消息按序插入，
-    // 避免 SSE 断流恢复时漏掉的 user 消息被追加到其 assistant 之后 → 回答跑到问题上面）
-    const asc = [...list].reverse()
-    const mapped: Array<{ role: 'user' | 'assistant'; messageID: string; content: string; timestamp?: number; parts?: Part[] }> = []
-    asc.forEach((msg: any) => {
-      const messageID = msg?.id || msg?.messageID
-      if (!messageID) return
-      const role = msg?.role === 'user' ? 'user' : 'assistant'
-      const created = msg?.time?.created ?? msg?.timestamp
-      const { parts } = buildPartsFromRaw(msg?.rawContent)
-      mapped.push({
-        role,
-        messageID,
-        content: msg?.content || msg?.text || '',
-        timestamp: typeof created === 'number' ? created : undefined,
-        parts: parts.length > 0 ? parts : undefined,
-      })
-    })
-    useChatStore.getState().applyServerMessages(mapped)
-  }
 
   useEffect(() => {
     const client = useAuthStore.getState().client
@@ -203,12 +183,16 @@ export const ChatScreen: React.FC = () => {
         setHasMoreHistory(Boolean(cursor))
       }
     })()
-    // 打开会话后立即合流一次 + 周期兜底刷新（事件驱动为主，轮询仅兜底）
-    backfillLatestMessages()
-    const timer = setInterval(() => {
-      if (!cancelled) backfillLatestMessages()
-    }, 25000)
-    return () => { cancelled = true; clearInterval(timer) }
+    // 打开会话后合流一次：覆盖事件流丢失/断线期间产生的消息（不再用 25s 轮询兜底）
+    ;(async () => {
+      if (cancelled) return
+      try {
+        await useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
+      } catch {
+        // 同步失败静默，保留现有内容
+      }
+    })()
+    return () => { cancelled = true }
   }, [activeSessionId])
 
   // 上滑到顶：用 cursor 加载更早的消息，prepend 到列表前
@@ -247,27 +231,11 @@ export const ChatScreen: React.FC = () => {
   const handleSend = async () => {
     const text = inputText.trim()
     if (!text || !activeSessionId) return
-
-    useChatStore.getState().addMessage({ role: 'user', content: text })
     setInputText('')
-
     const client = useAuthStore.getState().client
     if (!client) return
-
-    useChatStore.getState().setWaiting(true)
-
-    try {
-      await client.call('message.send', {
-        sessionId: activeSessionId,
-        message: text,
-      })
-    } catch (e: unknown) {
-      useChatStore.getState().addMessage({
-        role: 'system',
-        content: `发送失败: ${e instanceof Error ? e.message : String(e) || '未知错误'}`,
-      })
-      useChatStore.getState().setWaiting(false)
-    }
+    // sendMessage 内部已做乐观 addMessage user + waiting + 失败落 system 错误
+    await useChatStore.getState().sendMessage(activeSessionId, text, client.call.bind(client))
   }
 
   const handleNewSession = async () => {
@@ -290,26 +258,21 @@ export const ChatScreen: React.FC = () => {
     const client = useAuthStore.getState().client
     if (!client) return
     setSlashSheetVisible(false)
-    useChatStore.getState().addMessage({ role: 'user', content: command })
-    useChatStore.getState().setWaiting(true)
-    try {
-      await client.call('message.send', {
-        sessionId: activeSessionId,
-        message: command,
-      })
-    } catch (e: unknown) {
-      useChatStore.getState().addMessage({
-        role: 'system',
-        content: `发送失败: ${e instanceof Error ? e.message : String(e) || '未知错误'}`,
-      })
-      useChatStore.getState().setWaiting(false)
-    }
+    await useChatStore.getState().sendMessage(activeSessionId, command, client.call.bind(client))
   }
 
-  const handleRefreshSessions = async () => {
-    const client = useAuthStore.getState().client
-    if (!client) return
-    await fetchSessions(client.call.bind(client))
+  // 用户可见刷新：下拉刷新 / 头部 ↻ → 同步当前会话消息（幂等合入），随后刷新会话列表更新标题栏模型/provider
+  const handleRefresh = async () => {
+    if (!activeSessionId) return
+    setRefreshing(true)
+    try {
+      const client = useAuthStore.getState().client
+      if (!client) return
+      await useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
+      await fetchSessions(client.call.bind(client))
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   const handleSwitchAgent = async (agent: string) => {
@@ -339,6 +302,25 @@ export const ChatScreen: React.FC = () => {
     popChat()
   }
 
+  const handleRevert = useCallback(async (messageID: string, partID?: string) => {
+    const client = useAuthStore.getState().client
+    if (!activeSessionId || !client) return
+    try {
+      await useSessionStore.getState().revertSession(activeSessionId, messageID, partID || '', client.call.bind(client))
+      Alert.alert('Reverted', 'Message changes have been reverted')
+    } catch {
+      Alert.alert('Error', 'Failed to revert message')
+    }
+  }, [activeSessionId])
+
+  const renderMessage = useCallback((item: ChatMessage) => {
+    return <MessageItem item={item} onRevert={handleRevert} />
+  }, [handleRevert])
+
+  const handlePendingScrollDone = useCallback(() => {
+    pendingScrollToEndRef.current = false
+  }, [])
+
   if (!activeSessionId) {
     return (
       <View style={styles.container}>
@@ -363,71 +345,6 @@ export const ChatScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
-    )
-  }
-
-  const handleRevert = async (messageID: string, partID?: string) => {
-    const client = useAuthStore.getState().client
-    if (!activeSessionId || !client) return
-    try {
-      await useSessionStore.getState().revertSession(activeSessionId, messageID, partID || '', client.call.bind(client))
-      Alert.alert('Reverted', 'Message changes have been reverted')
-    } catch {
-      Alert.alert('Error', 'Failed to revert message')
-    }
-  }
-
-  const renderMessage = ({ item }: { item: import('../stores/chatStore').ChatMessage }) => {
-    const isUser = item.role === 'user'
-    const isSystem = item.role === 'system'
-    const isAssistant = item.role === 'assistant'
-    const parts = (item as any).parts as Part[] | undefined
-
-    // 用户消息 → 右对齐气泡
-    // 助手/系统消息 → 无气泡，全宽左对齐（OpenCode Web 样式）
-    return (
-      <View style={isUser ? styles.userBubble : styles.nonUserBlock}>
-        {!isUser && item.agent ? (
-          <Text style={styles.messageMeta}>{item.agent}</Text>
-        ) : null}
-        {isAssistant ? (
-          <>
-            {item.content ? (
-              <MessageWrapperForFallback content={item.content} message={item} onRevert={handleRevert}>
-                <MarkdownRenderer content={item.content} />
-              </MessageWrapperForFallback>
-            ) : null}
-            {parts && parts.length > 0
-              ? parts.map((part) => (
-                  <PartBlock
-                    key={part.id}
-                    part={part}
-                    message={item as unknown as RichMessage}
-                    onRevert={handleRevert}
-                  />
-                ))
-              : null}
-          </>
-        ) : isUser ? (
-          <View accessible accessibilityLabel={item.content}>
-            <Text style={styles.userText}>{item.content}</Text>
-          </View>
-        ) : (
-          <View accessible accessibilityLabel={item.content}>
-            <Text style={styles.systemMessageText}>{item.content}</Text>
-          </View>
-        )}
-        {/* Copy/Revert 通过长按菜单触发，不显示固定按钮 */}
-      </View>
-    )
-  }
-
-  const renderFooter = () => {
-    return (
-      <>
-        {waiting && <ThinkingShimmer />}
-        <ToolProgressCard />
-      </>
     )
   }
 
@@ -462,7 +379,7 @@ export const ChatScreen: React.FC = () => {
             <Text style={styles.headerIcon}>📋</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={handleRefreshSessions}
+            onPress={handleRefresh}
             style={styles.iconButton}
             accessibilityLabel="Refresh"
             hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
@@ -482,46 +399,22 @@ export const ChatScreen: React.FC = () => {
         </View>
       ) : null}
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessage}
-        ListFooterComponent={renderFooter}
-        ListHeaderComponent={hasMoreHistory ? (
+      <MessageList
+        messages={messages}
+        renderMessage={renderMessage}
+        ListHeader={hasMoreHistory ? (
           <View style={{ padding: 12, alignItems: 'center' }}>
             <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{historyLoading ? '加载更早消息...' : '上滑加载更早消息'}</Text>
           </View>
-        ) : null}
-        onScroll={(e) => {
-          const y = e.nativeEvent.contentOffset.y
-          const layoutHeight = e.nativeEvent.layoutMeasurement.height
-          const contentHeight = e.nativeEvent.contentSize.height
-          // 用户是否在底部（距离底部 < 60）：在底部则保持跟随最新；远离底部视为回看历史
-          pinnedToBottomRef.current = contentHeight - (y + layoutHeight) < 60
-          // 接近顶部（最早消息）时加载更早历史
-          if (y < 60 && hasMoreHistory && !historyLoading) {
-            handleLoadMoreHistory()
-          }
-        }}
-        onContentSizeChange={() => {
-          // 每次内容尺寸变化都刷新底部判定；若会话刚打开则强制滚到最新底部一次
-          if (pendingScrollToEndRef.current) {
-            pendingScrollToEndRef.current = false
-            pinnedToBottomRef.current = true
-            requestAnimationFrame(() => {
-              flatListRef.current?.scrollToEnd({ animated: false })
-            })
-          } else if (pinnedToBottomRef.current) {
-            // 停留在底部时新消息/加载更多后仍跟随到底部
-            requestAnimationFrame(() => {
-              flatListRef.current?.scrollToEnd({ animated: false })
-            })
-          }
-        }}
-        scrollEventThrottle={200}
-        contentContainerStyle={styles.messageList}
-        style={styles.messageListContainer}
+        ) : undefined}
+        ListFooter={waiting ? <ThinkingShimmer /> : undefined}
+        hasMoreHistory={hasMoreHistory}
+        historyLoading={historyLoading}
+        onLoadMoreHistory={handleLoadMoreHistory}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        pendingScrollToEnd={pendingScrollToEndRef.current}
+        onPendingScrollDone={handlePendingScrollDone}
       />
 
       {/* Dock 区域：权限审批 / 问题面板 */}
@@ -718,66 +611,6 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.text,
     fontSize: 15,
     fontWeight: '600',
-  },
-  messageListContainer: {
-    flex: 1,
-  },
-  messageList: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  // 用户消息 → 气泡（右对齐）
-  userBubble: {
-    maxWidth: '80%',
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 12,
-    borderBottomRightRadius: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginVertical: 4,
-    alignSelf: 'flex-end',
-  },
-  // 助手/系统消息 → 无气泡（全宽左对齐，OpenCode Web 样式）
-  nonUserBlock: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    marginVertical: 2,
-  },
-  userText: {
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  assistantText: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  systemMessageText: {
-    color: colors.textTertiary,
-    fontSize: 13,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-  messageMeta: {
-    color: colors.textTertiary,
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  waitingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginVertical: 4,
-    marginLeft: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  waitingText: {
-    color: colors.textTertiary,
-    fontSize: 13,
-    marginLeft: 8,
   },
   inputContainer: {
     flexDirection: 'row',
