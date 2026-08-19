@@ -627,10 +627,10 @@ describe('ChatScreen', () => {
       if (method === 'session.messages') {
         return Promise.resolve({
           messages: [
-            // desc 顺序：最新在前（h3=Second Q 最新, h1=First Q 最旧）
-            { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
-            { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+            // bridge 统一输出升序（旧→新）：h1=First Q 最旧, h3=Second Q 最新
             { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
+            { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+            { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
           ],
           cursor: undefined,
         })
@@ -651,7 +651,7 @@ describe('ChatScreen', () => {
     // 底层 client.call 被调用，order: desc
     expect(callMock).toHaveBeenCalledWith('session.messages', expect.objectContaining({ order: 'desc', limit: 50 }))
     const msgs = useChatStore.getState().messages
-    // desc→反转为时间正序
+    // bridge 升序输出，App 直接渲染：最新在底部
     expect(msgs.map((m) => m.content)).toEqual(['First Q', 'First A', 'Second Q'])
   })
 
@@ -716,9 +716,10 @@ describe('ChatScreen', () => {
       if (method === 'session.messages') {
         return Promise.resolve({
           messages: [
-            { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
-            { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
+            // bridge 统一输出升序（旧→新）：h1=Q1 最旧, h3=Q2 最新
             { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
+            { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
+            { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
           ],
           cursor: undefined,
         })
@@ -734,7 +735,7 @@ describe('ChatScreen', () => {
     })
 
     const msgs = useChatStore.getState().messages
-    // desc→反转为时间正序：Q1, A1, Q2（最新在底部）
+    // bridge 升序输出，App 直接渲染：Q1, A1, Q2（最新在底部）
     expect(msgs.map((m) => m.content)).toEqual(['Q1', 'A1', 'Q2'])
     expect(msgs).toHaveLength(3)
   })
