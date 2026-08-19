@@ -84,7 +84,8 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   useEffect(() => {
     const last = messages.length > 0 ? messages[messages.length - 1] : undefined
     const prevLast = prevLastRef.current
-    if (computeFollow(
+    // prepend 补偿已由 handleContentSizeChange 处理，不再 scrollToEnd（避免抖动）
+    if (!prependFlagRef.current && computeFollow(
       pinnedToBottomRef.current,
       prevLast?.id ?? '',
       prevLast?.content ?? '',
