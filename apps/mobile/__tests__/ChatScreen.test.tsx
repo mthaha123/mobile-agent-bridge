@@ -627,9 +627,10 @@ describe('ChatScreen', () => {
       if (method === 'session.messages') {
         return Promise.resolve({
           messages: [
-            { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
-            { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+            // desc 顺序：最新在前（h3=Second Q 最新, h1=First Q 最旧）
             { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
+            { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+            { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
           ],
           cursor: undefined,
         })
@@ -733,8 +734,8 @@ describe('ChatScreen', () => {
     })
 
     const msgs = useChatStore.getState().messages
-    // desc 顺序插入（无 reverse），最新消息在前
-    expect(msgs.map((m) => m.content)).toEqual(['Q2', 'A1', 'Q1'])
+    // desc→反转为时间正序：Q1, A1, Q2（最新在底部）
+    expect(msgs.map((m) => m.content)).toEqual(['Q1', 'A1', 'Q2'])
     expect(msgs).toHaveLength(3)
   })
 

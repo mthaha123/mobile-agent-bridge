@@ -179,7 +179,8 @@ export const ChatScreen: React.FC = () => {
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       if (!cancelled) {
-        applyLoadedMessages(list)
+        // desc→反转为时间正序（oldest first, newest last）：FlatList 渲染时最新在底部
+        applyLoadedMessages([...list].reverse())
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
       }
