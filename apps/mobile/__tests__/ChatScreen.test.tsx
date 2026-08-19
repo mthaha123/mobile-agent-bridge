@@ -621,18 +621,22 @@ describe('ChatScreen', () => {
 
   // ─── 历史消息全量加载（选择已有会话） ──────────────────────
 
-  it('loads full history via getSessionMessages when session becomes active (order asc)', async () => {
-    const getSessionMessages = jest.fn().mockResolvedValue({
-      messages: [
-        { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
-        { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
-        { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
-      ],
-      cursor: undefined,
+  it('loads full history via getSessionMessages when session becomes active (order desc)', async () => {
+    // 不替换 getSessionMessages，改 mock client.call（getSessionMessages 底层调用它）
+    const callMock = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') {
+        return Promise.resolve({
+          messages: [
+            { id: 'h1', role: 'user', content: 'First Q', text: 'First Q', rawContent: 'First Q' },
+            { id: 'h2', role: 'assistant', content: 'First A', text: 'First A', rawContent: 'First A' },
+            { id: 'h3', role: 'user', content: 'Second Q', text: 'Second Q', rawContent: 'Second Q' },
+          ],
+          cursor: undefined,
+        })
+      }
+      return Promise.resolve({})
     })
-    useSessionStore.getState().getSessionMessages = getSessionMessages as any
-
-    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    const client = { call: callMock, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
 
@@ -643,20 +647,27 @@ describe('ChatScreen', () => {
       )
     })
 
-    expect(getSessionMessages).toHaveBeenCalledWith('s1', expect.anything(), { order: 'asc', limit: 50 })
+    // 底层 client.call 被调用，order: desc
+    expect(callMock).toHaveBeenCalledWith('session.messages', expect.objectContaining({ order: 'desc', limit: 50 }))
     const msgs = useChatStore.getState().messages
+    // desc→反转为时间正序
     expect(msgs.map((m) => m.content)).toEqual(['First Q', 'First A', 'Second Q'])
   })
 
   it('dedupes history messages by messageID when re-loaded', async () => {
-    const history = [
-      { id: 'h1', role: 'user', content: 'Q', text: 'Q', rawContent: 'Q' },
-      { id: 'h2', role: 'assistant', content: 'A', text: 'A', rawContent: 'A' },
-    ]
-    const getSessionMessages = jest.fn().mockResolvedValue({ messages: history, cursor: undefined })
-    useSessionStore.getState().getSessionMessages = getSessionMessages as any
-
-    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    const callMock = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') {
+        return Promise.resolve({
+          messages: [
+            { id: 'h1', role: 'user', content: 'Q', text: 'Q', rawContent: 'Q' },
+            { id: 'h2', role: 'assistant', content: 'A', text: 'A', rawContent: 'A' },
+          ],
+          cursor: undefined,
+        })
+      }
+      return Promise.resolve({})
+    })
+    const client = { call: callMock, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
 
@@ -673,15 +684,19 @@ describe('ChatScreen', () => {
   })
 
   it('renders full history in chronological order (user first)', async () => {
-    const getSessionMessages = jest.fn().mockResolvedValue({
-      messages: [
-        { id: 'h1', role: 'user', content: 'Oldest Q', text: 'Oldest Q', rawContent: 'Oldest Q' },
-        { id: 'h2', role: 'assistant', content: 'Latest A', text: 'Latest A', rawContent: 'Latest A' },
-      ],
-      cursor: undefined,
+    const callMock = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') {
+        return Promise.resolve({
+          messages: [
+            { id: 'h1', role: 'user', content: 'Oldest Q', text: 'Oldest Q', rawContent: 'Oldest Q' },
+            { id: 'h2', role: 'assistant', content: 'Latest A', text: 'Latest A', rawContent: 'Latest A' },
+          ],
+          cursor: undefined,
+        })
+      }
+      return Promise.resolve({})
     })
-    useSessionStore.getState().getSessionMessages = getSessionMessages as any
-    const client = { call: jest.fn(), on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    const client = { call: callMock, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
 
@@ -691,36 +706,25 @@ describe('ChatScreen', () => {
     })
 
     const text = textOf(tree!)
-    // user 消息在前（chronological），且都渲染了
     expect(text).toContain('Oldest Q')
     expect(text).toContain('Latest A')
   })
 
-  it('merges a newer message via syncSessionMessages once after the initial snapshot', async () => {
-    const mockCall = jest.fn().mockImplementation((method, params) => {
-      if (method !== 'session.messages') return Promise.resolve({})
-      // 初始 asc 快照：只有 h1/h2
-      if (params?.order === 'asc') {
+  it('loads latest messages via desc order on session open', async () => {
+    const callMock = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') {
         return Promise.resolve({
           messages: [
-            { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
+            { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
             { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
+            { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
           ],
           cursor: undefined,
         })
       }
-      // 打开会话时的一次 syncSessionMessages（desc）：已经多了一条 h3
-      // （事件流丢失窗口内产生的新消息，旧实现靠 25s 轮询补，现在打开即合流一次）
-      return Promise.resolve({
-        messages: [
-          { id: 'h3', role: 'user', content: 'Q2', text: 'Q2', rawContent: 'Q2' },
-          { id: 'h2', role: 'assistant', content: 'A1', text: 'A1', rawContent: 'A1' },
-          { id: 'h1', role: 'user', content: 'Q1', text: 'Q1', rawContent: 'Q1' },
-        ],
-        cursor: undefined,
-      })
+      return Promise.resolve({})
     })
-    const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    const client = { call: callMock, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
     useChatStore.setState({ activeSessionId: 's1' })
 
@@ -729,8 +733,8 @@ describe('ChatScreen', () => {
     })
 
     const msgs = useChatStore.getState().messages
-    // h3 合流进来且 h1/h2 不去重失败
-    expect(msgs.map((m) => m.content)).toContain('Q2')
+    // desc 顺序插入（无 reverse），最新消息在前
+    expect(msgs.map((m) => m.content)).toEqual(['Q2', 'A1', 'Q1'])
     expect(msgs).toHaveLength(3)
   })
 

@@ -158,7 +158,7 @@ export const ChatScreen: React.FC = () => {
     })
   }
 
-  // 初始加载：取最近 HISTORY_PAGE_SIZE 条（升序），保留 cursor 供上滑加载更早
+  // 初始加载：取最近 HISTORY_PAGE_SIZE 条（降序=最新优先），保留 cursor 供上滑加载更早
   const HISTORY_PAGE_SIZE = 50
 
   useEffect(() => {
@@ -170,26 +170,18 @@ export const ChatScreen: React.FC = () => {
     setHistoryCursor(undefined)
     setHasMoreHistory(false)
     ;(async () => {
+      // desc=最新优先：用户打开会话立即看到最新内容；cursor 指向更早消息供上滑加载
       const res = await useSessionStore.getState().getSessionMessages(
         activeSessionId, client.call.bind(client),
-        { order: 'asc', limit: HISTORY_PAGE_SIZE },
+        { order: 'desc', limit: HISTORY_PAGE_SIZE },
       )
       if (cancelled || !res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       if (!cancelled) {
-        applyLoadedMessages(list) // asc 顺序即时间正序，直接追加（addMessage 去重）
+        applyLoadedMessages(list)
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
-      }
-    })()
-    // 打开会话后合流一次：覆盖事件流丢失/断线期间产生的消息（不再用 25s 轮询兜底）
-    ;(async () => {
-      if (cancelled) return
-      try {
-        await useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
-      } catch {
-        // 同步失败静默，保留现有内容
       }
     })()
     return () => { cancelled = true }
@@ -201,9 +193,10 @@ export const ChatScreen: React.FC = () => {
     if (!activeSessionId || !client || !historyCursor || historyLoading) return
     setHistoryLoading(true)
     try {
+      // desc + cursor：cursor 指向当前最早消息之前，继续取更早的
       const res = await useSessionStore.getState().getSessionMessages(
         activeSessionId, client.call.bind(client),
-        { order: 'asc', limit: HISTORY_PAGE_SIZE, cursor: historyCursor },
+        { order: 'desc', limit: HISTORY_PAGE_SIZE, cursor: historyCursor },
       )
       if (!res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
