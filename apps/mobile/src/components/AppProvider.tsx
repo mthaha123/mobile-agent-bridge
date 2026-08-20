@@ -141,13 +141,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     })
 
-    // 重连 → 重同步当前会话（替代旧 25s backfill 轮询）
-    client.on('connected', () => {
-      const { activeSessionId } = useChatStore.getState()
-      if (activeSessionId && client.connected) {
-        useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
-      }
-    })
+    // 重连后不自动 sync（初始加载由 ChatScreen useEffect 负责，避免双路径重复加载导致消息重复）
+    // 用户可在 ChatScreen 下拉刷新手动同步
 
     client.on('auth_expired', () => {
       useAuthStore.getState().logout()

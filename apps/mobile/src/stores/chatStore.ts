@@ -835,8 +835,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   syncSessionMessages: async (sessionId, clientCall) => {
     const result = await clientCall('session.messages', { sessionId, order: 'desc', limit: 50 })
     const list = Array.isArray(result) ? result : ((result as any)?.messages ?? [])
-    const asc = [...list].reverse()
-    get().applyLoadedMessages(asc as any)
+    // bridge 已统一输出升序（旧→新），无需 reverse（避免颠倒成降序产生重复）
+    get().applyLoadedMessages(list as any)
   },
 
   // ── 兼容 shim：转发到新逻辑 ──

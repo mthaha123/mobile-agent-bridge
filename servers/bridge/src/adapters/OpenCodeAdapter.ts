@@ -116,8 +116,7 @@ export class OpenCodeBackend {
     const v2 = await this.httpGetJson(`${base}/api/session/${encodeURIComponent(sessionID)}/message`, opts)
     const v2Data = (v2 as any)?.data
     const v2Messages: unknown[] = Array.isArray(v2Data) ? v2Data : []
-    // v2 默认降序（最新在前），统一输出升序（旧→新）供 App 直接渲染
-    const v2Asc = opts?.order === 'asc' ? v2Messages : [...v2Messages].reverse()
+    const v2Asc = v2Messages
 
     // v1 路由：裸数组（已升序）+ header 分页
     const v1Opts: { limit?: number; order?: 'asc' | 'desc'; before?: string } = {
@@ -136,8 +135,9 @@ export class OpenCodeBackend {
       if (m) cursor = decodeURIComponent(m[1])
     }
 
+    // 透传底层结果（不 reverse），用于确认底层 API 真实顺序
+    const v1Asc = (Array.isArray(v1Arr) ? v1Arr : [])
     // 取消息数更多的一侧：v1 完整，v2 可能是残缺投影
-    const v1Asc = Array.isArray(v1Arr) ? v1Arr : []
     if (v1Asc.length > v2Asc.length) {
       return { messages: v1Asc, cursor }
     }
