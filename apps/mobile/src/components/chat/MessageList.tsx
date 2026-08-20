@@ -67,6 +67,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   const lastOffsetYRef = useRef(0)
   const prevFirstIdRef = useRef<string | undefined>(undefined)
   const initializedRef = useRef(false)
+  const sizeChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const runFrame = useCallback((cb: () => void) => {
     const id = scheduleFrame(cb)
@@ -84,6 +85,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
     return () => {
       frameIdsRef.current.forEach(cancelFrame)
       frameIdsRef.current = []
+      if (sizeChangeTimerRef.current) clearTimeout(sizeChangeTimerRef.current)
     }
   }, [])
 
@@ -135,9 +137,6 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
     followEndRef.current = false
   }, [])
 
-  // 用户松手 / 惯性停止 → 计算数学差值更新跟随意图。
-  // - 松手（endDragged）：真实手势必更新（覆盖缓拖即停场景），不复位 userTouch（惯性可能未结束）
-  // - 惯性停止（momentumEnd）：真实用户惯性结束 → 更新并复位；程序滚动触发 → 消费标志并跳过
   const handleUserScrollEnd = useCallback((e: any) => {
     if (programmaticScrollRef.current) {
       programmaticScrollRef.current = false
@@ -150,21 +149,26 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   }, [])
 
   // 内容尺寸变化——按场景分离处理（替代 maintainVisibleContentPosition，避免与 scrollToEnd 死循环拉扯）：
-  // 1. 跟随意图在底部（follow=true）：scrollToEnd 持续跟随，虚拟化补渲染的 contentSize 多步增长逐步收敛到绝对底部
+  // 1. 跟随意图在底部（follow=true）：debounce 后 scrollToEnd，避免虚拟化逐项渲染 contentSize 多步增长导致的跳动
   // 2. 已有列表上 prepend 更早历史（首条消息 id 变化，follow=false）：offset 补偿保持视口
   // 3. 其余（流式增量/用户浏览中）：不干预
   const handleContentSizeChange = useCallback((_w: number, h: number) => {
     const prevH = prevContentHeightRef.current
-    prevContentHeightRef.current = h
+    const diff = h - prevH
     const firstId = messages.length > 0 ? messages[0].id : undefined
     const isPrepend = initializedRef.current && prevFirstIdRef.current !== firstId
+    prevContentHeightRef.current = h
     prevFirstIdRef.current = firstId
     if (!initializedRef.current) {
       initializedRef.current = true
       return
     }
     if (followEndRef.current) {
-      scrollToEndProgrammatic()
+      if (sizeChangeTimerRef.current) clearTimeout(sizeChangeTimerRef.current)
+      sizeChangeTimerRef.current = setTimeout(() => {
+        sizeChangeTimerRef.current = null
+        scrollToEndProgrammatic()
+      }, 80)
       return
     }
     if (isPrepend && h > prevH) {
