@@ -85,13 +85,17 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
     prevLastRef.current = last ?? null
   }, [messages, runFrame])
 
-  // 新会话首帧强制到底
+  // 新会话首帧强制到底：多次 requestAnimationFrame 确保 FlatList 完成布局
   useEffect(() => {
     if (!pendingScrollToEnd) return
+    // 第一帧：设置 pinned 状态
     runFrame(() => {
       pinnedToBottomRef.current = true
-      flatListRef.current?.scrollToEnd({ animated: false })
-      onPendingScrollDone()
+      // 第二帧：等待布局完成后再 scrollToEnd
+      runFrame(() => {
+        flatListRef.current?.scrollToEnd({ animated: false })
+        onPendingScrollDone()
+      })
     })
   }, [pendingScrollToEnd, onPendingScrollDone, runFrame])
 
