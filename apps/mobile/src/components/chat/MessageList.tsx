@@ -29,9 +29,11 @@ function cancelFrame(id: number): void {
 }
 
 /**
- * 数据驱动滚动列表（标准方案）：
- * - maintainVisibleContentPosition：顶部插入历史时自动保持视口
- * - pinnedToBottomRef + scrollToEnd：流式追加/新消息时跟随到底部
+ * 数据驱动滚动列表：
+ * - followEndRef + onContentSizeChange→scrollToEnd：进入会话/流式时持续跟随绝对底部
+ *   （不用 maintainVisibleContentPosition——它与 scrollToEnd 死循环拉扯，是抖动与"停不到底"的根因）
+ * - followEndRef 仅在用户松手/惯性结束时计算，程序滚动不污染跟随意图
+ * - prepend 历史时（用户上滑加载，follow=false）用 offset 差值补偿保持视口
  * - 上滑到顶/onEndReached 加载更早历史
  * - pendingScrollToEnd 首帧强制到底
  * - 下拉刷新（FlatList refreshing/onRefresh）
@@ -52,17 +54,30 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   } = props
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null)
-  const pinnedToBottomRef = useRef(true)
+  // 跟随到底意图：仅在用户交互结束（松手/惯性停止）时由数学差值计算；
+  // 程序滚动（scrollToEnd）与内容变化（onContentSizeChange 先于 onScroll 的时序）不得污染它，
+  // 否则虚拟化补渲染导致 contentSize 增大时 pinned 被误判为 false，无法钉在绝对底部。
+  const followEndRef = useRef(true)
+  const userTouchRef = useRef(false)
+  const programmaticScrollRef = useRef(false)
   const prevLastRef = useRef<ChatMessage | null>(null)
   const frameIdsRef = useRef<number[]>([])
-  const prevContentHeightRef = useRef<number>(0)
-  const lastOffsetYRef = useRef<number>(0)
-  const firstMsgIdRef = useRef<string | undefined>(undefined)
+  // prepend 视口保持：记录上次内容高度、上次滚动偏移、上次首条消息 id（判断 prepend）
+  const prevContentHeightRef = useRef(0)
+  const lastOffsetYRef = useRef(0)
+  const prevFirstIdRef = useRef<string | undefined>(undefined)
+  const initializedRef = useRef(false)
 
   const runFrame = useCallback((cb: () => void) => {
     const id = scheduleFrame(cb)
     frameIdsRef.current.push(id)
     return id
+  }, [])
+
+  // 程序滚动统一入口：打标志，让随后（Android 上 scrollTo 会触发的）onMomentumScrollEnd 被识别为程序行为
+  const scrollToEndProgrammatic = useCallback(() => {
+    programmaticScrollRef.current = true
+    flatListRef.current?.scrollToEnd({ animated: false })
   }, [])
 
   useEffect(() => {
@@ -72,70 +87,93 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
     }
   }, [])
 
-  // 末尾跟随：pinned 时末尾消息 id/content 变化 → scrollToEnd
-  // 仅当用户真正钉在底部（pinnedToBottom=true）时才跟随，避免在用户上滑浏览时被强制跳回底部造成抖动
+  // 末尾跟随：用户在底部（followEnd）时末尾消息 id/content 变化 → scrollToEnd
   useEffect(() => {
     const last = messages.length > 0 ? messages[messages.length - 1] : undefined
     const prevLast = prevLastRef.current
     if (
-      pinnedToBottomRef.current &&
+      followEndRef.current &&
       prevLast &&
       (prevLast.id !== last?.id || prevLast.content !== last?.content)
     ) {
       runFrame(() => {
-        // 帧回调中再确认一次 pinned，避免用户在该帧内开始上滑浏览时被强制跳回底部
-        if (pinnedToBottomRef.current) {
-          flatListRef.current?.scrollToEnd({ animated: false })
+        if (followEndRef.current) {
+          scrollToEndProgrammatic()
         }
       })
     }
     prevLastRef.current = last ?? null
-  }, [messages, runFrame])
+  }, [messages, runFrame, scrollToEndProgrammatic])
 
-  // 新会话首帧强制到底：多次 requestAnimationFrame 确保 FlatList 完成布局
+  // 新会话首帧强制到底：置跟随意图后等待布局（双 rAF）再 scrollToEnd；
+  // 剩余的虚拟化补渲染由 onContentSizeChange 持续跟随兜底
   useEffect(() => {
     if (!pendingScrollToEnd) return
-    // 第一帧：设置 pinned 状态
+    followEndRef.current = true
     runFrame(() => {
-      pinnedToBottomRef.current = true
-      // 第二帧：等待布局完成后再 scrollToEnd
       runFrame(() => {
-        flatListRef.current?.scrollToEnd({ animated: false })
+        scrollToEndProgrammatic()
         onPendingScrollDone()
       })
     })
-  }, [pendingScrollToEnd, onPendingScrollDone, runFrame])
+  }, [pendingScrollToEnd, onPendingScrollDone, runFrame, scrollToEndProgrammatic])
 
   const maybeLoadMoreHistory = useCallback(() => {
     if (hasMoreHistory && !historyLoading) onLoadMoreHistory()
   }, [hasMoreHistory, historyLoading, onLoadMoreHistory])
 
+  // onScroll 仅负责"到顶加载历史"与记录偏移；不在此计算跟随意图（时序敏感，见 followEndRef 注释）
   const handleScroll = useCallback((e: any) => {
-    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent
-    const y = contentOffset.y
+    const y = e.nativeEvent.contentOffset.y
     lastOffsetYRef.current = y
-    pinnedToBottomRef.current = contentSize.height - (y + layoutMeasurement.height) < 60
     if (y < 60) maybeLoadMoreHistory()
   }, [maybeLoadMoreHistory])
 
-  // prepend（加载更早历史）偏移补偿：仅在"第一条消息 id 变化（顶部插入了新历史）"且高度增加时
-  // 保持当前视口，避免列表在上滑加载历史时跳动。末尾追加 / 中间消息高度变化不补偿（不扰动用户位置）。
+  // 用户交互识别：onScrollBeginDrag 仅由真实用户拖拽触发（程序 scrollToEnd 不触发）
+  const handleScrollBeginDrag = useCallback(() => {
+    userTouchRef.current = true
+    followEndRef.current = false
+  }, [])
+
+  // 用户松手 / 惯性停止 → 计算数学差值更新跟随意图。
+  // - 松手（endDragged）：真实手势必更新（覆盖缓拖即停场景），不复位 userTouch（惯性可能未结束）
+  // - 惯性停止（momentumEnd）：真实用户惯性结束 → 更新并复位；程序滚动触发 → 消费标志并跳过
+  const handleUserScrollEnd = useCallback((e: any) => {
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false
+      return
+    }
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent
+    const diff = contentSize.height - (contentOffset.y + layoutMeasurement.height)
+    followEndRef.current = diff < 80
+    userTouchRef.current = false
+  }, [])
+
+  // 内容尺寸变化——按场景分离处理（替代 maintainVisibleContentPosition，避免与 scrollToEnd 死循环拉扯）：
+  // 1. 跟随意图在底部（follow=true）：scrollToEnd 持续跟随，虚拟化补渲染的 contentSize 多步增长逐步收敛到绝对底部
+  // 2. 已有列表上 prepend 更早历史（首条消息 id 变化，follow=false）：offset 补偿保持视口
+  // 3. 其余（流式增量/用户浏览中）：不干预
   const handleContentSizeChange = useCallback((_w: number, h: number) => {
-    const prev = prevContentHeightRef.current
+    const prevH = prevContentHeightRef.current
     prevContentHeightRef.current = h
-    if (prev <= 0) return
-    // 只对"首条消息变化（prepend）"做补偿：新历史插入顶部，视口下移 diff 要保持用户所见内容不动
-    const firstMsg = messages.length > 0 ? messages[0].id : undefined
-    const firstChanged = firstMsgIdRef.current !== firstMsg
-    if (!firstChanged) return
-    firstMsgIdRef.current = firstMsg
-    const diff = h - prev
-    if (diff <= 0) return
-    // 已在底部（pinned）时不补偿，交由末尾跟随 / pendingScrollToEnd 处理
-    if (pinnedToBottomRef.current) return
-    const newOffset = lastOffsetYRef.current + diff
-    flatListRef.current?.scrollToOffset({ offset: newOffset, animated: false })
-  }, [messages])
+    const firstId = messages.length > 0 ? messages[0].id : undefined
+    const isPrepend = initializedRef.current && prevFirstIdRef.current !== firstId
+    prevFirstIdRef.current = firstId
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      return
+    }
+    if (followEndRef.current) {
+      scrollToEndProgrammatic()
+      return
+    }
+    if (isPrepend && h > prevH) {
+      flatListRef.current?.scrollToOffset({
+        offset: lastOffsetYRef.current + (h - prevH),
+        animated: false,
+      })
+    }
+  }, [messages, scrollToEndProgrammatic])
 
   return (
     <FlatList
@@ -147,6 +185,9 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
       ListFooterComponent={ListFooter}
       onScroll={handleScroll}
       scrollEventThrottle={16}
+      onScrollEndDragged={handleUserScrollEnd}
+      onMomentumScrollEnd={handleUserScrollEnd}
+      onScrollBeginDrag={handleScrollBeginDrag}
       onContentSizeChange={handleContentSizeChange}
       onEndReached={maybeLoadMoreHistory}
       onEndReachedThreshold={0.2}
