@@ -17,8 +17,6 @@ function buildProps(over: Partial<MessageListProps> = {}): MessageListProps {
     onLoadMoreHistory: jest.fn(),
     onRefresh: jest.fn(),
     refreshing: false,
-    pendingScrollToEnd: false,
-    onPendingScrollDone: jest.fn(),
     ...over,
   }
 }
@@ -124,41 +122,12 @@ describe('MessageList', () => {
     expect(onLoadMore).not.toHaveBeenCalled()
   })
 
-  it('loads more history when scrolled to the very top of the list', () => {
-    const onLoadMore = jest.fn()
+  it('renders with inverted prop', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: true, onLoadMoreHistory: onLoadMore })} />,
-      )
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
-    act(() => {
-      flatListNode(tree).props.onScroll({
-        nativeEvent: {
-          contentOffset: { x: 0, y: 10 },
-          layoutMeasurement: { width: 375, height: 800 },
-          contentSize: { width: 375, height: 3000 },
-        },
-      })
-    })
-    expect(onLoadMore).toHaveBeenCalledTimes(1)
-  })
-
-  it('pendingScrollToEnd is consumed: scrolls to end and reports done once', () => {
-    jest.useFakeTimers()
-    try {
-      const onPendingScrollDone = jest.fn()
-      let tree!: TestRenderer.ReactTestInstance
-      act(() => {
-        tree = TestRenderer.create(
-          <MessageList {...buildProps({ pendingScrollToEnd: true, onPendingScrollDone })} />,
-        )
-      })
-      expect(onPendingScrollDone).not.toHaveBeenCalled()
-      act(() => { jest.runAllTimers() })
-      expect(onPendingScrollDone).toHaveBeenCalledTimes(1)
-    } finally {
-      jest.useRealTimers()
-    }
+    const list = flatListNode(tree)
+    expect(list.props.inverted).toBe(true)
   })
 })

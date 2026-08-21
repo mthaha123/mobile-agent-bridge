@@ -113,9 +113,6 @@ export const ChatScreen: React.FC = () => {
   const chatSubScreen = useUiStore((s) => s.chatSubScreen)
 
   const inputRef = useRef<TextInput>(null)
-  // 新会话打开后置位：MessageList 收到 true 时强制滚到底部并回调 onPendingScrollDone
-  // 使用 useState 而非 useRef，确保变化能触发 MessageList 重新渲染
-  const [pendingScrollToEnd, setPendingScrollToEnd] = useState(false)
 
   // Dock 区域显隐动画：监听审批/问题/附件状态，显隐变化时用 LayoutAnimation 平滑过渡
   const approvals = useToolStore((s) => s.pendingApprovals)
@@ -182,8 +179,7 @@ export const ChatScreen: React.FC = () => {
         applyLoadedMessages(list)
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
-        // 消息加载完成后才触发滚动到底部（必须在消息渲染之后）
-        setPendingScrollToEnd(true)
+
       }
     })()
     return () => { cancelled = true }
@@ -312,9 +308,6 @@ export const ChatScreen: React.FC = () => {
     return <MessageItem item={item} onRevert={handleRevert} />
   }, [handleRevert])
 
-  const handlePendingScrollDone = useCallback(() => {
-    setPendingScrollToEnd(false)
-  }, [])
 
   if (!activeSessionId) {
     return (
@@ -408,8 +401,6 @@ export const ChatScreen: React.FC = () => {
         onLoadMoreHistory={handleLoadMoreHistory}
         onRefresh={handleRefresh}
         refreshing={refreshing}
-        pendingScrollToEnd={pendingScrollToEnd}
-        onPendingScrollDone={handlePendingScrollDone}
       />
 
       {/* Dock 区域：权限审批 / 问题面板 */}
