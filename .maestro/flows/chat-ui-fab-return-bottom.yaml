@@ -1,0 +1,62 @@
+appId: com.mobileagentbridge
+---
+# 决定性验证：点击回底按钮后是否真的回到贴底
+# 会话: ses_feacf6f76ffe2ytzjn8gT2tgM9 (104条, 静止, 锚点=最后一条消息文本)
+- launchApp
+
+- tapOn: "ws://.*"
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 滚动会话列表找到目标并打开
+- scrollUntilVisible:
+    element:
+      text: "Implement Task 10.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    text: "Implement Task 10.*"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 20000
+
+# ====== 初始贴底锚点：最后一条消息文本可见 ======
+- assertVisible:
+    text: "All green.*"
+
+# ====== 上滑离开底部（>200px 触发 FAB）======
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 85%"
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 85%"
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 85%"
+
+# FAB 出现 = 已离开底部
+- assertVisible: "Scroll to latest"
+
+# 点击回底
+- tapOn: "Scroll to latest"
+
+# 等待动画完成、FAB 消失（offset 回到 <200）
+- extendedWaitUntil:
+    notVisible: "Scroll to latest"
+    timeout: 10000
+
+# ====== 决定性双断言：真正回到贴底 ======
+# 1) 最后一条消息文本重新可见
+- assertVisible:
+    text: "All green.*"
+# 2) 视觉顶部的"上滑加载更早"提示不可见（offset≈0 时它必然不在视口）
+- assertNotVisible: "上滑加载更早消息"
