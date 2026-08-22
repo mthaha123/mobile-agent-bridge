@@ -30,5 +30,13 @@ appId: com.mobileagentbridge
     visible: "hi"
     timeout: 15000
 
+# 等待流式回复完成（停止按钮消失 = idle）；若出现错误横幅则失败可见
+- extendedWaitUntil:
+    notVisible: "■"
+    timeout: 120000
+
+# 无供应商错误横幅
+- assertNotVisible: "Provider request failed"
+
 # 日期分隔符可见（展示层插入正确）
 - assertVisible: "今天"

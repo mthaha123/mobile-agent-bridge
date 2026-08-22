@@ -1,0 +1,57 @@
+appId: com.mobileagentbridge
+---
+# 聊天 UI 标准化补验：历史分页加载 + FAB 回底 + 跨天分隔符
+# 目标会话 ses_fdb54c9e（395 条消息，本项目目录）
+- launchApp
+
+# 连接
+- tapOn: "ws://.*"
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 打开本项目目录下的大历史会话（395 条消息，跨天）
+- tapOn: "客户端会话功能标准实现方案"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 20000
+
+# 校验点1: 最新分页已加载（列表贴底，出现"今天"或"昨天"分隔符）
+- extendedWaitUntil:
+    visible: "昨天"
+    timeout: 15000
+    optional: true
+
+# 校验点2: FAB 未出现（在底部）
+- assertNotVisible: "Scroll to latest"
+
+# 上滑离开底部（滚动到更早消息，触发 onEndReached 分页加载）
+- scrollUntilVisible:
+    element:
+      text: "上滑加载更早消息"
+    direction: UP
+    timeout: 30000
+    optional: true
+
+# 校验点3: FAB 出现（离开底部 >200px）
+- extendedWaitUntil:
+    visible: "Scroll to latest"
+    timeout: 10000
+
+# 校验点4: 点击 FAB 回到底部
+- tapOn: "Scroll to latest"
+
+# 返回到底部后 FAB 应消失（offset 回到 <200）
+- extendedWaitUntil:
+    notVisible: "Scroll to latest"
+    timeout: 10000
+
+# 校验点5: 回底后仍停留在 ChatScreen（header 锚点）
+- assertVisible: "< Sessions"
