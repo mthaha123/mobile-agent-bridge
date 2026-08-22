@@ -95,7 +95,6 @@ export const ChatScreen: React.FC = () => {
   const [historyCursor, setHistoryCursor] = useState<string | undefined>()
   const [historyLoading, setHistoryLoading] = useState(false)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
   const inputText = useChatStore((s) => s.inputText)
@@ -252,17 +251,16 @@ export const ChatScreen: React.FC = () => {
     await useChatStore.getState().sendMessage(activeSessionId, command, client.call.bind(client))
   }
 
-  // 用户可见刷新：下拉刷新 / 头部 ↻ → 同步当前会话消息（幂等合入），随后刷新会话列表更新标题栏模型/provider
+  // 用户可见刷新：头部 ↻ → 同步当前会话消息（幂等合入），随后刷新会话列表更新标题栏模型/provider
   const handleRefresh = async () => {
     if (!activeSessionId) return
-    setRefreshing(true)
     try {
       const client = useAuthStore.getState().client
       if (!client) return
       await useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
       await fetchSessions(client.call.bind(client))
-    } finally {
-      setRefreshing(false)
+    } catch {
+      // 刷新失败静默，保留现有状态
     }
   }
 
@@ -390,17 +388,15 @@ export const ChatScreen: React.FC = () => {
       <MessageList
         messages={messages}
         renderMessage={renderMessage}
-        ListHeader={hasMoreHistory ? (
+        thinkingIndicator={waiting ? <ThinkingShimmer /> : undefined}
+        historyHint={hasMoreHistory ? (
           <View style={{ padding: 12, alignItems: 'center' }}>
             <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{historyLoading ? '加载更早消息...' : '上滑加载更早消息'}</Text>
           </View>
         ) : undefined}
-        ListFooter={waiting ? <ThinkingShimmer /> : undefined}
         hasMoreHistory={hasMoreHistory}
         historyLoading={historyLoading}
         onLoadMoreHistory={handleLoadMoreHistory}
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
       />
 
       {/* Dock 区域：权限审批 / 问题面板 */}

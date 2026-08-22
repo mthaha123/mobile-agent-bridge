@@ -4,19 +4,22 @@ import { Text } from 'react-native'
 import { MessageList, MessageListProps } from '../src/components/chat/MessageList'
 import type { ChatMessage } from '../src/stores/chatStore'
 
-function msg(id: string, content: string, role: ChatMessage['role'] = 'assistant'): ChatMessage {
-  return { id, role, content, timestamp: 0, status: 'complete', parts: [] }
+const NOW = Date.now()
+const DAY = 24 * 60 * 60 * 1000
+
+let seq = 0
+function msg(content: string, created: number, role: ChatMessage['role'] = 'assistant'): ChatMessage {
+  seq += 1
+  return { id: `m${seq}`, role, content, timestamp: created, status: 'complete', parts: [], created }
 }
 
 function buildProps(over: Partial<MessageListProps> = {}): MessageListProps {
   return {
-    messages: [msg('m1', 'Hello'), msg('m2', 'World')],
+    messages: [],
     renderMessage: (item) => <Text key={item.id}>{item.content}</Text>,
     hasMoreHistory: false,
     historyLoading: false,
     onLoadMoreHistory: jest.fn(),
-    onRefresh: jest.fn(),
-    refreshing: false,
     ...over,
   }
 }
@@ -36,54 +39,105 @@ function textOf(tree: TestRenderer.ReactTestInstance): string {
   return s
 }
 
+/** mock FlatList 不转发 data prop，改用渲染出的 FlatList-Item 顺序验证展示序 */
+function itemTexts(tree: TestRenderer.ReactTestInstance): string[] {
+  const collect = (node: any): string => {
+    let s = ''
+    if (!node) return s
+    if (typeof node === 'string') return node
+    if (node.children) node.children.forEach((c: any) => { s += collect(c) })
+    return s
+  }
+  return tree.root
+    .findAll((n: any) => n.type === 'FlatList-Item')
+    .map(collect)
+}
+
 describe('MessageList', () => {
-  it('renders every message via renderMessage and displays their content', () => {
-    const renderMessage = jest.fn((item: ChatMessage) => <Text key={item.id}>{item.content}</Text>)
+  it('display data is newest-first (index 0 = newest message)', () => {
+    const a = msg('older', NOW - DAY)
+    const b = msg('newer', NOW - 1000)
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(<MessageList {...buildProps({ renderMessage })} />)
+      tree = TestRenderer.create(<MessageList {...buildProps({ messages: [a, b] })} />)
     })
-    expect(renderMessage).toHaveBeenCalledTimes(2)
-    expect(renderMessage.mock.calls[0][0].id).toBe('m1')
-    expect(renderMessage.mock.calls[1][0].id).toBe('m2')
-    expect(textOf(tree)).toContain('Hello')
-    expect(textOf(tree)).toContain('World')
+    // 渲染序 = 展示序：最新消息在首位；每天一个分隔符，最旧日的分隔符在末尾（视觉顶部）
+    expect(itemTexts(tree)).toEqual(['newer', '今天', 'older', '昨天'])
   })
 
-  it('renders an empty list safely', () => {
+  it('calls renderMessage once per message, never for separators', () => {
+    const renderMessage = jest.fn((item: ChatMessage) => <Text key={item.id}>{item.content}</Text>)
+    const a = msg('A', NOW - DAY)
+    const b = msg('B', NOW)
+    act(() => {
+      TestRenderer.create(
+        <MessageList {...buildProps({ messages: [a, b], renderMessage })} />,
+      )
+    })
+    expect(renderMessage).toHaveBeenCalledTimes(2)
+    expect(renderMessage.mock.calls.every(([m]: any[]) => m.id !== undefined)).toBe(true)
+  })
+
+  it('renders date separator labels into the tree', () => {
+    const a = msg('A', NOW - DAY)
+    const b = msg('B', NOW)
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(<MessageList {...buildProps({ messages: [] })} />)
+      tree = TestRenderer.create(<MessageList {...buildProps({ messages: [a, b] })} />)
+    })
+    expect(textOf(tree)).toContain('今天')
+    expect(textOf(tree)).toContain('昨天')
+  })
+
+  it('labels even a single same-day group (今天) with no boundary separators', () => {
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(
+        <MessageList {...buildProps({ messages: [msg('A', NOW - 10), msg('B', NOW - 5)] })} />,
+      )
+    })
+    expect(textOf(tree)).toContain('今天')
+    expect(textOf(tree)).not.toContain('昨天')
+  })
+
+  it('renders empty list safely', () => {
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
     expect(flatListNode(tree)).toBeDefined()
   })
 
-  it('refreshing state and onRefresh are wired to the FlatList', () => {
-    const onRefresh = jest.fn()
+  it('keeps inverted prop true', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ refreshing: true, onRefresh })} />,
-      )
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
-    const list = flatListNode(tree)
-    expect(list.props.refreshing).toBe(true)
-    act(() => { list.props.onRefresh() })
-    expect(onRefresh).toHaveBeenCalledTimes(1)
+    expect(flatListNode(tree).props.inverted).toBe(true)
   })
 
-  it('passes ListHeader/ListFooter through to the FlatList', () => {
-    const header = <Text>header-hint</Text>
-    const footer = <Text>footer-spinner</Text>
+  it('thinkingIndicator goes to ListHeaderComponent, historyHint to ListFooterComponent', () => {
+    const shimmer = <Text>shimmer</Text>
+    const hint = <Text>hint</Text>
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(
-        <MessageList {...buildProps({ ListHeader: header, ListFooter: footer })} />,
+        <MessageList {...buildProps({ thinkingIndicator: shimmer, historyHint: hint })} />,
       )
     })
     const list = flatListNode(tree)
-    expect(list.props.ListHeaderComponent).toBe(header)
-    expect(list.props.ListFooterComponent).toBe(footer)
+    expect(list.props.ListHeaderComponent).toBe(shimmer)
+    expect(list.props.ListFooterComponent).toBe(hint)
+  })
+
+  it('does not expose pull-to-refresh props anymore', () => {
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
+    })
+    const list = flatListNode(tree)
+    expect(list.props.refreshing).toBeUndefined()
+    expect(list.props.onRefresh).toBeUndefined()
   })
 
   it('loads more history when end reached and hasMore && !loading', () => {
@@ -91,14 +145,14 @@ describe('MessageList', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: true, historyLoading: false, onLoadMoreHistory: onLoadMore })} />,
+        <MessageList {...buildProps({ hasMoreHistory: true, onLoadMoreHistory: onLoadMore })} />,
       )
     })
     act(() => { flatListNode(tree).props.onEndReached() })
     expect(onLoadMore).toHaveBeenCalledTimes(1)
   })
 
-  it('does not load more history while historyLoading', () => {
+  it('does not load more while loading or when exhausted', () => {
     const onLoadMore = jest.fn()
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
@@ -108,26 +162,43 @@ describe('MessageList', () => {
     })
     act(() => { flatListNode(tree).props.onEndReached() })
     expect(onLoadMore).not.toHaveBeenCalled()
-  })
 
-  it('does not load more history when no more history exists', () => {
-    const onLoadMore = jest.fn()
-    let tree!: TestRenderer.ReactTestInstance
+    let tree2!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: false, historyLoading: false, onLoadMoreHistory: onLoadMore })} />,
+      tree2 = TestRenderer.create(
+        <MessageList {...buildProps({ hasMoreHistory: false, onLoadMoreHistory: onLoadMore })} />,
       )
     })
-    act(() => { flatListNode(tree).props.onEndReached() })
-    expect(onLoadMore).not.toHaveBeenCalled()
+    act(() => { flatListNode(tree2).props.onEndReached() })
+    expect(onLoadMore).not.toHaveBeenCalled() // 两次都被抑制
   })
 
-  it('renders with inverted prop', () => {
+  it('FAB hidden by default, shown when scrolled >200 away, hides again near bottom', () => {
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(<MessageList {...buildProps({ messages: [msg('A', NOW)] })} />)
+    })
+    const fabCount = () =>
+      tree.root.findAll((n: any) => n.props?.accessibilityLabel === 'Scroll to latest').length
+    expect(fabCount()).toBe(0)
+
+    const list = flatListNode(tree)
+    act(() => {
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } })
+    })
+    expect(fabCount()).toBeGreaterThan(0)
+
+    act(() => {
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: 30 } } })
+    })
+    expect(fabCount()).toBe(0)
+  })
+
+  it('maintainVisibleContentPosition configured', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
-    const list = flatListNode(tree)
-    expect(list.props.inverted).toBe(true)
+    expect(flatListNode(tree).props.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 })
   })
 })
