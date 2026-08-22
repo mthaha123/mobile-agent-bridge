@@ -804,7 +804,8 @@ describe('setupClient', () => {
 
     const events = client.on.mock.calls.map((c: any[]) => c[0])
     expect(events).toContain('notification')
-    expect(events).toContain('connected')
+    // 'connected' 监听自 925bde2 起移至 MainLayout（其测试已覆盖），AppProvider 不再注册
+    expect(events).not.toContain('connected')
     expect(events).toContain('auth_expired')
   })
 })
