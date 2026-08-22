@@ -1,0 +1,34 @@
+appId: com.mobileagentbridge
+---
+# 聊天 UI 标准化冒烟（精简）：连接 → 建会话 → 发送 → 用户气泡 + 日期分隔符
+- launchApp
+
+- tapOn: "ws://.*"
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat"
+    timeout: 30000
+
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Open commands"
+    timeout: 15000
+
+# 多行输入框输入短文本并发送
+- tapOn: "Type a message..."
+- inputText: "hi"
+- tapOn: "Send message"
+
+# 用户气泡出现在视觉底部（倒序列表核心行为）
+- extendedWaitUntil:
+    visible: "hi"
+    timeout: 15000
+
+# 日期分隔符可见（展示层插入正确）
+- assertVisible: "今天"
