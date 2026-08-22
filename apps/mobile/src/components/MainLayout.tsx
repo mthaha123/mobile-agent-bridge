@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
 import { useUiStore, Tab } from '../stores/uiStore'
 import { useAuthStore } from '../stores/authStore'
 import { SessionsScreen } from '../screens/SessionsScreen'
@@ -9,6 +9,9 @@ import { FileViewerScreen } from '../screens/FileViewerScreen'
 import { SettingsScreen } from '../screens/SettingsScreen'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
+
+/** Tab bar 总高度（含 padding/border）。供 ChatScreen 计算 iOS 键盘 offset 使用。 */
+export const TAB_BAR_HEIGHT = 60
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
   { key: 'chat', icon: '💬', label: 'Chat' },
@@ -55,7 +58,7 @@ export const MainLayout: React.FC = () => {
   const isFullscreenViewer = activeTab === 'files' && filesSubScreen === 'viewer'
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root}>
       {!connected && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>⚠️ Connection lost — reconnecting…</Text>
@@ -84,7 +87,7 @@ export const MainLayout: React.FC = () => {
           ))}
         </View>
       )}
-    </View>
+    </SafeAreaView>
   )
 }
 
