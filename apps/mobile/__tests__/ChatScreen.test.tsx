@@ -1,6 +1,6 @@
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
-import { Alert } from 'react-native'
+import { Alert, KeyboardAvoidingView } from 'react-native'
 import { ChatScreen } from '../src/screens/ChatScreen'
 import { useChatStore } from '../src/stores/chatStore'
 import { useAuthStore } from '../src/stores/authStore'
@@ -339,7 +339,9 @@ describe('ChatScreen', () => {
     expect(input.props.editable).toBe(true)
   })
 
-  it('onSubmitEditing triggers send', async () => {
+  it('input is multiline with no submit-on-enter path', () => {
+    // 复用原 onSubmitEditing 用例的 setup/渲染步骤，仅改断言：
+    // 多行输入 + 按钮发送（无回车发送路径）
     const mockCall = jest.fn().mockResolvedValue({})
     const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
     act(() => { useAuthStore.setState({ client: client as any }) })
@@ -349,13 +351,21 @@ describe('ChatScreen', () => {
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
     const input = tree.root.find(
-      (n: any) => typeof n.props?.onSubmitEditing === 'function',
+      (n: any) => typeof n.props?.onChangeText === 'function' && n.props?.placeholder === 'Type a message...',
     )
 
-    await act(async () => { await input.props.onSubmitEditing() })
+    expect(input.props.multiline).toBe(true)
+    expect(input.props.onSubmitEditing).toBeUndefined()
+  })
 
-    expect(mockCall).toHaveBeenCalledWith('message.send', { sessionId: 's1', message: 'Hello via keyboard' })
-    expect(useChatStore.getState().inputText).toBe('')
+  it('iOS keyboard offset derives from TAB_BAR_HEIGHT (not hardcoded 90)', () => {
+    useChatStore.setState({ activeSessionId: 's1' })
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const kav = tree.root.findAllByType(KeyboardAvoidingView)[0]
+    expect(kav.props.keyboardVerticalOffset).toBe(60 + 8)
+    expect(kav.props.behavior).toBe('padding') // jest preset 下 Platform.OS 默认 'ios'
   })
 
   it('info button opens SessionInfoModal', () => {

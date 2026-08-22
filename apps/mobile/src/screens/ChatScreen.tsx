@@ -26,6 +26,7 @@ import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
 import type { Part } from '../types/message'
 import { MessageList } from '../components/chat/MessageList'
+import { TAB_BAR_HEIGHT } from '../components/MainLayout'
 import { MessageItem } from '../components/chat/MessageItem'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
 import { PermissionDock } from '../components/chat/PermissionDock'
@@ -338,7 +339,7 @@ export const ChatScreen: React.FC = () => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? TAB_BAR_HEIGHT + 8 : 0}
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} accessibilityLabel="Back to sessions">
@@ -416,15 +417,10 @@ export const ChatScreen: React.FC = () => {
             setInputText(t)
             if (t.endsWith('/')) { setSlashFilter('/'); setSlashSheetVisible(true) }
             else if (t.endsWith('@')) { setSlashFilter('@'); setSlashSheetVisible(true) }
-            else if (slashSheetVisible && !t.endsWith('/') && !t.endsWith('@')) {
-              // keep filtering as user types after /
-            }
           }}
           placeholder="Type a message..."
           placeholderTextColor={colors.textTertiary}
-          multiline={false}
-          returnKeyType="send"
-          onSubmitEditing={handleSend}
+          multiline
           editable={!waiting}
           accessibilityLabel="Type a message..."
         />
@@ -596,7 +592,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     backgroundColor: colors.surface,
     borderRadius: 24,
     marginHorizontal: 12,
@@ -621,6 +617,8 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.text,
     fontSize: 15,
     paddingVertical: 8,
+    minHeight: 36,
+    maxHeight: 120,
   },
   sendButton: {
     width: 40,
