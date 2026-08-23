@@ -1,0 +1,26 @@
+appId: com.mobileagentbridge
+---
+# 打开 Alpha 历史会话：验证用户消息是否显示两次
+- launchApp
+- tapOn: "ws://.*"
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# 打开 Alpha 会话（有完整历史，用户消息 alpha/beta）
+- tapOn: "Alpha"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 20000
+
+# 等待历史加载
+- extendedWaitUntil:
+    visible: "beta"
+    timeout: 15000
