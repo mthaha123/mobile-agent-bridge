@@ -54,7 +54,10 @@ function extractToolOutput(state: any): string {
   return ''
 }
 
-/** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。 */
+/** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。
+ * 保留 text part 在 parts 中的原始位置（保持 reasoning/text/tool 相对顺序），
+ * 同时把文本并入 content 供流式/兜底使用。MessageItem 渲染时若 parts 含 text part
+ * 则不重复渲染 content，避免文本显示两遍。 */
 function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
   const parts: Part[] = []
   let text = ''
@@ -63,13 +66,10 @@ function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; 
     rawContent.forEach((p: any) => {
       if (!p || typeof p !== 'object') return
       if (p.type === 'text') {
-        // text part 的文本统一并入 content（text 字段）渲染，不再作为独立 Part——
-        // 否则 MessageItem 会同时渲染 content 与 parts.text 导致消息文本重复显示。
-        // 长按"回退到此"由 MessageWrapper（包裹 content 渲染）提供，不依赖 text part，
-        // 因此 user 与 assistant 的 text part 都无需保留在 parts 中。
         const t = p.text || ''
         text = text ? text + t : t
         partId = p.id || partId
+        parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: t } })
       } else if (p.type === 'tool') {
         parts.push({
           id: p.id || p.callID || `tool_${Date.now()}`,

@@ -16,10 +16,13 @@ export const MessageItem: React.FC<MessageItemProps> = memo(({ item, onRevert })
   const isSystem = item.role === 'system'
   const colors = useThemeColors()
   const styles = makeStyles(colors)
+  // 若 parts 中已含 text part（历史加载的有序文本流），则不重复渲染 content——
+  // 否则同一文本会经 content 与 parts.text 渲染两遍。流式消息文本在 content（parts 无 text），仍走 content。
+  const hasTextPart = Array.isArray(item.parts) && item.parts.some((p) => p.type === 'text')
   return (
     <View style={isUser ? styles.userBubble : styles.nonUserBlock}>
       {item.agent ? <Text style={styles.messageMeta}>{item.agent}</Text> : null}
-      {item.content ? (
+      {item.content && !hasTextPart ? (
         <MessageWrapperForFallback content={item.content} message={item as any} onRevert={onRevert}>
           <MarkdownRenderer content={item.content} />
         </MessageWrapperForFallback>

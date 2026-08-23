@@ -749,11 +749,11 @@ describe('ChatScreen', () => {
 
     const msgs = useChatStore.getState().messages
     expect(msgs).toHaveLength(2)
-    // 任何角色的 text part 都不应残留（content 已承载文本）
-    const textParts = msgs.flatMap((m) => (m.parts || []).filter((p: any) => p.type === 'text'))
-    expect(textParts).toHaveLength(0)
+    // 文本保留在 parts（有序渲染），content 与 parts.text 不重复
+    expect(msgs[0].content).toBe('Hello Dup')
+    expect(msgs[1].content).toBe('Assist Reply Dup')
 
-    // 渲染层面：每个文本在 MarkdownRenderer 中只出现一次
+    // 渲染层面：每个文本在 MarkdownRenderer 中只出现一次（MessageItem 对含 text part 的消息不重复渲染 content）
     const md = tree!.root.findAllByType(MarkdownRenderer)
     const contents = md.map((m) => m.props.content)
     expect(contents.filter((c: string) => c === 'Hello Dup')).toHaveLength(1)
