@@ -55,7 +55,7 @@ function extractToolOutput(state: any): string {
 }
 
 /** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。 */
-function buildPartsFromRaw(rawContent: unknown, isUser?: boolean): { parts: Part[]; text: string; partId?: string } {
+function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
   const parts: Part[] = []
   let text = ''
   let partId: string | undefined
@@ -63,13 +63,13 @@ function buildPartsFromRaw(rawContent: unknown, isUser?: boolean): { parts: Part
     rawContent.forEach((p: any) => {
       if (!p || typeof p !== 'object') return
       if (p.type === 'text') {
+        // text part 的文本统一并入 content（text 字段）渲染，不再作为独立 Part——
+        // 否则 MessageItem 会同时渲染 content 与 parts.text 导致消息文本重复显示。
+        // 长按"回退到此"由 MessageWrapper（包裹 content 渲染）提供，不依赖 text part，
+        // 因此 user 与 assistant 的 text part 都无需保留在 parts 中。
         const t = p.text || ''
         text = text ? text + t : t
         partId = p.id || partId
-        // 用户消息的文本统一并入 content 渲染，不再作为独立 Part——
-        // 否则 MessageItem 同时渲染 content 与 parts.text 导致用户消息文本重复显示。
-        // assistant 保留 text part（PartBlock 支持"回退到此"长按 revert）。
-        if (!isUser) parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: t } })
       } else if (p.type === 'tool') {
         parts.push({
           id: p.id || p.callID || `tool_${Date.now()}`,
@@ -149,7 +149,7 @@ export const ChatScreen: React.FC = () => {
       const msgId = msg.id || undefined
       const rawContent = msg.rawContent
       const role = (msg.role as 'user' | 'assistant' | 'system') || 'assistant'
-      const { parts, text, partId } = buildPartsFromRaw(rawContent, role === 'user')
+      const { parts, text, partId } = buildPartsFromRaw(rawContent)
       useChatStore.getState().addMessage({
         role,
         content: text || msg.content || msg.text || '',

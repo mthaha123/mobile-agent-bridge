@@ -722,18 +722,16 @@ describe('ChatScreen', () => {
     expect(text).toContain('Latest A')
   })
 
-  it('does NOT duplicate user message text when rawContent is a text-part array', async () => {
+  it('does NOT duplicate message text when rawContent is a text-part array (user & assistant)', async () => {
     // 真实服务端 v2 消息 {info, parts:[{type:'text',text}]}：sessionStore 归一化后
     // content 与 rawContent(=parts) 都含文本。回归 bug：buildPartsFromRaw 把 text part
-    // 同时塞进 content 和 parts → MessageItem 渲染两遍。
+    // 同时塞进 content 和 parts → MessageItem 渲染两遍。user 与 assistant 都会触发。
     const callMock = jest.fn().mockImplementation((method: string) => {
       if (method === 'session.messages') {
         return Promise.resolve({
           messages: [
-            {
-              info: { id: 'u1', role: 'user', time: { created: 1000 } },
-              parts: [{ type: 'text', text: 'Hello Dup' }],
-            },
+            { info: { id: 'u1', role: 'user', time: { created: 1000 } }, parts: [{ type: 'text', text: 'Hello Dup' }] },
+            { info: { id: 'a1', role: 'assistant', time: { created: 2000 } }, parts: [{ type: 'text', text: 'Assist Reply Dup' }] },
           ],
           cursor: undefined,
         })
@@ -749,17 +747,17 @@ describe('ChatScreen', () => {
       tree = TestRenderer.create(<ChatScreen onNavigateToSessions={onNavigateToSessions} />)
     })
 
-    // 消息文本只应渲染一次（content 通道），parts 不应再包含 text part
     const msgs = useChatStore.getState().messages
-    expect(msgs).toHaveLength(1)
-    expect(msgs[0].content).toBe('Hello Dup')
-    const textParts = (msgs[0].parts || []).filter((p: any) => p.type === 'text')
+    expect(msgs).toHaveLength(2)
+    // 任何角色的 text part 都不应残留（content 已承载文本）
+    const textParts = msgs.flatMap((m) => (m.parts || []).filter((p: any) => p.type === 'text'))
     expect(textParts).toHaveLength(0)
 
-    // 渲染层面：MarkdownRenderer 只渲染 content 一次
+    // 渲染层面：每个文本在 MarkdownRenderer 中只出现一次
     const md = tree!.root.findAllByType(MarkdownRenderer)
     const contents = md.map((m) => m.props.content)
     expect(contents.filter((c: string) => c === 'Hello Dup')).toHaveLength(1)
+    expect(contents.filter((c: string) => c === 'Assist Reply Dup')).toHaveLength(1)
   })
 
   it('loads latest messages via desc order on session open', async () => {
