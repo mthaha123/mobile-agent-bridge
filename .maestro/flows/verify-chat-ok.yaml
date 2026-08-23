@@ -1,0 +1,34 @@
+appId: com.mobileagentbridge
+---
+# 验证：用 10.0.2.2 连接后发消息正常响应
+- launchApp
+- tapOn: "ws://.*"
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "."
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Open commands"
+    timeout: 15000
+
+- tapOn: "Type a message..."
+- inputText: "hi, test response"
+- tapOn: "Send message"
+- extendedWaitUntil:
+    visible: "hi, test response"
+    timeout: 15000
+
+# 等待 AI 回复（停止按钮消失 = 有响应）
+- extendedWaitUntil:
+    notVisible: "■"
+    timeout: 60000
+    optional: true
+- assertNotVisible: "Provider request failed"
