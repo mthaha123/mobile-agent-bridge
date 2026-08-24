@@ -223,42 +223,24 @@ export class OpenCodeBackend {
   }
 
   /**
-   * 重命名会话：PATCH /session/{id} body {title}
+   * 重命名会话：转发到 serve 的 PATCH /session/{id} body {title}。
    *
-   * 说明：@opencode-ai/sdk v2（1.18.x）包装层未暴露 session.update 方法
-   * （生成类型里有、运行时原型缺失），且其通用 client.patch 存在路径占位符
-   * 不替换的问题，故按项目惯例用 http 模块直连。serve 为单项目模型，
-   * 无需附带 directory 查询参数。
+   * 改名本身由 opencode serve 完成（持久化 + 广播 session.updated 事件），
+   * Bridge 仅转发。之所以不直接调 sdk().v2.session.update：
+   * @opencode-ai/sdk 1.18.x 包装层未暴露该方法（生成类型有、运行时原型缺失），
+   * 且其生成式调用存在路径占位符 {sessionID} 不被替换的问题（服务端收到
+   * 字面量 %7BsessionID%7D 报错）。此处复用 SDK 已配置的 client 直发字面量 URL，
+   * 升级 SDK 修复后可换回 sdk().v2.session.update。
    */
   async renameSession(sessionID: string, title: string): Promise<Record<string, unknown>> {
-    return new Promise((resolve, reject) => {
-      const body = JSON.stringify({ title })
-      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/session/${encodeURIComponent(sessionID)}`)
-      const req = http.request({
-        hostname: url.hostname,
-        port: url.port ? parseInt(url.port, 10) : 80,
-        path: url.pathname + url.search,
-        method: "PATCH",
-        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
-        timeout: 120000,
-      }, (res) => {
-        let b = ""
-        res.on("data", (c) => { b += c })
-        res.on("end", () => {
-          let parsed: any
-          try { parsed = JSON.parse(b) } catch { parsed = null }
-          if ((res.statusCode ?? 500) >= 400) {
-            reject(new Error(parsed?.data?.message ?? parsed?.message ?? `rename failed (${res.statusCode})`))
-            return
-          }
-          resolve(parsed && typeof parsed === "object" ? parsed : {})
-        })
-        res.on("error", reject)
-      })
-      req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
-      req.on("error", reject)
-      req.end(body)
+    const result: any = await this.ensureClient().v2.client.patch({
+      url: `/session/${encodeURIComponent(sessionID)}`,
+      body: { title },
     })
+    if (result?.error) {
+      throw new Error(result.error.data?.message ?? result.error.message ?? JSON.stringify(result.error))
+    }
+    return (result?.data && typeof result.data === "object" ? result.data : {}) as Record<string, unknown>
   }
 
   /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
