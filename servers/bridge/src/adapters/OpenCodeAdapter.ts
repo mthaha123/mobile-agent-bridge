@@ -98,116 +98,128 @@ export class OpenCodeBackend {
   }
 
   /**
-   * 读取 session 消息（双通道取全量）。
+   * 读取 session 消息（双通道取全量，归一化输出）。
    *
    * 背景：opencode serve 有两条独立路由，读不同数据表：
    *   - `/api/session/{id}/message`（v2）：读 session_message 投影表，返回 {data, cursor}。
-   *     活跃会话/projection 未刷新时可能只含部分消息（实测仅 2 条旧快照）。
-   *   - `/session/{id}/message`（v1）：读 message/part 原始表，返回裸数组，分页在 Link/X-Next-Cursor 头。
-   *     内容完整（含当前对话全部消息），但 time 字段可能缺失。
+   *     投影可能滞后（缺最新消息）甚至整体缺失，但部分会话的数据只存在于投影表。
+   *     内部固定 order=desc 取"最新窗口"（该参数不对客户端暴露）。
+   *   - `/session/{id}/message`（v1）：读 message/part 原始表，返回裸数组，完整且新鲜；
+   *     服务端忽略 order 参数（页内恒升序、恒返回最新页），分页 token 在 Link/X-Next-Cursor 头。
    *
-   * 双通道都拉取，返回消息数更多的一侧，避免 v2 投影残缺导致 App 只看到几条旧消息。
+   * 对客户端的 WS 契约（客户端无感底层通道与排序策略）：
+   *   - messages 恒定升序（旧→新），按 info.time.created 排序（缺失时按 message id 兜底）；
+   *   - cursor 为不透明 token，内部绑定来源通道（`v1:`/`v2:` 前缀），
+   *     翻页时只路由到对应通道，杜绝跨通道 cursor 污染；
+   *   - 初始加载选边策略：新鲜度（max time.created）优先 → 数量多者优先 → v1（原始表权威源兜底）。
+   *
    * 两条路由消息项结构一致（{info, parts}），统一输出 { messages, cursor }。
    */
-  async rawSessionMessages(sessionID: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<{ messages: unknown[]; cursor?: unknown }> {
+  async rawSessionMessages(sessionID: string, opts?: { limit?: number; cursor?: string }): Promise<{ messages: unknown[]; cursor?: unknown }> {
     const base = this.baseUrl.replace(/\/+$/, "")
+    const enc = encodeURIComponent(sessionID)
 
-    // v2 路由
-    const v2 = await this.httpGetJson(`${base}/api/session/${encodeURIComponent(sessionID)}/message`, opts)
-    const v2Data = (v2 as any)?.data
-    const v2Messages: unknown[] = Array.isArray(v2Data) ? v2Data : []
-    const v2Asc = v2Messages
-
-    // v1 路由：裸数组（已升序）+ header 分页
-    const v1Opts: { limit?: number; order?: 'asc' | 'desc'; before?: string } = {
-      limit: opts?.limit,
-      order: opts?.order,
+    // 翻页：cursor 已绑定来源通道 → 只查对应通道（杜绝跨通道 cursor 污染）
+    const tagged = parseTaggedCursor(opts?.cursor)
+    if (tagged?.channel === "v2") {
+      const page = await this.fetchV2Page(base, enc, { limit: opts?.limit, cursor: tagged.token })
+      return { messages: sortMessagesAsc(page.messages), cursor: tagCursor("v2", page.cursor) }
     }
-    if (opts?.cursor) v1Opts.before = opts.cursor
-    const v1 = await this.httpGetWithHeaders(`${base}/session/${encodeURIComponent(sessionID)}/message`, v1Opts)
-    const v1Arr = Array.isArray(v1.body) ? v1.body : ((v1.body as any)?.messages ?? [])
-    let cursor: unknown
-    const nextHeader = v1.headers?.["x-next-cursor"]
-    if (nextHeader) {
-      cursor = nextHeader
-    } else if (v1.headers?.link) {
-      const m = /<[^>]*before=([^&>]+)[^>]*>;\s*rel="?next"?/.exec(String(v1.headers.link))
-      if (m) cursor = decodeURIComponent(m[1])
+    if (tagged?.channel === "v1") {
+      const page = await this.fetchV1Page(base, enc, { limit: opts?.limit, before: tagged.token })
+      return { messages: sortMessagesAsc(page.messages), cursor: tagCursor("v1", page.cursor) }
     }
 
-    // 透传底层结果（不 reverse），用于确认底层 API 真实顺序
-    const v1Asc = (Array.isArray(v1Arr) ? v1Arr : [])
-    // 取消息数更多的一侧：v1 完整，v2 可能是残缺投影
-    if (v1Asc.length > v2Asc.length) {
-      return { messages: v1Asc, cursor }
-    }
-    return { messages: v2Asc, cursor: (v2 as any)?.cursor }
+    // 初始加载 / 遗留无前缀 cursor（向后兼容）：双通道都取，按新鲜度选边后归一化输出
+    const [v1, v2] = await Promise.all([
+      this.fetchV1Page(base, enc, { limit: opts?.limit }),
+      this.fetchV2Page(base, enc, { limit: opts?.limit }),
+    ])
+    const winner = pickChannel(v1.messages, v2.messages)
+    const page = winner === "v1" ? v1 : v2
+    return { messages: sortMessagesAsc(page.messages), cursor: tagCursor(winner, page.cursor) }
   }
 
-  /** http GET 返回 JSON body（v2 结构） */
-  private async httpGetJson(urlStr: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<unknown> {
-    const body = await this.httpGetBody(urlStr, opts)
-    return JSON.parse(body)
+  /** v2 投影表分页：内部恒用 order=desc 取"最新窗口"，输出前由调用方统一升序归一化 */
+  private async fetchV2Page(base: string, encSessionID: string, q: { limit?: number; cursor?: string }): Promise<ChannelPage> {
+    const qs: string[] = []
+    if (q.limit !== undefined) qs.push(`limit=${q.limit}`)
+    if (q.cursor) qs.push(`cursor=${encodeURIComponent(q.cursor)}`)
+    qs.push("order=desc")
+    const body = await this.httpGetJson(`${base}/api/session/${encSessionID}/message?${qs.join("&")}`) as any
+    const data = body?.data
+    return {
+      messages: Array.isArray(data) ? data : [],
+      cursor: body?.cursor != null ? String(body.cursor) : undefined,
+    }
+  }
+
+  /** v1 原始表分页：服务端忽略 order、页内恒升序；分页 token 从 X-Next-Cursor / Link 头提取 */
+  private async fetchV1Page(base: string, encSessionID: string, q: { limit?: number; before?: string }): Promise<ChannelPage> {
+    const qs: string[] = []
+    if (q.limit !== undefined) qs.push(`limit=${q.limit}`)
+    if (q.before) qs.push(`before=${encodeURIComponent(q.before)}`)
+    const { body, headers } = await this.httpGetWithHeaders(`${base}/session/${encSessionID}/message${qs.length ? "?" + qs.join("&") : ""}`)
+    const arr = Array.isArray(body) ? body : ((body as any)?.messages ?? [])
+    let cursor: string | undefined
+    const next = headers["x-next-cursor"]
+    if (typeof next === "string" && next) cursor = next
+    else if (Array.isArray(next) && next.length > 0) cursor = String(next[0])
+    else if (headers.link) {
+      const m = /<[^>]*before=([^&>]+)[^>]*>;\s*rel="?next"?/.exec(String(headers.link))
+      if (m) cursor = decodeURIComponent(m[1])
+    }
+    return { messages: arr, cursor }
+  }
+
+  /** http GET 返回解析后的 JSON body（解析失败时回退原始字符串） */
+  private async httpGetJson(urlStr: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(urlStr)
+      const req = http.request({
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
+          path: url.pathname + url.search,
+          method: "GET",
+          timeout: 120000,
+      }, (res) => {
+        let b = ""
+        res.on("data", (c) => { b += c })
+        res.on("end", () => {
+          try { resolve(JSON.parse(b)) } catch { resolve(b) }
+        })
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
+      req.on("error", reject)
+      req.end()
+    })
   }
 
   /** http GET 返回 { body, headers } */
-  private async httpGetWithHeaders(urlStr: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string; before?: string }): Promise<{ body: unknown; headers: Record<string, string | string[] | undefined> }> {
-    const qs = this.buildQuery(opts)
-    const url = new URL(urlStr + qs)
+  private async httpGetWithHeaders(urlStr: string): Promise<{ body: unknown; headers: Record<string, string | string[] | undefined> }> {
     return new Promise((resolve, reject) => {
+      const url = new URL(urlStr)
       const req = http.request({
-        hostname: url.hostname,
-        port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
-        path: url.pathname + url.search,
-        method: "GET",
-        timeout: 120000,
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
+          path: url.pathname + url.search,
+          method: "GET",
+          timeout: 120000,
       }, (res) => {
         let b = ""
         res.on("data", (c) => { b += c })
-        res.on("end", () => resolve({ body: b, headers: res.headers as Record<string, string | string[] | undefined> }))
-        res.on("error", reject)
-      })
-      req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
-      req.on("error", reject)
-      req.end()
-    }).then(({ body, headers }) => {
-      let parsed: unknown
-      try { parsed = JSON.parse(String(body)) } catch { parsed = String(body) }
-      return { body: parsed, headers }
-    })
-  }
-
-  /** http GET 返回 body 字符串 */
-  private async httpGetBody(urlStr: string, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }): Promise<string> {
-    const qs = this.buildQuery(opts)
-    const url = new URL(urlStr + qs)
-    return new Promise((resolve, reject) => {
-      const req = http.request({
-        hostname: url.hostname,
-        port: url.port ? parseInt(url.port, 10) : (url.protocol === "https:" ? 443 : 80),
-        path: url.pathname + url.search,
-        method: "GET",
-        timeout: 120000,
-      }, (res) => {
-        let b = ""
-        res.on("data", (c) => { b += c })
-        res.on("end", () => resolve(b))
+        res.on("end", () => {
+          let parsed: unknown
+          try { parsed = JSON.parse(b) } catch { parsed = b }
+          resolve({ body: parsed, headers: res.headers as Record<string, string | string[] | undefined> })
+        })
         res.on("error", reject)
       })
       req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
       req.on("error", reject)
       req.end()
     })
-  }
-
-  private buildQuery(opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string; before?: string }): string {
-    const qs: string[] = []
-    if (opts?.limit !== undefined) qs.push(`limit=${opts.limit}`)
-    if (opts?.order) qs.push(`order=${opts.order}`)
-    if (opts?.cursor) qs.push(`cursor=${encodeURIComponent(opts.cursor)}`)
-    // v1 路由分页参数是 before（对应 X-Next-Cursor 头返回的值）
-    if (opts?.before) qs.push(`before=${encodeURIComponent(opts.before)}`)
-    return qs.length ? '?' + qs.join('&') : ''
   }
 
   /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
@@ -218,6 +230,57 @@ export class OpenCodeBackend {
     this.createClient("")
     return this.sdk!
   }
+}
+
+// ===== 消息归一化 / 选边 / cursor 工具（导出供单元测试） =====
+
+type RawMessage = Record<string, any>
+
+interface ChannelPage { messages: unknown[]; cursor?: string }
+
+function createdOf(m: RawMessage): number {
+  const t = m?.info?.time?.created ?? m?.time?.created ?? m?.created
+  const n = Number(t)
+  return Number.isFinite(n) ? n : 0
+}
+
+function idOf(m: RawMessage): string {
+  return String(m?.info?.id ?? m?.id ?? "")
+}
+
+/** 升序归一化：按 created 排序；缺失/并列时按 message id 兜底，保证确定性输出 */
+export function sortMessagesAsc(messages: unknown[]): unknown[] {
+  return [...messages].sort((a, b) => {
+    const d = createdOf(a as RawMessage) - createdOf(b as RawMessage)
+    if (d !== 0) return d
+    return idOf(a as RawMessage).localeCompare(idOf(b as RawMessage))
+  })
+}
+
+/** 选边：新鲜度(max created)优先 → 数量多者优先 → v1（原始表为权威源兜底） */
+export function pickChannel(v1Msgs: unknown[], v2Msgs: unknown[]): "v1" | "v2" {
+  const maxCreated = (arr: unknown[]) => arr.reduce((acc, m) => Math.max(acc, createdOf(m as RawMessage)), 0)
+  const v1Max = maxCreated(v1Msgs)
+  const v2Max = maxCreated(v2Msgs)
+  if (v1Max !== v2Max) return v1Max > v2Max ? "v1" : "v2"
+  if (v1Msgs.length !== v2Msgs.length) return v1Msgs.length > v2Msgs.length ? "v1" : "v2"
+  return "v1"
+}
+
+const CURSOR_TAG_V1 = "v1:"
+const CURSOR_TAG_V2 = "v2:"
+
+/** cursor 编码来源通道前缀；空 token 不编码（无更多历史） */
+export function tagCursor(channel: "v1" | "v2", token?: string): string | undefined {
+  return token ? `${channel}:${token}` : undefined
+}
+
+/** 解析带通道前缀的 cursor；无前缀/为空返回 null（遗留格式走兼容路径） */
+export function parseTaggedCursor(cursor?: string): { channel: "v1" | "v2"; token: string } | null {
+  if (!cursor) return null
+  if (cursor.startsWith(CURSOR_TAG_V1)) return { channel: "v1", token: cursor.slice(CURSOR_TAG_V1.length) }
+  if (cursor.startsWith(CURSOR_TAG_V2)) return { channel: "v2", token: cursor.slice(CURSOR_TAG_V2.length) }
+  return null
 }
 
 let _backend: OpenCodeBackend | null = null

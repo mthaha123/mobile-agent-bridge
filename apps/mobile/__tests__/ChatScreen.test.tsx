@@ -427,7 +427,7 @@ describe('ChatScreen', () => {
     mockCall.mockClear()
     await act(async () => { await refreshBtn!.props.onPress() })
     // 主动作：同步当前会话最近消息（替代旧 25s backfill 轮询的语义）
-    expect(mockCall).toHaveBeenCalledWith('session.messages', expect.objectContaining({ sessionId: 's1', order: 'desc' }))
+    expect(mockCall).toHaveBeenCalledWith('session.messages', expect.objectContaining({ sessionId: 's1' }))
     // 附带刷新会话列表以更新标题栏模型/provider 显示
     expect(mockCall).toHaveBeenCalledWith('session.list', expect.anything())
   })
@@ -632,7 +632,7 @@ describe('ChatScreen', () => {
 
   // ─── 历史消息全量加载（选择已有会话） ──────────────────────
 
-  it('loads full history via getSessionMessages when session becomes active (order desc)', async () => {
+  it('loads full history via getSessionMessages when session becomes active (ascending contract)', async () => {
     // 不替换 getSessionMessages，改 mock client.call（getSessionMessages 底层调用它）
     const callMock = jest.fn().mockImplementation((method: string) => {
       if (method === 'session.messages') {
@@ -659,8 +659,8 @@ describe('ChatScreen', () => {
       )
     })
 
-    // 底层 client.call 被调用，order: desc
-    expect(callMock).toHaveBeenCalledWith('session.messages', expect.objectContaining({ order: 'desc', limit: 50 }))
+    // 底层 client.call 被调用（bridge 契约恒定升序，客户端不传排序参数）
+    expect(callMock).toHaveBeenCalledWith('session.messages', expect.objectContaining({ limit: 50 }))
     const msgs = useChatStore.getState().messages
     // bridge 升序输出，App 直接渲染：最新在底部
     expect(msgs.map((m) => m.content)).toEqual(['First Q', 'First A', 'Second Q'])
@@ -760,7 +760,7 @@ describe('ChatScreen', () => {
     expect(contents.filter((c: string) => c === 'Assist Reply Dup')).toHaveLength(1)
   })
 
-  it('loads latest messages via desc order on session open', async () => {
+  it('loads latest messages window in ascending order on session open', async () => {
     const callMock = jest.fn().mockImplementation((method: string) => {
       if (method === 'session.messages') {
         return Promise.resolve({

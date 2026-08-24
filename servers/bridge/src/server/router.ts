@@ -163,12 +163,13 @@ registerHandler("session.get", async (p) => {
 registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.messages requires sessionId parameter")
-  // 分页透传（opencode v2 messages 支持 limit/order/cursor）
-  const opts: { limit?: number; order?: 'asc' | 'desc'; cursor?: string } = {}
+  // 契约（客户端无感底层通道与排序策略）：
+  //   - messages 恒定升序（旧→新），取"最新窗口"由 Bridge 内部决定；
+  //   - cursor 为绑定来源通道的不透明 token，客户端原样回传即可。
+  // order 参数已废弃：旧客户端可能仍传 order:'desc'，静默忽略。
+  const opts: { limit?: number; cursor?: string } = {}
   if (p.limit !== undefined) opts.limit = p.limit as number
-  if (p.order) opts.order = p.order as 'asc' | 'desc'
   if (p.cursor) opts.cursor = p.cursor as string
-  // 双通道：v2 (/api) 优先，空则回退 v1 (/session) 裸数组；统一返回 { messages, cursor }
   return getBackend().rawSessionMessages(id, opts)
 })
 registerHandler("session.status", async () => sdkCall(() => sdk().v2.session.active()))

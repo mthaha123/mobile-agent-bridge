@@ -586,7 +586,7 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toEqual({ messages: [], cursor: undefined })
   })
 
-  it("should forward limit/order/cursor to rawSessionMessages", async () => {
+  it("should ignore deprecated order param and forward limit/cursor to rawSessionMessages", async () => {
     const { backend } = createMockSdk()
     ;(backend.rawSessionMessages as jest.Mock).mockResolvedValueOnce({ messages: [{ id: "m1" }], cursor: undefined })
     const { ws, messages } = createMockWs()
@@ -594,7 +594,8 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.messages",
       params: { sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" },
     }, testPayload)
-    expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", { limit: 30, order: "desc", cursor: "abc" })
+    // 契约：order 已废弃（客户端不感知底层排序策略），旧客户端传入时静默忽略
+    expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", { limit: 30, cursor: "abc" })
     expect(messages[0].payload).toEqual({ messages: [{ id: "m1" }], cursor: undefined })
   })
 

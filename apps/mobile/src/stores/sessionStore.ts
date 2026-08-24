@@ -100,7 +100,7 @@ export interface SessionState {
 
   // Advanced session operations
   getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
-  getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }) => Promise<any>
+  getSessionMessages: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>, opts?: { limit?: number; cursor?: string }) => Promise<any>
   revertSession: (id: string, messageID: string, partID: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchAgent: (id: string, agent: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   switchModel: (id: string, model: string | { id: string; providerID: string; variant?: string }, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
@@ -171,12 +171,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  getSessionMessages: async (id, clientCall, opts?: { limit?: number; order?: 'asc' | 'desc'; cursor?: string }) => {
+  getSessionMessages: async (id, clientCall, opts?: { limit?: number; cursor?: string }) => {
     set({ error: null })
     try {
       const params: Record<string, unknown> = { sessionId: id }
       if (opts?.limit !== undefined) params.limit = opts.limit
-      if (opts?.order) params.order = opts.order
       if (opts?.cursor) params.cursor = opts.cursor
       const result = await clientCall('session.messages', params)
       // 兼容两种响应：数组 或 { messages/data, cursor }

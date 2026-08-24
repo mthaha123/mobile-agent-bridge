@@ -160,7 +160,7 @@ export const ChatScreen: React.FC = () => {
     })
   }
 
-  // 初始加载：取最近 HISTORY_PAGE_SIZE 条（降序=最新优先），保留 cursor 供上滑加载更早
+  // 初始加载：取最近 HISTORY_PAGE_SIZE 条（bridge 契约恒定升序输出的最新窗口），保留 cursor 供上滑加载更早
   const HISTORY_PAGE_SIZE = 50
 
   useEffect(() => {
@@ -170,16 +170,16 @@ export const ChatScreen: React.FC = () => {
     setHistoryCursor(undefined)
     setHasMoreHistory(false)
     ;(async () => {
-      // desc=最新优先：用户打开会话立即看到最新内容；cursor 指向更早消息供上滑加载
+      // bridge 返回升序（旧→新）的最新窗口；cursor 为绑定来源通道的不透明 token
       const res = await useSessionStore.getState().getSessionMessages(
         activeSessionId, client.call.bind(client),
-        { order: 'desc', limit: HISTORY_PAGE_SIZE },
+        { limit: HISTORY_PAGE_SIZE },
       )
       if (cancelled || !res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       if (!cancelled) {
-        // bridge 已统一输出升序（旧→新）：desc 取最新50条，但无需再 reverse（避免颠倒成降序）
+        // bridge 契约保证升序（旧→新），无需 reverse
         applyLoadedMessages(list)
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
@@ -195,10 +195,10 @@ export const ChatScreen: React.FC = () => {
     if (!activeSessionId || !client || !historyCursor || historyLoading) return
     setHistoryLoading(true)
     try {
-      // desc + cursor：cursor 指向当前最早消息之前，继续取更早的
+      // cursor 不透明，由 bridge 路由到来源通道继续取更早消息
       const res = await useSessionStore.getState().getSessionMessages(
         activeSessionId, client.call.bind(client),
-        { order: 'desc', limit: HISTORY_PAGE_SIZE, cursor: historyCursor },
+        { limit: HISTORY_PAGE_SIZE, cursor: historyCursor },
       )
       if (!res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
