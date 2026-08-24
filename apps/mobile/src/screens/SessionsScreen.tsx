@@ -44,11 +44,15 @@ export const SessionsScreen: React.FC = () => {
   const styles = makeStyles(colors)
   const [switchDirInput, setSwitchDirInput] = useState('')
   const [showSwitchModal, setShowSwitchModal] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<import('../stores/sessionStore').Session | null>(null)
+  const [renameInput, setRenameInput] = useState('')
+  const [renaming, setRenaming] = useState(false)
 
   const sessions = useSessionStore((s) => s.sessions)
   const loading = useSessionStore((s) => s.loading)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const createSession = useSessionStore((s) => s.createSession)
+  const renameSession = useSessionStore((s) => s.renameSession)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const projects = useProjectStore((s) => s.projects)
@@ -103,6 +107,26 @@ export const SessionsScreen: React.FC = () => {
     pushChat()
   }
 
+  const handleOpenRename = (session: import('../stores/sessionStore').Session) => {
+    setRenameTarget(session)
+    setRenameInput(session.name || '')
+  }
+
+  const handleConfirmRename = async () => {
+    if (!renameTarget || renaming) return
+    const title = renameInput.trim()
+    if (!title) { Alert.alert('Error', '请输入会话名称'); return }
+    const client = useAuthStore.getState().client
+    if (!client) { Alert.alert('Error', '未连接到服务器'); return }
+    setRenaming(true)
+    try {
+      await renameSession(renameTarget.id, title, client.call.bind(client))
+      setRenameTarget(null)
+    } finally {
+      setRenaming(false)
+    }
+  }
+
   const renderSession = ({ item }: { item: import('../stores/sessionStore').Session }) => {
     const displayName = item.name || `Session ${item.id.slice(0, 8)}`
 
@@ -110,7 +134,9 @@ export const SessionsScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.sessionCard}
         onPress={() => handleSelectSession(item.id)}
+        onLongPress={() => handleOpenRename(item)}
         activeOpacity={0.7}
+        accessibilityLabel={`Session ${displayName}`}
       >
         <View style={styles.sessionInfo}>
           <Text style={styles.sessionName} numberOfLines={1}>
@@ -239,6 +265,44 @@ export const SessionsScreen: React.FC = () => {
                 onPress={handleConfirmSwitch}
               >
                 <Text style={styles.modalConfirmText}>Switch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={renameTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenameTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>重命名会话</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={renameInput}
+              onChangeText={setRenameInput}
+              placeholder="输入新名称"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+              maxLength={100}
+              accessibilityLabel="Rename session input"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setRenameTarget(null)}
+              >
+                <Text style={styles.modalCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmRename}
+                disabled={renaming}
+              >
+                <Text style={styles.modalConfirmText}>{renaming ? '保存中...' : '保存'}</Text>
               </TouchableOpacity>
             </View>
           </View>

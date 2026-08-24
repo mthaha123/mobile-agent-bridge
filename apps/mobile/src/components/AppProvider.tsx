@@ -132,6 +132,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       }
 
+      // 服务端会话更新（手动重命名/自动命名）→ 实时同步列表标题
+      // SDK v2 事件载荷: { info: Session }；兼容 { session } / 平铺结构
+      if (method === 'session.updated') {
+        const info = (p.info ?? p.session ?? p) as Record<string, unknown>
+        const sid = typeof info?.id === 'string' ? info.id : ''
+        const title = typeof info?.title === 'string' ? info.title : ''
+        if (sid && title) {
+          useSessionStore.getState().patchSession(sid, { name: title })
+        }
+      }
+
       // 项目切换
       if (method === 'project.changed') {
         useProjectStore.getState().setProject({

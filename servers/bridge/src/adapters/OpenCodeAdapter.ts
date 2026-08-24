@@ -222,6 +222,45 @@ export class OpenCodeBackend {
     })
   }
 
+  /**
+   * 重命名会话：PATCH /session/{id} body {title}
+   *
+   * 说明：@opencode-ai/sdk v2（1.18.x）包装层未暴露 session.update 方法
+   * （生成类型里有、运行时原型缺失），且其通用 client.patch 存在路径占位符
+   * 不替换的问题，故按项目惯例用 http 模块直连。serve 为单项目模型，
+   * 无需附带 directory 查询参数。
+   */
+  async renameSession(sessionID: string, title: string): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ title })
+      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/session/${encodeURIComponent(sessionID)}`)
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : 80,
+        path: url.pathname + url.search,
+        method: "PATCH",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+        timeout: 120000,
+      }, (res) => {
+        let b = ""
+        res.on("data", (c) => { b += c })
+        res.on("end", () => {
+          let parsed: any
+          try { parsed = JSON.parse(b) } catch { parsed = null }
+          if ((res.statusCode ?? 500) >= 400) {
+            reject(new Error(parsed?.data?.message ?? parsed?.message ?? `rename failed (${res.statusCode})`))
+            return
+          }
+          resolve(parsed && typeof parsed === "object" ? parsed : {})
+        })
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("Request timeout")) })
+      req.on("error", reject)
+      req.end(body)
+    })
+  }
+
   /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
    *  用于 config.agents/providers/model.list/command.list 等只读全局配置查询，
    *  它们不依赖 project.switch。已初始化时复用当前 client。 */

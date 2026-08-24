@@ -160,6 +160,15 @@ registerHandler("session.get", async (p) => {
   const s = unwrapData(await sdkCall(() => sdk().v2.session.get({ sessionID: id })))
   return (s && typeof s === "object" ? s : {}) as Record<string, unknown>
 })
+registerHandler("session.rename", async (p) => {
+  const id = resolveSessionId(p)
+  if (!id) throw new Error("session.rename requires sessionId parameter")
+  const title = typeof p.title === "string" ? p.title.trim() : ""
+  if (!title) throw new Error("session.rename requires non-empty title parameter")
+  // SDK v2 包装层未暴露 session.update（运行时缺失），Adapter 直连 HTTP PATCH；
+  // 返回更新后的 Session，客户端即时更新列表标题
+  return getBackend().renameSession(id, title)
+})
 registerHandler("session.messages", async (p) => {
   const id = resolveSessionIdOrId(p)
   if (!id) throw new Error("session.messages requires sessionId parameter")

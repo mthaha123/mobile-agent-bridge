@@ -411,6 +411,38 @@ describe('todo.updated handler', () => {
   })
 })
 
+describe('session.updated handler', () => {
+  it('patches local session title when server renames a session', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useSessionStore.setState({
+      sessions: [{
+        id: 'sess-1', name: 'Old Title',
+        createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z', messageCount: 0,
+      }],
+    })
+    TestRenderer.act(() => {
+      // SDK v2 事件载荷: { info: Session }
+      notifyHandler('session.updated', {
+        info: { id: 'sess-1', title: 'Auto Titled', time: {} },
+      })
+    })
+    expect(useSessionStore.getState().sessions[0].name).toBe('Auto Titled')
+  })
+
+  it('ignores session.updated without id or title', () => {
+    const { notifyHandler } = mockClientAndRender()
+    useSessionStore.setState({
+      sessions: [{
+        id: 'sess-1', name: 'Keep',
+        createdAt: '', updatedAt: '', messageCount: 0,
+      }],
+    })
+    TestRenderer.act(() => { notifyHandler('session.updated', {}) })
+    TestRenderer.act(() => { notifyHandler('session.updated', { info: { id: '' } }) })
+    expect(useSessionStore.getState().sessions[0].name).toBe('Keep')
+  })
+})
+
 describe('question.v2.asked handler', () => {
   it('adds question on question.v2.asked notification', () => {
     const { notifyHandler } = mockClientAndRender()

@@ -205,6 +205,63 @@ describe('createSession', () => {
 })
 
 // ---------------------------------------------------------------------------
+// renameSession
+// ---------------------------------------------------------------------------
+
+describe('renameSession', () => {
+  it('calls session.rename and patches local title from server response', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession }] })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({ id: 'sess-1', title: 'Renamed Session', time: { updated: 1700000000000 } })
+
+    const result = await useSessionStore.getState().renameSession('sess-1', 'Renamed Session', clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.rename', { sessionId: 'sess-1', title: 'Renamed Session' })
+    expect(useSessionStore.getState().sessions[0].name).toBe('Renamed Session')
+    expect(result?.name).toBe('Renamed Session')
+  })
+
+  it('trims the title before sending', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession }] })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({ id: 'sess-1', title: 'Trimmed' })
+
+    await useSessionStore.getState().renameSession('sess-1', '  Trimmed  ', clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.rename', { sessionId: 'sess-1', title: 'Trimmed' })
+  })
+
+  it('falls back to local title when response lacks name mapping', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession }] })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({})
+
+    await useSessionStore.getState().renameSession('sess-1', 'Fallback Name', clientCall)
+
+    expect(useSessionStore.getState().sessions[0].name).toBe('Fallback Name')
+  })
+
+  it('returns null for empty/blank title without calling the bridge', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession }] })
+    const clientCall = mockClientCall()
+
+    expect(await useSessionStore.getState().renameSession('sess-1', '   ', clientCall)).toBeNull()
+    expect(clientCall).not.toHaveBeenCalled()
+  })
+
+  it('returns null on error and sets error state', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession }] })
+    const clientCall = mockClientCall()
+    clientCall.mockRejectedValue(new Error('rename failed'))
+
+    const result = await useSessionStore.getState().renameSession('sess-1', 'New', clientCall)
+
+    expect(result).toBeNull()
+    expect(useSessionStore.getState().error).toBe('rename failed')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // getSession
 // ---------------------------------------------------------------------------
 

@@ -97,6 +97,7 @@ export interface SessionState {
   clearError: () => void
   fetchSessions: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   createSession: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<string | null>
+  renameSession: (id: string, title: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
 
   // Advanced session operations
   getSession: (id: string, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<Session | null>
@@ -151,6 +152,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return null
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '创建会话失败' })
+      return null
+    }
+  },
+
+  renameSession: async (id, title, clientCall) => {
+    const trimmed = title.trim()
+    if (!id || !trimmed) return null
+    set({ error: null })
+    try {
+      // 服务端权威结果（bridge → SDK v2 PATCH /session/{id}），成功后本地即时更新标题；
+      // 响应缺 title 时回退本地输入（mapSession 会生成占位名，不能直接用）
+      const result = await clientCall('session.rename', { sessionId: id, title: trimmed })
+      const raw = normalizeItem<any>(result, 'session')
+      const newName = (typeof raw?.title === 'string' && raw.title) || (typeof raw?.name === 'string' && raw.name) || trimmed
+      get().patchSession(id, { name: newName })
+      return useSessionStore.getState().sessions.find((s) => s.id === id) ?? null
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : '重命名失败' })
       return null
     }
   },

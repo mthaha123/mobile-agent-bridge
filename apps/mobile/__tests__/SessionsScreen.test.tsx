@@ -144,6 +144,48 @@ describe('SessionsScreen — interactions', () => {
     expect(useUiStore.getState().chatSubScreen).toBe('chat')
   })
 
+  it('long-press opens rename modal and confirm calls session.rename', async () => {
+    const sessions = [{
+      id: 's1', name: 'Old Name',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 0,
+    }]
+    useSessionStore.setState({ sessions })
+    const client = mockClient({
+      'session.rename': (params: any) => {
+        return { id: params.sessionId, title: params.title, time: { updated: Date.now() } }
+      },
+    })
+    act(() => { useAuthStore.setState({ client: client as any }) })
+
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+
+    // 长按会话卡片 → 打开重命名弹窗
+    const card = tree.root.findAll(
+      (n: any) => n.props?.accessibilityLabel === 'Session Old Name',
+    )[0]
+    expect(card).toBeDefined()
+    act(() => { card.props.onLongPress() })
+
+    // 输入新名称并保存
+    const input = tree.root.findByProps({ accessibilityLabel: 'Rename session input' })
+    act(() => { input.props.onChangeText('New Name') })
+    const saveBtn = tree.root.findAll((n: any) => n.props?.onPress).find((n: any) => {
+      try {
+        const children = n.findAll?.((c: any) => typeof c.props?.children === 'string') ?? []
+        return children.some((c: any) => c.props.children === '保存')
+      } catch { return false }
+    })
+    expect(saveBtn).toBeDefined()
+    await act(async () => { await saveBtn!.props.onPress() })
+
+    expect(client.call).toHaveBeenCalledWith('session.rename', { sessionId: 's1', title: 'New Name' })
+    expect(useSessionStore.getState().sessions[0].name).toBe('New Name')
+  })
+
   it('Session item press sets session and navigates', () => {
     const sessions = [{
       id: 's1', name: 'Test Session',

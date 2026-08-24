@@ -78,6 +78,7 @@ function createMockSdk() {
   }
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
   backend.rawSessionMessages = jest.fn<any>().mockResolvedValue({ messages: [], cursor: undefined })
+  backend.renameSession = jest.fn<any>().mockResolvedValue({ id: "sess_123", title: "Renamed" })
   return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig }
 }
 
@@ -608,6 +609,36 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(false)
     expect(messages[0].error).toContain("sessionId")
+  })
+
+  it("should rename session via session.rename (SDK v2 session.update)", async () => {
+    const { backend, mockV2 } = createMockSdk()
+    void mockV2
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.rename",
+      params: { sessionId: "sess_123", title: "  新会话名  " },
+    }, testPayload)
+    expect(backend.renameSession).toHaveBeenCalledWith("sess_123", "新会话名")
+    expect(messages[0].ok).toBe(true)
+    expect(messages[0].payload).toEqual({ id: "sess_123", title: "Renamed" })
+  })
+
+  it("should reject session.rename without sessionId or title", async () => {
+    createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.rename",
+      params: { title: "x" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("sessionId")
+    await handleFrame("conn1", ws, {
+      type: "req", id: "2", method: "session.rename",
+      params: { sessionId: "sess_123", title: "   " },
+    }, testPayload)
+    expect(messages[1].ok).toBe(false)
+    expect(messages[1].error).toContain("title")
   })
 
   it("should call session.status", async () => {
