@@ -1,0 +1,58 @@
+appId: com.mobileagentbridge
+---
+# MarkdownTable 组件验证（会话内实时输入路径——复现用户报告场景）
+# 用户气泡 maxWidth 80%，是最窄的容器：验证自适应列宽 + 裁剪 + 横向滚动 + 全屏兜底
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 20000
+
+- tapOn: "ws://.*"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "D:/code/mobile-agent-bridge"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 新建空会话，保证表格消息位于列表最底部（inverted 列表初始视口）
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 15000
+
+# 输入宽表格 markdown 并发送
+- tapOn: "Type a message..."
+- inputText: "| 模块 | 核心文件路径 | 负责人 | 当前状态与说明 |\n| --- | --- | --- | --- |\n| Bridge 网关服务 | servers/bridge/src/index.ts | 张三丰 | 已上线并稳定运行中 |"
+- tapOn: "Send message"
+
+# ── 用户气泡内的表格渲染断言 ──
+# 首列自适应宽度可见
+- extendedWaitUntil:
+    visible: "模块"
+    timeout: 10000
+
+# 超宽列被裁剪在视口外（证明溢出而非压扁）
+- extendedWaitUntil:
+    visible: "张三丰"
+    timeout: 2000
+
+# 全屏兜底入口可点击
+- tapOn: "全屏查看表格"
+- extendedWaitUntil:
+    visible: "表格视图"
+    timeout: 5000
+- tapOn: "关闭表格视图"
+
+# 横向滚动后右侧列进入视口
+- swipe:
+    start: "85%, 70%"
+    end: "15%, 70%"
+- extendedWaitUntil:
+    visible: "张三丰"
+    timeout: 5000

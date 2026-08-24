@@ -1,0 +1,77 @@
+appId: com.mobileagentbridge
+---
+# MarkdownTable 组件验证（文件查看器路径）
+# 前置: bridge 已启动(8080)、APK 已安装、模拟器已运行
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 20000
+
+# ── 连接真实 bridge ──
+- tapOn: "ws://.*"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:8080/ws"
+- tapOn: "password (optional)"
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- inputText: "D:/code/mobile-agent-bridge"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# ── 导航到测试文件 ──
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "logs"
+    timeout: 15000
+- tapOn: "logs"
+- extendedWaitUntil:
+    visible: "build"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "md-table-test.md"
+    timeout: 15000
+- tapOn: "md-table-test.md"
+
+# ── 1) 窄表渲染验证 ──
+- extendedWaitUntil:
+    visible: "alpha"
+    timeout: 10000
+
+# ── 2) 滚动到宽表区域 ──
+- scrollUntilVisible:
+    element:
+      text: "模块"
+    direction: DOWN
+    timeout: 5000
+- assertVisible: "模块"
+
+# ── 3) 主视图横向滚动验证 ──
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+- extendedWaitUntil:
+    visible: "李四"
+    timeout: 5000
+
+# ── 4) 全屏查看器（宽表的第二个 expand 按钮） ──
+- tapOn:
+    text: "全屏查看表格"
+    index: 1
+- extendedWaitUntil:
+    visible: "表格视图"
+    timeout: 5000
+
+# modal 内横向滚动后右侧列进入视口
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+- assertVisible: "李四"
+- assertVisible: "本次修复的核心组件"
+
+# ── 5) 关闭查看器 ──
+- tapOn: "关闭表格视图"
+# 关闭后回到主视图（横向滚动位置不变，用窄表内容验证）
+- assertVisible: "alpha"

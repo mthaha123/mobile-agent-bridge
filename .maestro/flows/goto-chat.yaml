@@ -1,0 +1,9 @@
+appId: com.mobileagentbridge
+---
+# 切到 Chat tab 并观察会话请求状态
+- launchApp
+- tapOn: "Chat"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+    optional: true
