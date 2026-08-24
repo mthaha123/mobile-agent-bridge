@@ -83,6 +83,21 @@ export interface Session {
   model?: { id: string; providerID?: string; name?: string; variant?: string }
 }
 
+/**
+ * 按 id 或名称对会话列表做不区分大小写的子串模糊匹配。
+ * 空查询返回原列表（同一引用，便于调用方判断是否处于搜索态）。
+ * 多关键词可用空格分隔，全部命中才算匹配（AND 语义）。
+ */
+export function filterSessions(sessions: Session[], query: string): Session[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return sessions
+  const keywords = q.split(/\s+/)
+  return sessions.filter((s) => {
+    const haystack = `${s.name || ''}\n${s.id || ''}`.toLowerCase()
+    return keywords.every((k) => haystack.includes(k))
+  })
+}
+
 export interface SessionState {
   sessions: Session[]
   loading: boolean

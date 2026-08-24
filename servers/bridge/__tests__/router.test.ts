@@ -486,7 +486,7 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.list", params: {},
     }, testPayload)
     expect(messages[0].ok).toBe(true)
-    expect(mockV3Session.list).toHaveBeenCalledWith({ limit: 500 })
+    expect(mockV3Session.list).toHaveBeenCalledWith({ limit: 2000, roots: true })
     // SDK { data: [...] } 被解包为裸数组
     expect(Array.isArray(messages[0].payload)).toBe(true)
   })
@@ -549,7 +549,26 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.list",
       params: { search: "test", limit: 10, cursor: "abc" },
     }, testPayload)
-    expect(mockV3Session.list).toHaveBeenCalledWith({ search: "test", limit: 10, cursor: "abc" })
+    // cursor 不是 v2 GET /session 支持的参数，不透传；默认 roots=true 过滤子会话
+    expect(mockV3Session.list).toHaveBeenCalledWith({ search: "test", limit: 10, roots: true })
+  })
+
+  it("should default session.list to root sessions and large limit", async () => {
+    const { mockV3Session } = createMockSdk()
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.list", params: {},
+    }, testPayload)
+    expect(mockV3Session.list).toHaveBeenCalledWith({ roots: true, limit: 2000 })
+  })
+
+  it("should allow disabling roots filter explicitly", async () => {
+    const { mockV3Session } = createMockSdk()
+    const { ws } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "session.list", params: { roots: false },
+    }, testPayload)
+    expect(mockV3Session.list).toHaveBeenCalledWith({ roots: false, limit: 2000 })
   })
 
   it("should call session.get with sessionID", async () => {

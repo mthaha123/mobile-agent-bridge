@@ -385,3 +385,84 @@ describe('formatRelativeTime', () => {
     expect(result).not.toMatch(/^(just now|\d+[mhd] ago)$/)
   })
 })
+
+// ─── 会话搜索（按名称 / id 模糊匹配）──────────────────────
+
+describe('SessionsScreen — search', () => {
+  beforeEach(() => resetAllStores())
+
+  const seedSessions = () => {
+    useSessionStore.setState({
+      sessions: [
+        { id: 's1', name: 'Fix login bug', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messageCount: 0 },
+        { id: 'ses_fce182fc9ffe', name: 'Implement Task 3', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messageCount: 0 },
+      ],
+      loading: false,
+      error: null,
+    })
+  }
+
+  const UI_LABELS = new Set(['Session search input', 'Clear session search'])
+
+  const findInput = (tree: any) => tree.root.findByProps({ accessibilityLabel: 'Session search input' })
+
+  // 注意：测试环境下 VirtualizedList 会把每个 item 渲染两份（CellRenderer 双份），需去重后断言
+  const cardLabels = (tree: any) =>
+    [...new Set(
+      tree.root
+        .findAll((n: any) => typeof n.props?.accessibilityLabel === 'string')
+        .map((n: any) => n.props.accessibilityLabel as string)
+        .filter((l: string) => l.startsWith('Session ') && !UI_LABELS.has(l)),
+    )]
+
+  it('renders search input with clear button hidden initially', () => {
+    seedSessions()
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(findInput(tree)).toBeDefined()
+    const clearBtn = tree.root.findAll(
+      (n: any) => n.props?.accessibilityLabel === 'Clear session search',
+    )
+    expect(clearBtn).toHaveLength(0)
+  })
+
+  it('filters by name substring case-insensitively', () => {
+    seedSessions()
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(cardLabels(tree)).toHaveLength(2)
+
+    act(() => { findInput(tree).props.onChangeText('task') })
+
+    expect(cardLabels(tree)).toEqual(['Session Implement Task 3'])
+  })
+
+  it('filters by id substring', () => {
+    seedSessions()
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+
+    act(() => { findInput(tree).props.onChangeText('FCE182') })
+
+    expect(cardLabels(tree)).toEqual(['Session Implement Task 3'])
+  })
+
+  it('shows no-match empty state and restores list after clearing', () => {
+    seedSessions()
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+
+    act(() => { findInput(tree).props.onChangeText('zzz-no-match') })
+    // 测试环境不渲染 ListEmptyComponent，以「卡片全部消失」作为无结果断言
+    expect(cardLabels(tree)).toEqual([])
+
+    const clearBtn = tree.root.findByProps({ accessibilityLabel: 'Clear session search' })
+    act(() => { clearBtn.props.onPress() })
+
+    expect(cardLabels(tree)).toHaveLength(2)
+  })
+})

@@ -139,10 +139,13 @@ registerHandler("session.create", async (p) => {
 registerHandler("session.list", async (p) => {
   const params: Record<string, unknown> = {}
   if (p.search) params.search = p.search
-  if (p.cursor) params.cursor = p.cursor
-  // 默认拉全量：serve /api/session 默认 limit=50，会导致 App 只显示最近 50 个 session。
-  // App 未显式传 limit 时设一个大上限；显式传则尊重。
-  params.limit = (p.limit !== undefined) ? p.limit : 500
+  // 默认只取根会话（parentID 为空），与 OpenCode 桌面 TUI 行为一致；
+  // 否则 fork / subagent 产生的子会话（标题形如 "xxx (@general subagent)"）会混入 App 列表。
+  // 调用方可显式传 roots:false 查看全部（session.children 已单独覆盖 fork 树场景）。
+  params.roots = p.roots !== undefined ? p.roots : true
+  // 默认拉全量：serve 默认 limit=50，会导致 App 只显示最近一小段 session。
+  // 实测一个活跃项目可积累 500+ 会话，默认上限设为 2000 防止静默截断；显式传则尊重。
+  params.limit = (p.limit !== undefined) ? p.limit : 2000
   const list = unwrapData(await sdkCall(() => sdk().v2.session.list(params)))
   // serve 按 time.created 降序返回，客户端更期望"最近更新"排最前，按 time.updated 重排
   const sessions = Array.isArray(list) ? [...list] : []

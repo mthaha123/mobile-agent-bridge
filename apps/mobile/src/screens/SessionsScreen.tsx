@@ -11,7 +11,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native'
-import { useSessionStore } from '../stores/sessionStore'
+import { useSessionStore, filterSessions } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
@@ -47,9 +47,12 @@ export const SessionsScreen: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<import('../stores/sessionStore').Session | null>(null)
   const [renameInput, setRenameInput] = useState('')
   const [renaming, setRenaming] = useState(false)
+  // 会话搜索：按名称 / id 模糊匹配（客户端本地过滤，输入即时生效）
+  const [searchQuery, setSearchQuery] = useState('')
 
   const sessions = useSessionStore((s) => s.sessions)
   const loading = useSessionStore((s) => s.loading)
+  const filteredSessions = filterSessions(sessions, searchQuery)
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const createSession = useSessionStore((s) => s.createSession)
   const renameSession = useSessionStore((s) => s.renameSession)
@@ -158,6 +161,17 @@ export const SessionsScreen: React.FC = () => {
 
   const renderEmpty = () => {
     if (loading) return null
+    // 区分「还没有会话」与「搜索无结果」两种空态
+    if (searchQuery.trim() && sessions.length > 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>🔍</Text>
+          <Text style={styles.emptyText}>
+            No sessions match "{searchQuery.trim()}".
+          </Text>
+        </View>
+      )
+    }
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>📭</Text>
@@ -199,6 +213,29 @@ export const SessionsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.searchBar}>
+        <TextInput
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search by name or id..."
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Session search input"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            style={styles.searchClearBtn}
+            onPress={() => setSearchQuery('')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Clear session search"
+          >
+            <Text style={styles.searchClearText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading && sessions.length === 0 && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -207,7 +244,7 @@ export const SessionsScreen: React.FC = () => {
       )}
 
       <FlatList
-        data={sessions}
+        data={filteredSessions}
         keyExtractor={(item) => item.id}
         renderItem={renderSession}
         ListEmptyComponent={renderEmpty}
@@ -389,6 +426,31 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: colors.text,
+  },
+  searchClearBtn: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  searchClearText: {
+    color: colors.textTertiary,
+    fontSize: 16,
   },
   loadingContainer: {
     flex: 1,

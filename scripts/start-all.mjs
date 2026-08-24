@@ -45,24 +45,36 @@ function yellow(t) { return `\x1b[33m${t}\x1b[0m` }
 function red(t) { return `\x1b[31m${t}\x1b[0m` }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 解析 OPENCODE_API_KEY：env → 注册表(User) → auth.json */
-function resolveOpenCodeAPIKey() {
-  if (process.env.OPENCODE_API_KEY) return process.env.OPENCODE_API_KEY
+/** 解析指定 provider 的 API key：env → 注册表(User) → auth.json */
+function resolveProviderKey(envVar, providerId) {
+  if (process.env[envVar]) return process.env[envVar]
   try {
-    const reg = execSync('reg query "HKCU\\Environment" /v OPENCODE_API_KEY', { encoding: "utf8", timeout: 5000 })
-    const m = reg.match(/OPENCODE_API_KEY\s+REG_\w+\s+(\S+)/)
+    const reg = execSync(`reg query "HKCU\\Environment" /v ${envVar}`, { encoding: "utf8", timeout: 5000 })
+    const m = reg.match(new RegExp(`${envVar}\\s+REG_\\w+\\s+(\\S+)`))
     if (m && m[1]) return m[1]
   } catch {}
   try {
     const authPath = path.join(os.homedir(), ".local", "share", "opencode", "auth.json")
     if (existsSync(authPath)) {
       const auth = JSON.parse(readFileSync(authPath, "utf8"))
-      for (const p of ["opencode-go", "opencode"]) {
-        if (auth[p] && typeof auth[p].key === "string" && auth[p].key) return auth[p].key
+      if (auth[providerId] && typeof auth[providerId].key === "string" && auth[providerId].key) {
+        return auth[providerId].key
       }
     }
   } catch {}
   return ""
+}
+
+/** 解析 OPENCODE_API_KEY：env → 注册表(User) → auth.json（opencode-go/opencode 任一） */
+function resolveOpenCodeAPIKey() {
+  const goKey = resolveProviderKey("OPENCODE_API_KEY", "opencode-go")
+  if (goKey) return goKey
+  return resolveProviderKey("OPENCODE_API_KEY", "opencode")
+}
+
+/** 解析 DEEPSEEK_API_KEY：env → 注册表(User) → auth.json */
+function resolveDeepSeekAPIKey() {
+  return resolveProviderKey("DEEPSEEK_API_KEY", "deepseek")
 }
 
 /** 从 PID 文件提取数字 PID（兼容 UTF-8 / UTF-16 编码，strip BOM） */
@@ -135,7 +147,7 @@ function startServe() {
     detached: true,
     stdio: "ignore",
     cwd: SERVE_CWD,
-    env: { ...process.env, OPENCODE_SERVER_PASSWORD: "", OPENCODE_API_KEY: key },
+    env: { ...process.env, OPENCODE_SERVER_PASSWORD: "", OPENCODE_API_KEY: key, DEEPSEEK_API_KEY: resolveDeepSeekAPIKey() },
   })
   writeFileSync(pidFile, String(child.pid))
   child.unref()

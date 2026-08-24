@@ -18,7 +18,7 @@ jest.mock('../src/services/BridgeClient', () => ({
   })),
 }))
 
-import { useSessionStore, Session } from '../src/stores/sessionStore'
+import { useSessionStore, Session, filterSessions } from '../src/stores/sessionStore'
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -437,5 +437,51 @@ describe('revertSession', () => {
 
     expect(warnSpy).toHaveBeenCalledWith('session.revert failed:', 'revert failed')
     warnSpy.mockRestore()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// filterSessions — 会话搜索（按 id / 名称模糊匹配）
+// ---------------------------------------------------------------------------
+
+describe('filterSessions', () => {
+  const sessions: Session[] = [
+    mockSession, // id: sess-1, name: Test Session
+    mockSession2, // id: sess-2, name: Another Session
+    { ...mockSession, id: 'ses_fce182fc9ffe', name: 'Implement Task 3' },
+  ]
+
+  it('returns the original list for empty/blank query', () => {
+    expect(filterSessions(sessions, '')).toBe(sessions)
+    expect(filterSessions(sessions, '   ')).toBe(sessions)
+  })
+
+  it('matches by name substring (case-insensitive)', () => {
+    const got = filterSessions(sessions, 'another')
+    expect(got).toHaveLength(1)
+    expect(got[0].id).toBe('sess-2')
+    expect(filterSessions(sessions, 'SESSION')).toHaveLength(2)
+  })
+
+  it('matches by id substring (case-insensitive)', () => {
+    const got = filterSessions(sessions, 'FCE182')
+    expect(got).toHaveLength(1)
+    expect(got[0].id).toBe('ses_fce182fc9ffe')
+  })
+
+  it('matches name OR id (either hits)', () => {
+    // 'task' 只命中名称；'sess-1' 只命中 id —— 混合列表都能被搜出
+    expect(filterSessions(sessions, 'task')).toEqual([sessions[2]])
+    expect(filterSessions(sessions, 'sess-1')).toEqual([sessions[0]])
+  })
+
+  it('supports space-separated keywords with AND semantics', () => {
+    const got = filterSessions(sessions, 'implement task')
+    expect(got).toEqual([sessions[2]])
+    expect(filterSessions(sessions, 'test another')).toHaveLength(0)
+  })
+
+  it('returns empty array when nothing matches', () => {
+    expect(filterSessions(sessions, 'no-such-keyword')).toEqual([])
   })
 })
