@@ -8,8 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Modal,
-  ScrollView,
   LayoutAnimation,
   UIManager,
 } from 'react-native'
@@ -24,6 +22,7 @@ import { useConfigStore } from '../stores/configStore'
 import { useAttachmentStore } from '../stores/attachmentStore'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
+import { ModelPickerModal } from '../components/ModelPickerModal'
 import type { Part } from '../types/message'
 import { buildToolPartFromRaw } from '../utils/toolParts'
 import { MessageList } from '../components/chat/MessageList'
@@ -448,58 +447,13 @@ export const ChatScreen: React.FC = () => {
         filter={slashFilter}
       />
 
-      <Modal
+      <ModelPickerModal
         visible={modelPickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModelPickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setModelPickerVisible(false)}
-        >
-          <TouchableOpacity style={styles.modelPickerCard} activeOpacity={1} onPress={() => {}}>
-            <Text style={styles.modelPickerTitle}>Select Model</Text>
-            <ScrollView style={styles.modelPickerBody}>
-              {Array.isArray(models) && models.length === 0 && (
-                <Text style={styles.modelPickerEmpty}>No models loaded</Text>
-              )}
-              {Array.isArray(models) && models.map((m: any, i: number) => {
-                const label = m.name || m.id || m.label || `Model ${i + 1}`
-                const provider = m.providerID || m.provider?.id || ''
-                // 同名模型可能来自不同 provider（如 deepseek-v4-flash 同时存在于
-                // opencode 与 opencode-go）。必须按 (id + providerID) 匹配，确保
-                // 只有真正正在使用的那个模型被标记为选中（✓）。
-                const currentModelId = currentSession?.model?.id
-                const currentProvider = currentSession?.model?.providerID
-                const isCurrent = currentModelId != null && m.id === currentModelId &&
-                  (!currentProvider || m.providerID === currentProvider)
-                return (
-                  <TouchableOpacity
-                    key={`${m.providerID || ''}:${m.id || i}`}
-                    style={[styles.modelPickerItem, isCurrent && styles.modelPickerItemActive]}
-                    onPress={async () => {
-                      await handleSwitchModel(m)
-                      setModelPickerVisible(false)
-                    }}
-                  >
-                    <View style={styles.modelPickerItemLeft}>
-                      {provider ? (
-                        <View style={styles.modelProviderBadge}>
-                          <Text style={styles.modelProviderBadgeText} numberOfLines={1}>{provider}</Text>
-                        </View>
-                      ) : null}
-                      <Text style={styles.modelPickerItemText}>{label}</Text>
-                    </View>
-                    <Text style={styles.modelPickerItemArrow}>{isCurrent ? '✓' : '›'}</Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        onClose={() => setModelPickerVisible(false)}
+        onSelect={handleSwitchModel}
+        models={models}
+        currentModel={currentSession?.model ?? null}
+      />
     </KeyboardAvoidingView>
   )
 }
@@ -639,77 +593,6 @@ const makeStyles = (colors: ThemeColors) =>
     fontWeight: '600',
   },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  modelPickerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '70%',
-  },
-  modelPickerTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  modelPickerBody: {
-    maxHeight: 400,
-  },
-  modelPickerEmpty: {
-    color: colors.textTertiary,
-    fontSize: 14,
-    textAlign: 'center',
-    padding: 24,
-  },
-  modelPickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 6,
-  },
-  modelPickerItemText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  modelPickerItemArrow: {
-    color: colors.textTertiary,
-    fontSize: 20,
-  },
-  modelPickerItemLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  modelPickerItemActive: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  modelProviderBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginRight: 8,
-    maxWidth: 110,
-  },
-  modelProviderBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-  },
   runErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
