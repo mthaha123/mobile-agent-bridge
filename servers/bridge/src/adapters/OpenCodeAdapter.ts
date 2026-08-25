@@ -37,7 +37,9 @@ export class OpenCodeBackend {
           path: url.pathname + url.search,
           method,
           headers: bodyStr ? { ...reqHeaders, "Content-Length": Buffer.byteLength(bodyStr).toString() } : reqHeaders,
-          timeout: 120000,
+          // SSE 长连接（/event）必须禁用 socket 空闲超时：长 bash 执行期间事件静默 >120s
+          // 会触发空闲超时被强制断流，断口内产生的事件（含 tool.success 终态）永久丢失。
+          timeout: resolveHttpIdleTimeoutMs(url.pathname),
         }, (res) => {
           let streamCancelled = false
           const statusCode = res.statusCode || 200
@@ -425,6 +427,22 @@ export class OpenCodeBackend {
 }
 
 // ===== 消息归一化 / 选边 / cursor 工具（导出供单元测试） =====
+
+/**
+ * HTTP socket 空闲超时判定（导出供单元测试）。
+ *
+ * SSE 订阅端点（GET /event、GET /global/event）是长连接，事件到达节奏完全
+ * 由服务端活动决定——agent 执行长 bash 命令期间可能数分钟无任何事件流过。
+ * 若套用普通 RPC 的空闲超时，连接会在静默期被强制断开重连（实测 120s），
+ * 断口内产生的事件（如工具终态 tool.success/failed）永久丢失，
+ * 手机端对应工具就会永远显示"运行中"。因此流式端点返回 0（禁用空闲超时），
+ * 其余端点维持 120s 兜底。
+ */
+export function resolveHttpIdleTimeoutMs(pathname: string): number {
+  const p = pathname.replace(/\/+$/, "").toLowerCase()
+  if (p === "/event" || p === "/global/event") return 0
+  return 120000
+}
 
 type RawMessage = Record<string, any>
 

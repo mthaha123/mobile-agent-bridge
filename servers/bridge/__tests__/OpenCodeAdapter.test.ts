@@ -422,3 +422,23 @@ describe("消息记录形态归一化：v2 投影形态 → 规范 {info, parts}
     }
   })
 })
+
+// ─── SSE 长连接空闲超时判定 ──────────────────────────────────
+
+describe("resolveHttpIdleTimeoutMs", () => {
+  it("SSE 订阅端点 /event 返回 0（禁用空闲超时，防静默断流丢事件）", async () => {
+    const { resolveHttpIdleTimeoutMs } = await import("../src/adapters/OpenCodeAdapter.js")
+    expect(resolveHttpIdleTimeoutMs("/event")).toBe(0)
+    expect(resolveHttpIdleTimeoutMs("/global/event")).toBe(0)
+    expect(resolveHttpIdleTimeoutMs("/event/")).toBe(0)
+    expect(resolveHttpIdleTimeoutMs("/EVENT")).toBe(0)
+  })
+
+  it("普通 RPC 端点维持 120s 兜底", async () => {
+    const { resolveHttpIdleTimeoutMs } = await import("../src/adapters/OpenCodeAdapter.js")
+    expect(resolveHttpIdleTimeoutMs("/session/abc/message")).toBe(120000)
+    expect(resolveHttpIdleTimeoutMs("/api/session")).toBe(120000)
+    expect(resolveHttpIdleTimeoutMs("/events")).toBe(120000)
+    expect(resolveHttpIdleTimeoutMs("/globalevent")).toBe(120000)
+  })
+})

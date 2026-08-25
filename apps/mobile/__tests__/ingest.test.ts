@@ -3,6 +3,7 @@
  */
 
 import { useChatStore, type ToolPartData } from '../src/stores/chatStore'
+import { useAuthStore } from '../src/stores/authStore'
 
 function resetStore() {
   useChatStore.setState({
@@ -477,5 +478,286 @@ describe('sendMessage / syncSessionMessages', () => {
     const toolPart = useChatStore.getState().messages[0].parts?.find((p) => p.type === 'tool')
     expect(toolPart).toBeTruthy()
     expect((toolPart!.data as ToolPartData).tool).toBe('bash')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工具结算自愈（stuck tool 修复）
+//
+// 根因：opencode 服务端存在工具 part 永不结算的缺陷（bash 挂起/回合中断后
+// state.status 停留在 running，tool.success/failed 终态事件永不发出）；
+// 且 WS 断线断口内的事件永久丢失。客户端必须能自愈：
+//   1. message.part.updated 的 tool part 是结算的备用通道
+//   2. 权威快照显示会话空闲时，对账终结残留的非终态工具
+//   3. 历史加载按 part 级对账，服务端终态覆盖本地非终态
+// ---------------------------------------------------------------------------
+
+describe('工具结算自愈', () => {
+  function seedCalledTool(callID = 'call-1', assistantMessageID = 'ams-1') {
+    useChatStore.setState({ activeSessionId: 's-1' })
+    ingest('session.next.tool.called', { sessionID: 's-1', callID, tool: 'bash', input: { command: 'sleep 3600' }, assistantMessageID })
+    expect(partData(callID).status).toBe('called')
+  }
+
+  it('message.part.updated(tool completed) 按 callID 结算运行中的工具（备用结算通道）', () => {
+    seedCalledTool()
+    ingest('message.part.updated', {
+      sessionID: 's-1',
+      part: {
+        id: 'prt_abc',
+        callID: 'call-1',
+        messageID: 'ams-1',
+        type: 'tool',
+        tool: 'bash',
+        state: { status: 'completed', input: { command: 'sleep 3600' }, metadata: { output: 'done!', exit: 0 } },
+      },
+    })
+    const d = partData('call-1')
+    expect(d.status).toBe('success')
+    expect(d.result).toBe('done!')
+  })
+
+  it('message.part.updated(running) 不把已成功的工具打回运行中（终态保护）', () => {
+    seedCalledTool()
+    ingest('message.part.updated', {
+      sessionID: 's-1',
+      part: { id: 'prt_x', callID: 'call-1', type: 'tool', tool: 'bash', state: { status: 'completed', input: {} } },
+    })
+    expect(partData('call-1').status).toBe('success')
+    // 陈旧投影重放 running → 拒绝降级
+    ingest('message.part.updated', {
+      sessionID: 's-1',
+      part: { id: 'prt_x', callID: 'call-1', type: 'tool', tool: 'bash', state: { status: 'running', input: {} } },
+    })
+    expect(partData('call-1').status).toBe('success')
+  })
+
+  it('message.part.updated 未知 callID 时插入新卡片，身份用 callID 而非 prt_*', () => {
+    ingest('message.part.updated', {
+      sessionID: 's-1',
+      part: {
+        id: 'prt_new',
+        callID: 'call-new',
+        messageID: 'ams-2',
+        type: 'tool',
+        tool: 'read',
+        state: { status: 'error', input: {}, error: 'file not found' },
+      },
+    })
+    const d = partData('call-new')
+    expect(d.status).toBe('failed')
+    expect(d.error).toBe('file not found')
+    // prt_new 不应产生第二张卡片
+    expect(parts().filter((p) => p.type === 'tool')).toHaveLength(1)
+  })
+
+  it('session.error 终结全部未决工具', () => {
+    seedCalledTool('call-1')
+    ingest('session.next.tool.called', { sessionID: 's-1', callID: 'call-2', tool: 'read', input: {} })
+    ingest('session.error', { sessionID: 's-1', error: { message: 'boom' } })
+    expect(partData('call-1').status).toBe('failed')
+    expect(partData('call-2').status).toBe('failed')
+  })
+
+  describe('reconcileStaleTools（权威快照 idle 对账）', () => {
+    it('空闲 + 无等待 → 非终态工具标 failed 并带原因', () => {
+      seedCalledTool()
+      useChatStore.getState().reconcileStaleTools()
+      const d = partData('call-1')
+      expect(d.status).toBe('failed')
+      expect(String(d.error)).toContain('未收到执行结果')
+    })
+
+    it('等待中（回合进行中）→ 不动，防止误杀真实长任务', () => {
+      seedCalledTool()
+      useChatStore.setState({ waiting: true })
+      useChatStore.getState().reconcileStaleTools()
+      expect(partData('call-1').status).toBe('called')
+    })
+
+    it('已终态的工具不被改写', () => {
+      seedCalledTool()
+      ingest('session.next.tool.success', { sessionID: 's-1', callID: 'call-1', result: 'ok' })
+      useChatStore.getState().reconcileStaleTools()
+      expect(partData('call-1').status).toBe('success')
+    })
+  })
+
+  describe('fetchSessionRunStatus 权威快照解除假性等待', () => {
+    it('快照说空闲 → 解除残留的 waiting/pendingSteps + 终结卡住的 ⏳（错过结束广播的自愈）', async () => {
+      seedCalledTool()
+      useChatStore.setState({ waiting: true, pendingSteps: 2 })
+      const clientCall = jest.fn().mockResolvedValue({}) // 空快照 = 没有任何会话在跑
+
+      await useChatStore.getState().fetchSessionRunStatus('s-1', clientCall)
+
+      // 输入框解锁、转圈停止
+      expect(useChatStore.getState().waiting).toBe(false)
+      expect(useChatStore.getState().pendingSteps).toBe(0)
+      // 卡住的 ⏳ 被终结
+      expect(partData('call-1').status).toBe('failed')
+      // 会话红方块熄灭
+      expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('idle')
+    })
+
+    it('快照说仍在运行 → 保留等待态，不误杀真实长任务', async () => {
+      seedCalledTool()
+      useChatStore.setState({ waiting: true, pendingSteps: 1 })
+      const clientCall = jest.fn().mockResolvedValue({ data: { 's-1': { type: 'running' } } })
+
+      await useChatStore.getState().fetchSessionRunStatus('s-1', clientCall)
+
+      expect(useChatStore.getState().waiting).toBe(true)
+      expect(useChatStore.getState().pendingSteps).toBe(1)
+      expect(partData('call-1').status).toBe('called')
+    })
+
+    it('空闲判定只看目标会话：其他会话在跑不拦住本会话的解除', async () => {
+      seedCalledTool() // 属于 s-1
+      useChatStore.setState({ waiting: true, pendingSteps: 1 })
+      // 快照里只有别的会话在跑，s-1 不在运行集合中 → 服务端认为 s-1 已结束
+      const clientCall = jest.fn().mockResolvedValue({ data: { 's-other': { type: 'running' } } })
+
+      await useChatStore.getState().fetchSessionRunStatus('s-1', clientCall)
+
+      expect(useChatStore.getState().waiting).toBe(false)
+      expect(partData('call-1').status).toBe('failed')
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // busy 闩锁解锁（"一直占用"根因修复）
+  //
+  // 本项目对接的 opencode serve 实测不广播 session.idle/session.status(idle)，
+  // 快照标记的 busy 在事件流内无解锁信号 → 转圈不停、输入框永久锁定。
+  // 修复：本地判定回合已完（步骤归零 + 无未完结工具）时，去抖请求权威快照解除。
+  // ---------------------------------------------------------------------------
+
+  describe('busy 闩锁解锁', () => {
+    const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve() }
+
+    function mockAuthClient(statusResponse: unknown) {
+      const call = jest.fn(async (method: string) => {
+        if (method === 'session.status') return statusResponse
+        throw new Error(`unhandled: ${method}`)
+      })
+      useAuthStore.setState({ client: { call, on: jest.fn(() => jest.fn()) } as any })
+      return call
+    }
+
+    beforeEach(() => {
+      jest.useFakeTimers()
+    })
+    afterEach(() => {
+      jest.useRealTimers()
+      useAuthStore.setState({ client: null })
+    })
+
+    it('回合完成但闩在 busy → 去抖快照确认空闲后自动解除占用 + 终结卡住的 ⏳', async () => {
+      seedCalledTool('call-latch')
+      ingest('session.next.tool.success', { sessionID: 's-1', callID: 'call-latch', result: 'done' })
+      useChatStore.setState({
+        waiting: true,
+        pendingSteps: 1,
+        sessionRunStatus: { 's-1': 'busy' },
+      })
+      const statusCall = mockAuthClient({}) // 空快照 = 空闲
+
+      // 步骤结束：pendingSteps 归零、无未完结工具、仍闩 busy → 应调度验证
+      ingest('session.next.step.ended', { sessionID: 's-1' })
+      // 去抖窗口内 waiting 仍被闩住（尚未验证）
+      expect(useChatStore.getState().waiting).toBe(true)
+
+      jest.advanceTimersByTime(3000)
+      await flush()
+
+      // 权威快照说空闲 → 占用解除
+      expect(statusCall).toHaveBeenCalledWith('session.status', {})
+      expect(useChatStore.getState().waiting).toBe(false)
+      expect(useChatStore.getState().pendingSteps).toBe(0)
+      expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('idle')
+    })
+
+    it('去抖窗口内新步骤开始 → 取消验证（多步回合不误发快照）', async () => {
+      useChatStore.setState({
+        activeSessionId: 's-1',
+        waiting: true,
+        pendingSteps: 0,
+        sessionRunStatus: { 's-1': 'busy' },
+      })
+      const statusCall = mockAuthClient({})
+
+      ingest('session.next.text.ended', { sessionID: 's-1', assistantMessageID: 'ams-x', text: 'x' }) // 触发调度
+      ingest('session.next.step.started', { sessionID: 's-1' }) // 新步骤 → 取消
+
+      jest.advanceTimersByTime(5000)
+      await flush()
+
+      expect(statusCall).not.toHaveBeenCalled()
+      expect(useChatStore.getState().waiting).toBe(true)
+    })
+
+    it('服务器确认仍在运行 → 保持占用不误杀', async () => {
+      seedCalledTool('call-live')
+      ingest('session.next.tool.success', { sessionID: 's-1', callID: 'call-live', result: 'ok' })
+      useChatStore.setState({
+        waiting: true,
+        pendingSteps: 1,
+        sessionRunStatus: { 's-1': 'busy' },
+      })
+      const statusCall = mockAuthClient({ data: { 's-1': { type: 'running' } } })
+
+      ingest('session.next.step.ended', { sessionID: 's-1' })
+      jest.advanceTimersByTime(3000)
+      await flush()
+
+      expect(statusCall).toHaveBeenCalledWith('session.status', {})
+      expect(useChatStore.getState().waiting).toBe(true)
+      expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('busy')
+    })
+  })
+
+  describe('applyLoadedMessages part 级对账', () => {
+    it('本地非终态工具被服务端终态覆盖（含 metadata.output 结果提取）', () => {
+      useChatStore.setState({ activeSessionId: 's-1' })
+      seedCalledTool('call-9')
+      useChatStore.getState().applyLoadedMessages([
+        {
+          info: { id: 'ams-1', role: 'assistant', time: { created: 1 } },
+          parts: [
+            {
+              id: 'prt_9',
+              callID: 'call-9',
+              type: 'tool',
+              tool: 'bash',
+              state: { status: 'completed', input: { command: 'sleep 3600' }, metadata: { output: 'finished output' } },
+            },
+          ],
+        },
+      ])
+      const d = partData('call-9')
+      expect(d.status).toBe('success')
+      expect(d.result).toBe('finished output')
+    })
+
+    it('服务端缺失的工具卡片被补插；本地已终态不被服务端非终态降级', () => {
+      useChatStore.setState({ activeSessionId: 's-1' })
+      seedCalledTool()
+      ingest('session.next.tool.success', { sessionID: 's-1', callID: 'call-1', result: 'kept' })
+      useChatStore.getState().applyLoadedMessages([
+        {
+          info: { id: 'ams-1', role: 'assistant', time: { created: 1 } },
+          parts: [
+            // 陈旧投影：同一工具仍是 running → 本地 success 保留
+            { id: 'prt_a', callID: 'call-1', type: 'tool', tool: 'bash', state: { status: 'running', input: {} } },
+            // 新工具：本地没有 → 补插
+            { id: 'prt_b', callID: 'call-2', type: 'tool', tool: 'read', state: { status: 'completed', input: {} } },
+          ],
+        },
+      ])
+      expect(partData('call-1').status).toBe('success')
+      expect(partData('call-1').result).toBe('kept')
+      expect(partData('call-2').status).toBe('success')
+    })
   })
 })

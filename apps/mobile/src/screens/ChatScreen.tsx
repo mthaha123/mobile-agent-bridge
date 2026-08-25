@@ -25,6 +25,7 @@ import { useAttachmentStore } from '../stores/attachmentStore'
 import { SessionInfoModal } from './SessionInfoModal'
 import { SlashSheet } from './SlashSheet'
 import type { Part } from '../types/message'
+import { buildToolPartFromRaw } from '../utils/toolParts'
 import { MessageList } from '../components/chat/MessageList'
 import { TAB_BAR_HEIGHT } from '../components/MainLayout'
 import { MessageItem } from '../components/chat/MessageItem'
@@ -40,24 +41,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true)
 }
 
-/** 从 SDK tool part 的 state 提取可展示的输出文本（content 数组 → 拼接 text） */
-function extractToolOutput(state: any): string {
-  if (!state) return ''
-  if (Array.isArray(state.content)) {
-    return state.content
-      .filter((c: any) => c && typeof c.text === 'string')
-      .map((c: any) => c.text)
-      .join('')
-  }
-  if (typeof state.output === 'string') return state.output
-  if (typeof state.output === 'object' && state.output !== null) return JSON.stringify(state.output)
-  return ''
-}
-
 /** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。
  * 保留 text part 在 parts 中的原始位置（保持 reasoning/text/tool 相对顺序），
  * 同时把文本并入 content 供流式/兜底使用。MessageItem 渲染时若 parts 含 text part
- * 则不重复渲染 content，避免文本显示两遍。 */
+ * 则不重复渲染 content，避免文本显示两遍。
+ * tool part 统一走共享归一化（utils/toolParts）：callID 身份、metadata.output 提取、
+ * pending/running/completed/error 状态映射——与 chatStore 加载路径保持同一实现。 */
 function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
   const parts: Part[] = []
   let text = ''
@@ -71,18 +60,8 @@ function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; 
         partId = p.id || partId
         parts.push({ id: p.id || `t_${Date.now()}`, type: 'text', data: { content: t } })
       } else if (p.type === 'tool') {
-        parts.push({
-          id: p.id || p.callID || `tool_${Date.now()}`,
-          type: 'tool',
-          data: {
-            tool: p.name || p.tool || '',
-            input: p.state?.input ?? {},
-            status: p.state?.status === 'error' ? 'failed' : (p.state?.status === 'completed' ? 'success' : (p.state?.status || 'called')),
-            result: extractToolOutput(p.state),
-            error: p.state?.error ?? undefined,
-            title: p.state?.title ?? undefined,
-          },
-        })
+        const built = buildToolPartFromRaw(p)
+        if (built) parts.push(built)
       } else if (p.type === 'reasoning') {
         parts.push({ id: p.id || `r_${Date.now()}`, type: 'reasoning', data: { content: p.text || '' } })
       }
@@ -169,9 +148,6 @@ export const ChatScreen: React.FC = () => {
     let cancelled = false
     setHistoryCursor(undefined)
     setHasMoreHistory(false)
-    // 打开会话时用 session.status RPC 快照校正该会话运行状态：
-    // 若会话正在其它端/后台生成中，立刻点亮红方块（无需等下一个 SSE 事件）
-    useChatStore.getState().fetchSessionRunStatus(activeSessionId, client.call.bind(client))
     ;(async () => {
       // bridge 返回升序（旧→新）的最新窗口；cursor 为绑定来源通道的不透明 token
       const res = await useSessionStore.getState().getSessionMessages(
@@ -187,6 +163,11 @@ export const ChatScreen: React.FC = () => {
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
 
+        // 消息就绪后再拉权威运行状态快照：
+        //   - 会话在其它端/后台生成中 → 立刻点亮红方块（无需等下一个 SSE 事件）
+        //   - 会话已空闲而消息里仍有"运行中"工具 → reconcileStaleTools 终结残留
+        //     （服务端存在工具 part 永不结算的缺陷，重载后必须对账）
+        useChatStore.getState().fetchSessionRunStatus(activeSessionId, client.call.bind(client))
       }
     })()
     return () => { cancelled = true }
@@ -259,13 +240,15 @@ export const ChatScreen: React.FC = () => {
     await useChatStore.getState().sendMessage(activeSessionId, command, client.call.bind(client))
   }
 
-  // 用户可见刷新：头部 ↻ → 同步当前会话消息（幂等合入），随后刷新会话列表更新标题栏模型/provider
+  // 用户可见刷新：头部 ↻ → 同步当前会话消息（幂等合入）+ 权威运行状态校正
+  // （解除 busy 闩锁/假等待态 + 终结卡住的 ⏳），随后刷新会话列表更新标题栏模型/provider
   const handleRefresh = async () => {
     if (!activeSessionId) return
     try {
       const client = useAuthStore.getState().client
       if (!client) return
       await useChatStore.getState().syncSessionMessages(activeSessionId, client.call.bind(client))
+      await useChatStore.getState().fetchSessionRunStatus(activeSessionId, client.call.bind(client))
       await fetchSessions(client.call.bind(client))
     } catch {
       // 刷新失败静默，保留现有状态

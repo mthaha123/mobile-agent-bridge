@@ -241,7 +241,13 @@ export class BridgeClient {
         this.keepaliveFailures++
         if (this.keepaliveFailures >= this.KEEPALIVE_MAX_FAILURES) {
           console.warn(`[${this.tag}] 保活失败 ${this.keepaliveFailures} 次，触发重连`)
-          this.disconnect()
+          // 软重连：只关 socket、保留重连资格。
+          // 绝不能走 disconnect()——它置 destroyed=true，而 scheduleReconnect
+          // 与 onclose 的重连守卫都检查 !destroyed，会导致连接永久死亡、
+          // App 静默失联（事件再也不达，工具永远显示运行中）。
+          this.stopKeepalive()
+          try { this.ws?.close() } catch {}
+          this.ws = null
           this.scheduleReconnect()
         }
       }

@@ -836,8 +836,9 @@ describe('setupClient', () => {
 
     const events = client.on.mock.calls.map((c: any[]) => c[0])
     expect(events).toContain('notification')
-    // 'connected' 监听自 925bde2 起移至 MainLayout（其测试已覆盖），AppProvider 不再注册
-    expect(events).not.toContain('connected')
+    // 'connected' 监听重新由 AppProvider 注册：断线重连后需幂等补拉当前会话消息
+    // （SSE 不重放断口事件，工具终态丢失会导致"运行中"卡片永不结算）
+    expect(events).toContain('connected')
     expect(events).toContain('auth_expired')
   })
 
@@ -859,5 +860,55 @@ describe('setupClient', () => {
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
     expect(client.call).not.toHaveBeenCalledWith('session.status', {})
+  })
+})
+
+describe('断线重连自愈', () => {
+  function captureClient(handlers: Record<string, (params?: any) => any>) {
+    // 用可变 holder 而非返回时快照：监听器在后续 act() 中才注册
+    const ref: { notify: ((m: string, p: any) => void) | null; connected: (() => void) | null } = {
+      notify: null,
+      connected: null,
+    }
+    const client = mockClient(handlers)
+    client.on = jest.fn().mockImplementation((event: string, handler: any) => {
+      if (event === 'notification') ref.notify = handler
+      if (event === 'connected') ref.connected = handler
+      return jest.fn()
+    }) as any
+    return { client, ref }
+  }
+
+  it('重连后幂等补拉当前会话消息 + 校正运行状态（恢复断口内丢失的工具终态）', async () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const sessionMessagesCall = jest.fn().mockResolvedValue({ messages: [], cursor: undefined })
+    const { client, ref } = captureClient({
+      'session.messages': sessionMessagesCall,
+      'session.status': () => ({}),
+    })
+
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    await act(async () => { useAuthStore.setState({ client: client as any }) })
+
+    expect(ref.connected).toBeTruthy()
+    const callsBefore = sessionMessagesCall.mock.calls.length
+    // 模拟断线后重新连上
+    await act(async () => { ref.connected!() })
+
+    expect(sessionMessagesCall.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(sessionMessagesCall).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-1' }))
+    expect(client.call).toHaveBeenCalledWith('session.status', {})
+  })
+
+  it('无活动会话时重连不补拉', async () => {
+    const sessionMessagesCall = jest.fn().mockResolvedValue({ messages: [] })
+    const { client, ref } = captureClient({
+      'session.messages': sessionMessagesCall,
+      'session.status': () => ({}),
+    })
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    await act(async () => { useAuthStore.setState({ client: client as any }) })
+    await act(async () => { ref.connected!() })
+    expect(sessionMessagesCall).not.toHaveBeenCalled()
   })
 })

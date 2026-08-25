@@ -308,6 +308,38 @@ describe('keepalive', () => {
     expect(getWs().send.mock.calls.length).toBe(sendCountBefore)
     jest.useRealTimers()
   })
+
+  // 回归：保活连续失败曾走 disconnect()（destroyed=true）→ 重连守卫 !destroyed
+  // 永远拦截 → 连接永久死亡、App 静默失联（工具永远"运行中"）。
+  // 现在软重连：只关 socket，保留重连资格。
+  it('保活连续失败 3 次后软重连（连接可恢复，而非永久死亡）', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ reconnectInterval: 10, requestTimeout: 100 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const cAny = c as any
+    expect(cAny.destroyed).toBe(false)
+
+    const flushMicrotasks = async () => {
+      for (let i = 0; i < 4; i++) await Promise.resolve()
+    }
+
+    // 3 个 ping 周期全部超时（每周期：30s 间隔触发 ping + 100ms 请求超时；
+    // 超时 reject 经微任务才到达 keepalive 的 catch，必须显式冲刷）
+    for (let i = 0; i < 3; i++) {
+      jest.advanceTimersByTime(30100)
+      await flushMicrotasks()
+    }
+
+    // 第 3 次失败触发软重连：close() → onclose（mock 同步触发）→ scheduleReconnect
+    jest.advanceTimersByTime(20)
+    expect(cAny.destroyed).toBe(false)
+    // 新 WebSocket 实例已创建（重连发生）；旧实现此处仍为 1 且永不恢复
+    expect(wsInstances.length).toBe(2)
+    jest.useRealTimers()
+  })
 })
 
 describe('destroy', () => {

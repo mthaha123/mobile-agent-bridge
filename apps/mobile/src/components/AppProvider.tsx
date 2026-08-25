@@ -152,15 +152,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     })
 
-    // 重连后不自动 sync（初始加载由 ChatScreen useEffect 负责，避免双路径重复加载导致消息重复）
-    // 用户可在 ChatScreen 下拉刷新手动同步
+    // 重连后的消息补拉见下方 'connected' 监听（幂等合入，不会与 ChatScreen 初始加载重复）
 
-    // 连接/重连建立时校正当前会话运行状态：
-    // SSE 不重放历史 idle 事件，重连后权威 busy 状态需用 RPC 快照兜底，
-    // 否则打开中的会话红方块可能残留或缺失。
-    const activeId = useChatStore.getState().activeSessionId
-    if (activeId) {
+    // 连接/重连建立时校正当前会话状态。
+    //
+    // 背景：SSE 不重放历史事件，WS 断线断口内产生的通知（工具终态 tool.success/
+    // failed、文本增量、session.idle 等）会永久丢失——表现为工具永远"运行中"、
+    // 后续内容不再刷出，直到手动刷新。因此：
+    //   1) 首次连接：仅拉权威 busy 快照（初始消息加载由 ChatScreen useEffect 负责）；
+    //   2) 断线重连（本 bug 的主恢复路径）：额外幂等补拉当前会话消息
+    //      （applyLoadedMessages 按 messageID 去重 + part 级对账，不会重复/回退），
+    //      再拉权威 busy 快照校正红方块。
+    let sawConnected = client.connected === true
+    client.on('connected', () => {
+      const wasReconnect = sawConnected
+      sawConnected = true
+      const activeId = useChatStore.getState().activeSessionId
+      if (!activeId) return
+      if (wasReconnect) {
+        useChatStore.getState().syncSessionMessages(activeId, client.call.bind(client)).catch(() => {})
+      }
       useChatStore.getState().fetchSessionRunStatus(activeId, client.call.bind(client))
+    })
+    // setupClient 晚于首次 connect() 完成（authStore 先 await connect 再 set client），
+    // 此时补一次首次连接语义的状态校正
+    if (client.connected) {
+      const activeId = useChatStore.getState().activeSessionId
+      if (activeId) {
+        useChatStore.getState().fetchSessionRunStatus(activeId, client.call.bind(client))
+      }
     }
 
     client.on('auth_expired', () => {
