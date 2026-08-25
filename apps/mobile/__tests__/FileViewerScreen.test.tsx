@@ -27,6 +27,24 @@ function openTextFile(path: string, content: string, size = content.length) {
   })
 }
 
+/** 提取 JSON 树节点内全部文本 */
+function nodeText(node: any): string {
+  if (!node) return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(nodeText).join('')
+  if (node.children) return nodeText(node.children)
+  return ''
+}
+
+/** 收集 JSON 树中所有指定类型的节点 */
+function collectByType(json: any, type: string, acc: any[] = []): any[] {
+  if (!json) return acc
+  if (json.type === type) acc.push(json)
+  const children = Array.isArray(json.children) ? json.children : []
+  children.forEach((c) => collectByType(c, type, acc))
+  return acc
+}
+
 describe('FileViewerScreen — text', () => {
   it('renders file content with line numbers enabled by default', () => {
     openTextFile('/test/file.ts', 'line1\nline2\nline3')
@@ -151,6 +169,17 @@ describe('FileViewerScreen — markdown', () => {
     openTextFile('/test/README.md', '# T')
     const tree = TestRenderer.create(<FileViewerScreen />)
     expect(textOf(tree)).toContain('源码')
+  })
+
+  it('渲染内容位于纵向 ScrollView 内（修复内容超屏无法下滑）', () => {
+    // 回归保障：外层 styles.content 只是 flex:1 的普通 View，
+    // 渲染分支若退化为纯 View 包裹，内容超过一屏将无法下滑
+    openTextFile('/test/README.md', '# Title\n\n**bold**\n\n- item A\n- item B')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const verticalWithContent = collectByType(tree.toJSON(), 'ScrollView').filter(
+      (sv) => sv.props.horizontal !== true && nodeText(sv).includes('# Title'),
+    )
+    expect(verticalWithContent.length).toBeGreaterThan(0)
   })
 })
 

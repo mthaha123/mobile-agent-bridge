@@ -116,10 +116,16 @@ export const FileViewerScreen: React.FC = () => {
   const renderText = () => {
     if (!currentFile) return null
     if (showRendered) {
+      // 渲染模式必须有纵向滚动容器：外层 styles.content 只是 flex:1 的普通 View，
+      // 历史实现直接用 View 包裹导致内容超过一屏无法下滑（源码模式一直有 codeScroll）。
+      // 标准做法：flex:1 纵向 ScrollView + padding 放 contentContainerStyle。
       return (
-        <View style={styles.renderedWrap}>
+        <ScrollView
+          style={styles.renderedScroll}
+          contentContainerStyle={styles.renderedWrap}
+        >
           <MarkdownRenderer content={currentFile.content} />
-        </View>
+        </ScrollView>
       )
     }
 
@@ -355,6 +361,10 @@ const makeStyles = (colors: ThemeColors) =>
   },
   renderedWrap: {
     padding: 16,
+  },
+  renderedScroll: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
   image: {
     flex: 1,
