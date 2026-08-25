@@ -13,6 +13,13 @@ const MODELS = [
   { id: 'claude-sonnet-4-5', providerID: 'anthropic', name: 'Claude Sonnet 4.5' },
 ]
 
+it('兼容嵌套 provider.id 形状（旧内嵌实现的行为回退）', () => {
+  const tree = render({
+    models: [{ id: 'm1', provider: { id: 'nested-prov' }, name: 'Nested Model' }],
+  })
+  expect(textOf(tree)).toContain('nested-prov')
+})
+
 const render = (props: Partial<Parameters<typeof ModelPickerModal>[0]> = {}) => {
   // create 必须包 act：组件挂载时有 useEffect（打开时清空搜索词），
   // 裸 create 会把效应推迟到下一次 act 作用域执行，覆盖该作用域内的输入

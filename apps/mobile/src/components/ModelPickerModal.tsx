@@ -14,6 +14,7 @@ import type { ThemeColors } from '../theme/colors'
 interface ModelEntry {
   id?: string
   providerID?: string
+  provider?: { id?: string } | null
   name?: string
   label?: string
 }
@@ -26,11 +27,12 @@ interface ModelPickerModalProps {
   currentModel?: { id?: string; providerID?: string } | null
 }
 
-/** 归一化一条模型记录：label 取 name > id > label 兜底 */
+/** 归一化一条模型记录：label 取 name > id > label 兜底；
+ *  服务商取 providerID > provider.id（与旧内嵌实现的回退顺序一致） */
 function normalize(m: unknown, i: number): { key: string; label: string; provider: string; id: string; raw: unknown } {
   const e = (m && typeof m === 'object' ? m : {}) as ModelEntry
   const label = e.name || e.id || e.label || `Model ${i + 1}`
-  const provider = e.providerID || ''
+  const provider = e.providerID || e.provider?.id || ''
   return { key: `${provider}:${e.id || i}`, label, provider, id: e.id || '', raw: m }
 }
 
