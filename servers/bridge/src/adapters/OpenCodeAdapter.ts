@@ -259,53 +259,26 @@ export class OpenCodeBackend {
   }
 
   /**
-   * 由 serve 为新会话自动命名：POST /api/session/{id}/summarize。
-   *
-   * serve 的 summarize 流程会用模型总结会话，且**仅当标题仍为默认值**
-   * （"New session - ..."）时更新标题——用户手动重命名过的会话不会被覆盖
-   * （实测验证）。响应体可能是 HTML（serve 转页），忽略内容、只看副作用。
-   */
-  async summarizeSession(sessionID: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/api/session/${encodeURIComponent(sessionID)}/summarize`)
-      const req = http.request({
-        hostname: url.hostname,
-        port: url.port ? parseInt(url.port, 10) : 80,
-        path: url.pathname + url.search,
-        method: "POST",
-        headers: { "content-type": "application/json", "content-length": "2" },
-        timeout: 120000,
-      }, (res) => {
-        res.resume() // 丢弃响应体，仅等待请求完成
-        res.on("end", () => {
-          if ((res.statusCode ?? 500) >= 400) {
-            const err = new Error(`summarize failed (${res.statusCode})`)
-            reject(err)
-            return
-          }
-          resolve()
-        })
-        res.on("error", reject)
-      })
-      req.on("timeout", () => { req.destroy(); reject(new Error("summarize timeout")) })
-      req.on("error", reject)
-      req.end("{}")
-    })
-  }
-
-  /**
    * 新会话自动命名（完整链路）：
-   * 在【隔离的临时会话】上完成命名，避免污染真实会话：
+   * 在【隔离的临时会话】上用真实会话自己的模型生成标题，避免污染真实会话：
    *   1. 仅当真实会话标题仍为 serve 默认值（未手动命名）时继续；
-   *   2. 创建临时会话，用 v1 路由写入无害化种子文本
-   *      （summarize 只读 v1 原始表，v2 消息对 summarize 不可见——实测验证；
-   *       不用真实首条消息原文，防止触发工具执行等副作用）；
-   *   3. summarize 由 serve 用模型生成标题；
-   *   4. 读回标题 PATCH 到真实会话（renameSession 同款接口）；
-   *   5. 删除临时会话。
-   * 全程 fire-and-forget，任何异常静默；临时会话在 finally 中清理。
+   *   2. 读取真实会话自身的模型 —— 它刚被用户成功使用过，可用性有保证。
+   *      ⚠️ 不能依赖全局 small_model / 默认模型：当其指向的 provider 欠费或失效时
+   *      （实测 deepseek 返回 402 Insufficient Balance），serve 的 summarize 与
+   *      默认模型回合都会静默产出空回复，标题永远生成不了且无任何错误暴露
+   *      （2026-08-25 事故根因）；显式向 summarize 传 model 也被端点忽略。
+   *   3. 创建带显式模型的临时会话，经 v1 路由写入标题生成提示词
+   *      （该接口会触发一次 agent 回合，assistant 回复即标题）；
+   *   4. 轮询读回 assistant 回复并清洗（去引号/前缀/截断）；
+   *   5. PATCH 到真实会话（renameSession 同款接口）。
+   * 全程 fire-and-forget；失败路径 console.warn 留痕；临时会话在 finally 清理。
    */
-  async autoNameNewSession(sessionID: string, firstMessageText: string, directory?: string): Promise<boolean> {
+  async autoNameNewSession(
+    sessionID: string,
+    firstMessageText: string,
+    directory?: string,
+    opts?: { readTimeoutMs?: number },
+  ): Promise<boolean> {
     let tempSessionID: string | null = null
     try {
       if (!sessionID || !firstMessageText) return false
@@ -313,29 +286,42 @@ export class OpenCodeBackend {
       const title = String(s?.data?.title ?? s?.title ?? "")
       if (!title.startsWith("New session -")) return false
 
-      // 1) 创建隔离临时会话
-      tempSessionID = await this.createSessionV2(directory ?? "")
-      // 2) 无害化种子文本（带主题信息但不含可执行指令）
-      const seedText = `会话标题提取：首条消息主题为「${firstMessageText.replace(/\s+/g, " ").slice(0, 60)}」`
-      await this.messageV1(tempSessionID, seedText)
-      // 3) serve 生成标题
-      await this.summarizeSession(tempSessionID)
-      // 4) 读回标题
-      const generated = await this.readSessionTitle(tempSessionID);
-      if (!generated || generated.startsWith("New session -")) return false
-      await this.renameSession(sessionID, generated)
+      const model = (s?.data?.model ?? s?.model) as { providerID?: string; id?: string } | undefined
+      if (!model?.providerID || !model?.id) {
+        console.warn(`[autoName] ${sessionID} 跳过：真实会话缺少模型信息`)
+        return false
+      }
+
+      tempSessionID = await this.createSessionV2(directory ?? "", { providerID: model.providerID, id: model.id })
+      const topic = firstMessageText.replace(/\s+/g, " ").slice(0, 120)
+      await this.messageV1(
+        tempSessionID,
+        `为下面的对话主题生成一个简短标题。要求：不超过16个字，只输出标题本身，不要引号、不要句号、不要任何解释。\n主题：${topic}`,
+      )
+
+      const raw = await this.readAssistantReply(tempSessionID, opts?.readTimeoutMs ?? 30000)
+      const cleaned = cleanGeneratedTitle(raw)
+      if (!cleaned) {
+        console.warn(`[autoName] ${sessionID} 失败：临时会话模型无有效输出（model=${model.providerID}/${model.id}）`)
+        return false
+      }
+      await this.renameSession(sessionID, cleaned)
       return true
-    } catch (e) {
+    } catch (e: any) {
+      console.warn(`[autoName] ${sessionID} 失败:`, e?.message ?? e)
       return false
     } finally {
       if (tempSessionID) this.deleteSession(tempSessionID).catch(() => {})
     }
   }
 
-  /** 创建 v2 会话（用于命名种子隔离） */
-  private async createSessionV2(directory: string): Promise<string> {
+  /** 创建临时会话（用于命名隔离）；可携带显式模型，避免回落到可能欠费的全局默认模型 */
+  private async createSessionV2(directory: string, model?: { providerID: string; id: string }): Promise<string> {
     return new Promise((resolve, reject) => {
-      const body = JSON.stringify(directory ? { location: { directory } } : {})
+      const payload: Record<string, unknown> = {}
+      if (directory) payload.location = { directory }
+      if (model) payload.model = model
+      const body = JSON.stringify(payload)
       const url = new URL(this.baseUrl.replace(/\/+$/, "") + "/api/session")
       const req = http.request({
         hostname: url.hostname,
@@ -363,7 +349,7 @@ export class OpenCodeBackend {
     })
   }
 
-  /** v1 路由写入一条消息（供 summarize 读取原始表）；注意此接口会触发 agent 回合 */
+  /** v1 路由写入一条消息（触发一次 agent 回合，assistant 回复即标题来源） */
   private async messageV1(sessionID: string, text: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const body = JSON.stringify({ type: "user", parts: [{ type: "text", text }] })
@@ -389,10 +375,30 @@ export class OpenCodeBackend {
     })
   }
 
-  /** 读取会话标题（GET /api/session/{id}） */
-  private async readSessionTitle(sessionID: string): Promise<string> {
-    const s = await this.httpGetJson(`${this.baseUrl.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}`) as any
-    return String(s?.data?.title ?? s?.title ?? "")
+  /** 轮询读取临时会话的 assistant 回复文本（标题生成结果）。
+   *  v1 写入触发的 agent 回合是异步完成的，需轮询直到 assistant 出现非空文本或超时。 */
+  private async readAssistantReply(sessionID: string, timeoutMs = 30000): Promise<string> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500))
+      try {
+        const msgs = await this.httpGetJson(`${this.baseUrl.replace(/\/+$/, "")}/session/${encodeURIComponent(sessionID)}/message?limit=10`) as any
+        const list: any[] = Array.isArray(msgs) ? msgs : []
+        for (let i = list.length - 1; i >= 0; i--) {
+          const m = list[i]
+          if ((m?.info?.role ?? m?.role) !== "assistant") continue
+          const parts: any[] = m?.parts ?? []
+          const text = parts
+            .filter((p) => p?.type === "text" && typeof p.text === "string")
+            .map((p) => p.text)
+            .join("")
+          if (text.trim()) return text
+        }
+      } catch {
+        // 单次轮询失败忽略，继续到超时为止
+      }
+    }
+    return ""
   }
 
   /** 删除会话（隔离命名用的临时会话清理） */
@@ -445,6 +451,20 @@ export function resolveHttpIdleTimeoutMs(pathname: string): number {
 }
 
 type RawMessage = Record<string, any>
+
+/**
+ * 清洗模型生成的标题：去"标题："类前缀、首尾引号/句号、取首行、限长。
+ * 导出供单元测试。
+ */
+export function cleanGeneratedTitle(raw: string): string {
+  let t = String(raw ?? "").trim()
+  if (!t) return ""
+  t = t.replace(/^(标题|title)\s*[:：]\s*/i, "")
+  t = t.split("\n")[0].trim()
+  t = t.replace(/^[「『"'“‘]+/, "").replace(/[」』"'”’。.]+$/g, "").trim()
+  if (t.length > 30) t = t.slice(0, 30)
+  return t
+}
 
 interface ChannelPage { messages: unknown[]; cursor?: string }
 

@@ -239,135 +239,147 @@ describe("sortMessagesAsc / pickChannel / cursor 工具", () => {
   })
 })
 
-// ─── summarizeSession / autoNameNewSession（serve 自动命名） ──────────────
+// ─── autoNameNewSession（serve 自动命名：显式模型驱动） ───────────────────
 
-describe("summarizeSession / autoNameNewSession", () => {
-  it("summarizeSession 发 POST 到 /api/session/{id}/summarize（忽略 HTML 响应）", async () => {
-    const ctx = await startMockServer((channel, url, res) => {
-      void channel
-      if (url.endsWith("/summarize")) {
-        res.writeHead(200, { "content-type": "text/html" })
-        res.end("<!doctype html><html></html>")
-      } else {
-        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00.000Z" } })
-      }
-    })
-    try {
-      const backend = freshBackend(ctx.port)
-      await backend.summarizeSession(SID)
-      const hit = ctx.requests.find((u) => u.startsWith("/api/session/") && u.endsWith("/summarize"))
-      expect(hit).toBeTruthy()
-    } finally {
-      await ctx.close()
-    }
-  })
+import { cleanGeneratedTitle } from "../src/adapters/OpenCodeAdapter.js"
 
-  it("autoNameNewSession：默认标题 → 临时会话种子+summarize+读标题+PATCH+DELETE 全链路", async () => {
-    const urls: string[] = []
-    const deltas: string[] = []
-    const ctx = await startMockServer((_channel, url, res) => {
-      urls.push(url)
-      // 创建临时会话（POST /api/session）
-      if (url === "/api/session" && deltas.length === 0 && urls.filter((u) => u === "/api/session").length === 1) {
-        deltas.push("created")
+/** 独立 mock：可捕获请求体（PATCH 标题断言需要） */
+async function startAutoNameMock(opts: {
+  realTitle?: string
+  realModel?: { providerID: string; id: string }
+  assistantText?: string
+}) {
+  const requests: Array<{ method: string; url: string; body: string }> = []
+  let patched = ""
+  const server: Server = http.createServer((req, res) => {
+    const url = req.url || ""
+    const chunks: Buffer[] = []
+    req.on("data", (c) => chunks.push(c))
+    req.on("end", () => {
+      const body = Buffer.concat(chunks).toString()
+      requests.push({ method: req.method || "", url, body })
+      if (url === "/api/session" && req.method === "POST") {
         json(res, { data: { id: "temp_sess_1" } })
         return
       }
-      // 临时会话的消息（POST /session/temp_sess_1/message）
+      if (url.startsWith("/api/session/") && !url.includes("message")) {
+        json(res, {
+          data: {
+            id: "sess_default_title",
+            title: opts.realTitle ?? "New session - 2026-08-25T00:00:00Z",
+            ...(opts.realModel ? { model: opts.realModel } : {}),
+          },
+        })
+        return
+      }
       if (url.startsWith("/session/temp_sess_1/message")) {
-        res.writeHead(200)
-        res.end("{}")
-        return
-      }
-      // summarize（POST /api/session/{id}/summarize）
-      if (url.endsWith("/summarize")) {
-        res.writeHead(200)
-        res.end("{}")
-        return
-      }
-      // GET /api/session/{id}：目标会话(原始) 或 临时会话(已命名)
-      if (url.startsWith("/api/session/")) {
-        if (url.includes("temp_sess_1")) {
-          json(res, { data: { id: "temp_sess_1", title: "AI 生成的标题" } })
-        } else {
-          json(res, { data: { id: "sess_default_title", title: "New session - 2026-08-25T00:00:00Z" } })
+        if (req.method === "POST") {
+          res.writeHead(200); res.end("{}"); return
         }
+        // 轮询读回：assistant 回复即标题来源
+        json(res, [
+          { info: { id: "m1", role: "user", time: { created: 1 } }, parts: [{ type: "text", text: "seed" }] },
+          { info: { id: "m2", role: "assistant", time: { created: 2 } }, parts: [{ type: "text", text: opts.assistantText ?? "" }] },
+        ])
         return
       }
-      // PATCH /session/{id} 改名真实会话
-      if (url.startsWith("/session/sess_default_title") && !url.includes("/message")) {
-        res.writeHead(200)
-        res.end("{}")
-        return
+      if (url === "/session/sess_default_title" && req.method === "PATCH") {
+        try { patched = JSON.parse(body)?.title ?? "" } catch {}
+        res.writeHead(200); res.end("{}"); return
       }
-      // DELETE /session/temp_sess_1 清理
-      if (url.startsWith("/session/temp_sess_1") && !url.includes("/message")) {
-        res.writeHead(200)
-        res.end("{}")
-        return
+      if (url === "/session/temp_sess_1" && req.method === "DELETE") {
+        res.writeHead(200); res.end("{}"); return
       }
-      res.writeHead(404)
-      res.end("{}")
+      res.writeHead(404); res.end("{}")
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const port = (server.address() as { port: number }).port
+  initBackend(`http://127.0.0.1:${port}`)
+  return {
+    backend: getBackend(),
+    requests,
+    get patchedTitle() { return patched },
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
+describe("autoNameNewSession（显式模型驱动）", () => {
+  it("全链路：读模型→带显式模型建临时会话→种子→轮询标题→PATCH→DELETE，且不调用 summarize", async () => {
+    const ctx = await startAutoNameMock({
+      realModel: { providerID: "opencode-go", id: "ox-alpha-free" },
+      assistantText: "\"移动端桥接项目架构分析\"。",
     })
     try {
-      const backend = freshBackend(ctx.port)
-      const r = await backend.autoNameNewSession("sess_default_title", "首条消息文本", "D:\\code")
-      // DELETE 临时会话是 fire-and-forget，给异步清理留时间落地
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      const r = await ctx.backend.autoNameNewSession("sess_default_title", "首条消息文本", "D:\\code")
+      await new Promise((resolve) => setTimeout(resolve, 120))
       expect(r).toBe(true)
-      expect(urls.some((u) => u.startsWith("/session/temp_sess_1/message"))).toBe(true) // 种子写入临时会话
-      expect(urls.some((u) => u.endsWith("/summarize"))).toBe(true)
-      expect(urls.some((u) => u.includes("/session/sess_default_title") && !u.includes("/message"))).toBe(true) // PATCH 真实会话
-      expect(urls.some((u) => u.startsWith("/session/temp_sess_1") && !u.includes("/message"))).toBe(true) // DELETE 临时会话
+      // 创建临时会话时必须携带真实会话的显式模型（防回落欠费默认模型）
+      const createBody = ctx.requests.find((q) => q.url === "/api/session")?.body ?? ""
+      expect(createBody).toContain("opencode-go")
+      expect(createBody).toContain("ox-alpha-free")
+      // 种子写入临时会话
+      expect(ctx.requests.some((q) => q.url.startsWith("/session/temp_sess_1/message") && q.method === "POST")).toBe(true)
+      // 绝不再调用 summarize（其依赖的 small_model 可能欠费失效）
+      expect(ctx.requests.some((q) => q.url.includes("/summarize"))).toBe(false)
+      // PATCH 的标题经过清洗（去引号/句号）
+      expect(ctx.patchedTitle).toBe("移动端桥接项目架构分析")
+      // 临时会话清理
+      expect(ctx.requests.some((q) => q.url === "/session/temp_sess_1" && q.method === "DELETE")).toBe(true)
+    } finally {
+      await ctx.close()
+    }
+  }, 60000)
+
+  it("自定义标题会话：只做一次 GET 即返回 false（尊重手动命名）", async () => {
+    const ctx = await startAutoNameMock({ realTitle: "我的重要会话" })
+    try {
+      const r = await ctx.backend.autoNameNewSession("sess_default_title", "文本")
+      expect(r).toBe(false)
+      expect(ctx.requests.filter((q) => q.url.startsWith("/api/session")).length).toBe(1)
+      expect(ctx.requests.some((q) => q.url === "/api/session")).toBe(false)
     } finally {
       await ctx.close()
     }
   })
 
-  it("autoNameNewSession：自定义标题会话不触发镜像与 summarize（尊重手动重命名）", async () => {
-    const urls: string[] = []
-    const ctx = await startMockServer((_channel, url, res) => {
-      urls.push(url)
-      if (url.includes("/message") && !url.startsWith("/api/")) {
-        res.writeHead(200)
-        res.end("{}")
-      } else if (url.endsWith("/summarize")) {
-        res.writeHead(200)
-        res.end("{}")
-      } else {
-        json(res, { data: { id: "sess_custom", title: "我的重要会话" } })
-      }
-    })
+  it("真实会话缺模型信息：跳过并返回 false，不创建临时会话", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {})
+    const ctx = await startAutoNameMock({ realModel: undefined as any })
     try {
-      const backend = freshBackend(ctx.port)
-      const r = await backend.autoNameNewSession("sess_custom", "文本")
+      const r = await ctx.backend.autoNameNewSession("sess_default_title", "文本")
       expect(r).toBe(false)
-      expect(urls.some((u) => u.endsWith("/summarize"))).toBe(false)
-      expect(urls.some((u) => !u.startsWith("/api/") && u.includes("/message"))).toBe(false)
+      expect(ctx.requests.some((q) => q.url === "/api/session")).toBe(false)
+      expect(warnSpy).toHaveBeenCalled()
     } finally {
+      warnSpy.mockRestore()
       await ctx.close()
     }
   })
 
-  it("autoNameNewSession：summarize 失败时静默返回 false（不阻塞消息流程）", async () => {
-    const ctx = await startMockServer((_channel, url, res) => {
-      if (url.includes("/message") && !url.startsWith("/api/")) {
-        res.writeHead(200)
-        res.end("{}")
-      } else if (url.endsWith("/summarize")) {
-        res.writeHead(500)
-        res.end("{}")
-      } else {
-        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00Z" } })
-      }
+  it("模型无有效输出（如 provider 欠费 402 静默失败）：轮询超时返回 false 且不 PATCH", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {})
+    const ctx = await startAutoNameMock({
+      realModel: { providerID: "deepseek", id: "deepseek-v4-flash" },
+      assistantText: "", // 模拟 deepseek 欠费后静默空回复
     })
     try {
-      const backend = freshBackend(ctx.port)
-      const r = await backend.autoNameNewSession("sess_test", "文本")
+      // 注入短超时（真实定时器），验证轮询耗尽后返回 false 且不 PATCH
+      const r = await ctx.backend.autoNameNewSession("sess_default_title", "文本", undefined, { readTimeoutMs: 400 })
       expect(r).toBe(false)
+      expect(ctx.patchedTitle).toBe("")
+      expect(warnSpy).toHaveBeenCalled()
     } finally {
+      warnSpy.mockRestore()
       await ctx.close()
     }
+  }, 30000)
+
+  it("cleanGeneratedTitle 清洗规则", () => {
+    expect(cleanGeneratedTitle("\"移动端桥接项目架构分析\"。")).toBe("移动端桥接项目架构分析")
+    expect(cleanGeneratedTitle("标题：会话自动命名机制调查")).toBe("会话自动命名机制调查")
+    expect(cleanGeneratedTitle("「多行标题\n第二行不要」")).toBe("多行标题")
+    expect(cleanGeneratedTitle("   ")).toBe("")
   })
 })
 
