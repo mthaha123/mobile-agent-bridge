@@ -123,11 +123,11 @@ export class OpenCodeBackend {
     const tagged = parseTaggedCursor(opts?.cursor)
     if (tagged?.channel === "v2") {
       const page = await this.fetchV2Page(base, enc, { limit: opts?.limit, cursor: tagged.token })
-      return { messages: sortMessagesAsc(page.messages), cursor: tagCursor("v2", page.cursor) }
+      return { messages: sortMessagesAsc(page.messages.map(normalizeMessageRecord)), cursor: tagCursor("v2", page.cursor) }
     }
     if (tagged?.channel === "v1") {
       const page = await this.fetchV1Page(base, enc, { limit: opts?.limit, before: tagged.token })
-      return { messages: sortMessagesAsc(page.messages), cursor: tagCursor("v1", page.cursor) }
+      return { messages: sortMessagesAsc(page.messages.map(normalizeMessageRecord)), cursor: tagCursor("v1", page.cursor) }
     }
 
     // 初始加载 / 遗留无前缀 cursor（向后兼容）：双通道都取，按新鲜度选边后归一化输出
@@ -137,7 +137,7 @@ export class OpenCodeBackend {
     ])
     const winner = pickChannel(v1.messages, v2.messages)
     const page = winner === "v1" ? v1 : v2
-    return { messages: sortMessagesAsc(page.messages), cursor: tagCursor(winner, page.cursor) }
+    return { messages: sortMessagesAsc(page.messages.map(normalizeMessageRecord)), cursor: tagCursor(winner, page.cursor) }
   }
 
   /** v2 投影表分页：内部恒用 order=desc 取"最新窗口"，输出前由调用方统一升序归一化 */
@@ -473,6 +473,45 @@ export function parseTaggedCursor(cursor?: string): { channel: "v1" | "v2"; toke
   if (cursor.startsWith(CURSOR_TAG_V1)) return { channel: "v1", token: cursor.slice(CURSOR_TAG_V1.length) }
   if (cursor.startsWith(CURSOR_TAG_V2)) return { channel: "v2", token: cursor.slice(CURSOR_TAG_V2.length) }
   return null
+}
+
+/**
+ * 消息记录形态归一化（Bridge 隔离职责的一部分）：
+ *   - v1 原始表: { info: {id, role, time}, parts: [...] }（已是规范形态）
+ *   - v2 投影表: { id, time:{created}, type, content:[{type,...}], text? }
+ *     （字段名不同：type≈role、content≈parts，user 消息还可能只有顶层 text）
+ * 统一输出 {info:{id, role, time, ...}, parts:[...]}，客户端无需感知来源通道。
+ */
+export function normalizeMessageRecord(m: any): any {
+  if (!m || typeof m !== "object") return m
+  if (m.info && typeof m.info === "object") {
+    return { ...m, parts: Array.isArray(m.parts) ? m.parts : [] }
+  }
+  const role = String(m.type ?? m.role ?? "assistant")
+  const time = m.time && typeof m.time === "object" ? m.time : { created: Number(m.created ?? 0) || 0 }
+  let parts: any[] = []
+  if (Array.isArray(m.content)) {
+    parts = m.content.map((c: any) => {
+      if (!c || typeof c !== "object") return { type: "text", text: "" }
+      const t = String(c.type ?? "text")
+      if (t === "text") return { type: "text", text: String(c.text ?? "") }
+      // tool / reasoning 等：保留关键结构字段
+      return {
+        type: t,
+        ...(c.id ? { id: c.id } : {}),
+        ...(c.name ? { name: c.name } : {}),
+        ...(c.state ? { state: c.state } : {}),
+        ...(typeof c.text === "string" ? { text: c.text } : {}),
+      }
+    })
+  } else if (typeof m.text === "string" && m.text) {
+    parts = [{ type: "text", text: m.text }]
+  }
+  const info: any = { id: m.id, role, time }
+  if (m.agent) info.agent = m.agent
+  if (m.model) info.model = m.model
+  if (m.sessionID) info.sessionID = m.sessionID
+  return { info, parts }
 }
 
 let _backend: OpenCodeBackend | null = null

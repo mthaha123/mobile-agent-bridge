@@ -370,3 +370,55 @@ describe("summarizeSession / autoNameNewSession", () => {
     }
   })
 })
+
+// ─── 消息记录形态归一化（Bridge 隔离职责） ────────────────────────────────
+
+describe("消息记录形态归一化：v2 投影形态 → 规范 {info, parts}", () => {
+  // 模拟真实 v2 投影记录（字段名与 v1 完全不同）
+  const v2Assistant = {
+    id: "msg_v2_a",
+    time: { created: 2000 },
+    type: "assistant",
+    agent: "build",
+    model: { id: "deepseek-v4-flash", providerID: "opencode-go" },
+    content: [
+      { type: "tool", id: "call_1", name: "bash", state: { status: "completed", input: { command: "ls" } } },
+      { type: "text", text: "回答文本" },
+    ],
+    snapshot: {},
+  }
+  const v2User = { id: "msg_v2_u", time: { created: 1000 }, type: "user", text: "用户提问" }
+
+  it("v2 记录输出为规范 {info,parts}：type→role、content→parts、顶层 text 包装成 text part", async () => {
+    const ctx = await startMockServer((_channel, _url, res) => {
+      json(res, { data: [v2Assistant, v2User] }) // 故意乱序，验证排序+归一化同时生效
+    })
+    try {
+      const result = await freshBackend(ctx.port).rawSessionMessages("sess_x", {})
+      const msgs = result.messages as any[]
+      expect(msgs.map((m) => m.info.id)).toEqual(["msg_v2_u", "msg_v2_a"]) // 升序
+      expect(msgs[0].info.role).toBe("user")          // type 映射为 role
+      expect(msgs[0].parts[0].text).toBe("用户提问")   // 顶层 text → text part
+      expect(msgs[1].info.role).toBe("assistant")
+      expect(msgs[1].parts[0].type).toBe("tool")       // content[] → parts[]
+      expect(msgs[1].parts[0].name).toBe("bash")
+      expect(msgs[1].parts[1]).toEqual({ type: "text", text: "回答文本" })
+    } finally {
+      await ctx.close()
+    }
+  })
+
+  it("v1 形态记录原样保留（不二次包装）", async () => {
+    const ctx = await startMockServer((_channel, _url, res) => {
+      json(res, [{ info: { id: "m1", role: "user", time: { created: 5 } }, parts: [{ type: "text", text: "hi" }] }])
+    })
+    try {
+      const result = await freshBackend(ctx.port).rawSessionMessages("sess_x", {})
+      const m = (result.messages as any[])[0]
+      expect(m.info.role).toBe("user")
+      expect(m.parts[0].text).toBe("hi")
+    } finally {
+      await ctx.close()
+    }
+  })
+})
