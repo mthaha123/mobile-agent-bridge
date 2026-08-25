@@ -237,3 +237,100 @@ describe("sortMessagesAsc / pickChannel / cursor 工具", () => {
     expect(parseTaggedCursor(undefined)).toBeNull()
   })
 })
+
+// ─── summarizeSession / autoNameNewSession（serve 自动命名） ──────────────
+
+describe("summarizeSession / autoNameNewSession", () => {
+  it("summarizeSession 发 POST 到 /api/session/{id}/summarize（忽略 HTML 响应）", async () => {
+    const ctx = await startMockServer((channel, url, res) => {
+      void channel
+      if (url.endsWith("/summarize")) {
+        res.writeHead(200, { "content-type": "text/html" })
+        res.end("<!doctype html><html></html>")
+      } else {
+        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00.000Z" } })
+      }
+    })
+    try {
+      const backend = freshBackend(ctx.port)
+      await backend.summarizeSession(SID)
+      const hit = ctx.requests.find((u) => u.startsWith("/api/session/") && u.endsWith("/summarize"))
+      expect(hit).toBeTruthy()
+    } finally {
+      await ctx.close()
+    }
+  })
+
+  it("autoNameNewSession：默认标题 → 先 v1 镜像消息再 summarize", async () => {
+    const urls: string[] = []
+    const ctx = await startMockServer((_channel, url, res) => {
+      urls.push(url)
+      if (url.includes("/message") && !url.startsWith("/api/")) {
+        // v1 镜像消息写入（POST /session/{id}/message）
+        res.writeHead(200)
+        res.end("{}")
+      } else if (url.endsWith("/summarize")) {
+        res.writeHead(200)
+        res.end("{}")
+      } else {
+        // GET /api/session/{id}
+        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00Z" } })
+      }
+    })
+    try {
+      const backend = freshBackend(ctx.port)
+      const r = await backend.autoNameNewSession("sess_default_title", "首条消息文本")
+      expect(r).toBe(true)
+      expect(urls.filter((u) => !u.startsWith("/api/") && u.includes("/message"))).toHaveLength(1) // 镜像一次
+      expect(urls.filter((u) => u.endsWith("/summarize"))).toHaveLength(1) // summarize 一次
+    } finally {
+      await ctx.close()
+    }
+  })
+
+  it("autoNameNewSession：自定义标题会话不触发镜像与 summarize（尊重手动重命名）", async () => {
+    const urls: string[] = []
+    const ctx = await startMockServer((_channel, url, res) => {
+      urls.push(url)
+      if (url.includes("/message") && !url.startsWith("/api/")) {
+        res.writeHead(200)
+        res.end("{}")
+      } else if (url.endsWith("/summarize")) {
+        res.writeHead(200)
+        res.end("{}")
+      } else {
+        json(res, { data: { id: "sess_custom", title: "我的重要会话" } })
+      }
+    })
+    try {
+      const backend = freshBackend(ctx.port)
+      const r = await backend.autoNameNewSession("sess_custom", "文本")
+      expect(r).toBe(false)
+      expect(urls.some((u) => u.endsWith("/summarize"))).toBe(false)
+      expect(urls.some((u) => !u.startsWith("/api/") && u.includes("/message"))).toBe(false)
+    } finally {
+      await ctx.close()
+    }
+  })
+
+  it("autoNameNewSession：summarize 失败时静默返回 false（不阻塞消息流程）", async () => {
+    const ctx = await startMockServer((_channel, url, res) => {
+      if (url.includes("/message") && !url.startsWith("/api/")) {
+        res.writeHead(200)
+        res.end("{}")
+      } else if (url.endsWith("/summarize")) {
+        res.writeHead(500)
+        res.end("{}")
+      } else {
+        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00Z" } })
+      }
+    })
+    try {
+      const backend = freshBackend(ctx.port)
+      const r = await backend.autoNameNewSession("sess_test", "文本")
+      expect(r).toBe(false)
+    } finally {
+      await ctx.close()
+    }
+  })
+})

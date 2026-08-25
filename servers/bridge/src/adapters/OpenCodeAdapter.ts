@@ -243,6 +243,89 @@ export class OpenCodeBackend {
     return (result?.data && typeof result.data === "object" ? result.data : {}) as Record<string, unknown>
   }
 
+  /**
+   * 由 serve 为新会话自动命名：POST /api/session/{id}/summarize。
+   *
+   * serve 的 summarize 流程会用模型总结会话，且**仅当标题仍为默认值**
+   * （"New session - ..."）时更新标题——用户手动重命名过的会话不会被覆盖
+   * （实测验证）。响应体可能是 HTML（serve 转页），忽略内容、只看副作用。
+   */
+  async summarizeSession(sessionID: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/api/session/${encodeURIComponent(sessionID)}/summarize`)
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : 80,
+        path: url.pathname + url.search,
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "2" },
+        timeout: 120000,
+      }, (res) => {
+        res.resume() // 丢弃响应体，仅等待请求完成
+        res.on("end", () => {
+          if ((res.statusCode ?? 500) >= 400) {
+            const err = new Error(`summarize failed (${res.statusCode})`)
+            reject(err)
+            return
+          }
+          resolve()
+        })
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("summarize timeout")) })
+      req.on("error", reject)
+      req.end("{}")
+    })
+  }
+
+  /**
+   * 新会话自动命名（完整链路）：
+   *   1. 仅当标题仍为 serve 默认值（未手动命名）时继续；
+   *   2. 用 v1 路由镜像写入首条用户消息——summarize 只读 v1 原始表，
+   *      v2 prompt 写入的消息对 summarize 不可见（实测验证）；
+   *   3. 调 /api/session/{id}/summarize，由 serve 用模型生成标题。
+   * 全程 fire-and-forget，任何异常静默，不阻塞消息流程。
+   */
+  async autoNameNewSession(sessionID: string, firstMessageText: string): Promise<boolean> {
+    try {
+      if (!sessionID || !firstMessageText) return false
+      const s = await this.httpGetJson(`${this.baseUrl.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}`) as any
+      const title = String(s?.data?.title ?? s?.title ?? "")
+      if (!title.startsWith("New session -")) return false
+      await this.mirrorMessageV1(sessionID, firstMessageText)
+      await this.summarizeSession(sessionID)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** v1 路由镜像写入一条用户消息（供 summarize 读取，不入 v2 主显示流） */
+  private async mirrorMessageV1(sessionID: string, text: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ type: "user", parts: [{ type: "text", text }] })
+      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/session/${encodeURIComponent(sessionID)}/message`)
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : 80,
+        path: url.pathname + url.search,
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+        timeout: 30000,
+      }, (res) => {
+        res.resume()
+        res.on("end", () => {
+          if ((res.statusCode ?? 500) >= 400) reject(new Error(`mirror v1 message failed (${res.statusCode})`))
+          else resolve()
+        })
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("mirror v1 message timeout")) })
+      req.on("error", reject)
+      req.end(body)
+    })
+  }
+
   /** 惰性初始化：SDK 未初始化时创建一个无 directory 的全局 client。
    *  用于 config.agents/providers/model.list/command.list 等只读全局配置查询，
    *  它们不依赖 project.switch。已初始化时复用当前 client。 */

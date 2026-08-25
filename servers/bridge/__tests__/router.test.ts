@@ -79,6 +79,7 @@ function createMockSdk() {
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
   backend.rawSessionMessages = jest.fn<any>().mockResolvedValue({ messages: [], cursor: undefined })
   backend.renameSession = jest.fn<any>().mockResolvedValue({ id: "sess_123", title: "Renamed" })
+  backend.autoNameNewSession = jest.fn<any>().mockResolvedValue(true)
   return { backend, mockV3Session, mockSession2, mockV2, mockGlobal, mockConfig }
 }
 
@@ -153,7 +154,7 @@ describe("RPC Router", () => {
   })
 
   it("should call v2.session.prompt with correct params", async () => {
-    const { mockV3Session: mockSession } = createMockSdk()
+    const { backend, mockV3Session: mockSession } = createMockSdk()
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "message.send",
@@ -165,6 +166,8 @@ describe("RPC Router", () => {
       sessionID: "sess_123",
       prompt: { text: "hello world" },
     })
+    // 新会话自动命名：message.send 后触发 serve 命名流程（fire-and-forget）
+    expect(backend.autoNameNewSession).toHaveBeenCalledWith("sess_123", "hello world")
   })
 
   it("should accept sessionID (upper case D) in message.send", async () => {

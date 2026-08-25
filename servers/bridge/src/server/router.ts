@@ -216,10 +216,14 @@ registerHandler("message.send", async (p) => {
   const sid = resolveSessionId(p)
   if (!sid) throw new Error("message.send requires sessionId parameter")
   if (!p.message) throw new Error("message.send requires message parameter")
-  return sdkCall(() => sdk().v2.session.prompt({
+  const result = await sdkCall(() => sdk().v2.session.prompt({
     sessionID: sid,
     prompt: { text: p.message as string },
   }))
+  // 新会话自动命名：serve 用模型生成标题（仅当标题仍为默认值；用户自定义名不受影响）。
+  // fire-and-forget，不阻塞发送；内部异常静默。
+  getBackend().autoNameNewSession(sid, p.message as string).catch(() => {})
+  return result
 })
 registerHandler("message.abort", async (p) => {
   const sid = resolveSessionId(p)
