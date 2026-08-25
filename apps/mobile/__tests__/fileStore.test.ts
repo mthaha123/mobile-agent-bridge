@@ -79,6 +79,53 @@ describe('fileStore', () => {
     expect(useFileStore.getState().currentPath).toBe('/')
   })
 
+  it('should go up on Windows drive path without mangling drive letter', () => {
+    useFileStore.getState().setCurrentPath('D:/code/mobile-agent-bridge')
+    useFileStore.getState().goUp()
+    expect(useFileStore.getState().currentPath).toBe('D:/code')
+  })
+
+  it('should go up to drive root on Windows', () => {
+    useFileStore.getState().setCurrentPath('D:/code')
+    useFileStore.getState().goUp()
+    expect(useFileStore.getState().currentPath).toBe('D:/')
+  })
+
+  it('should stay at drive root when going up on Windows', () => {
+    useFileStore.getState().setCurrentPath('D:/')
+    useFileStore.getState().goUp()
+    expect(useFileStore.getState().currentPath).toBe('D:/')
+  })
+
+  it('should normalize backslash Windows path on goUp', () => {
+    useFileStore.getState().setCurrentPath('D:\\code\\mobile-agent-bridge')
+    useFileStore.getState().goUp()
+    expect(useFileStore.getState().currentPath).toBe('D:/code')
+  })
+
+  it('should normalize backslashes when setting current path', () => {
+    useFileStore.getState().setCurrentPath('D:\\code\\mobile-agent-bridge')
+    expect(useFileStore.getState().currentPath).toBe('D:/code/mobile-agent-bridge')
+  })
+
+  it('should enter directory on Windows drive path', () => {
+    useFileStore.getState().setCurrentPath('D:/code')
+    useFileStore.getState().enterDirectory('mobile-agent-bridge')
+    expect(useFileStore.getState().currentPath).toBe('D:/code/mobile-agent-bridge')
+  })
+
+  it('should enter directory at Windows drive root', () => {
+    useFileStore.getState().setCurrentPath('D:/')
+    useFileStore.getState().enterDirectory('code')
+    expect(useFileStore.getState().currentPath).toBe('D:/code')
+  })
+
+  it('should enter directory from backslash path', () => {
+    useFileStore.getState().setCurrentPath('D:\\code')
+    useFileStore.getState().enterDirectory('src')
+    expect(useFileStore.getState().currentPath).toBe('D:/code/src')
+  })
+
   it('should enter directory', () => {
     useFileStore.getState().setCurrentPath('/home')
     useFileStore.getState().enterDirectory('user')

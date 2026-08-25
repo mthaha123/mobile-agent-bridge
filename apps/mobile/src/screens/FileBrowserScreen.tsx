@@ -275,7 +275,7 @@ export const FileBrowserScreen: React.FC = () => {
           keyExtractor={(item) => item.name}
           style={styles.list}
           ListHeaderComponent={
-            currentPath !== '/' ? (
+            currentPath !== '/' && !/^[A-Za-z]:\/?$/.test(currentPath) ? (
               <TouchableOpacity style={styles.fileItem} onPress={goUp}>
                 <Text style={styles.fileIcon}>📁</Text>
                 <View style={styles.fileInfo}>

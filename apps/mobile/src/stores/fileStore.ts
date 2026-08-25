@@ -99,6 +99,33 @@ export interface FileState {
   reset: () => void
 }
 
+/** 统一分隔符为 '/'，并折叠连续 '/'（Windows 反斜杠路径 → 前向斜杠） */
+function normalizeSeparators(p: string): string {
+  return p.replace(/\\/g, '/').replace(/\/+/g, '/')
+}
+
+/**
+ * 计算上级目录，兼容 Windows 盘符路径（修复盘符被当作根目录子目录拼接的问题）：
+ *  - POSIX：/a/b/c → /a/b → /a → /
+ *  - Windows 盘符：D:/a/b/c → D:/a/b → D:/a → D:/（盘符根不再上跳）
+ *  - 反斜杠输入：D:\a\b 视为 D:/a/b
+ */
+function parentPath(p: string): string {
+  const norm = normalizeSeparators(p)
+  const driveMatch = /^([A-Za-z]:)(.*)$/.exec(norm)
+  if (driveMatch) {
+    const [, drive, rest] = driveMatch
+    const parts = rest.split('/').filter(Boolean)
+    if (parts.length === 0) return drive + '/' // 已在盘符根，保持不动
+    parts.pop()
+    return parts.length === 0 ? drive + '/' : drive + '/' + parts.join('/')
+  }
+  const parts = norm.split('/').filter(Boolean)
+  if (parts.length === 0) return '/'
+  parts.pop()
+  return '/' + parts.join('/') || '/'
+}
+
 const initialState = {
   currentPath: '/',
   files: [],
@@ -118,7 +145,7 @@ const initialState = {
 export const useFileStore = create<FileState>((set, get) => ({
   ...initialState,
 
-  setCurrentPath: (path) => set({ currentPath: path }),
+  setCurrentPath: (path) => set({ currentPath: normalizeSeparators(path) }),
 
   setFiles: (files) => set({ files }),
 
@@ -157,18 +184,14 @@ export const useFileStore = create<FileState>((set, get) => ({
 
   goUp: () => {
     const { currentPath } = get()
-    const parts = currentPath.split('/').filter(Boolean)
-    if (parts.length > 0) {
-      parts.pop()
-      set({ currentPath: '/' + parts.join('/') || '/' })
-    }
+    if (!currentPath) return
+    set({ currentPath: parentPath(currentPath) })
   },
 
   enterDirectory: (dirName) => {
     const { currentPath } = get()
-    const newPath = currentPath.endsWith('/')
-      ? currentPath + dirName
-      : currentPath + '/' + dirName
+    const base = normalizeSeparators(currentPath).replace(/\/+$/, '')
+    const newPath = base === '' ? '/' + dirName : base + '/' + dirName
     set({ currentPath: newPath })
   },
 
