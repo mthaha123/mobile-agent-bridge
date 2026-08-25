@@ -56,6 +56,8 @@ export const SessionsScreen: React.FC = () => {
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const createSession = useSessionStore((s) => s.createSession)
   const renameSession = useSessionStore((s) => s.renameSession)
+  // 会话运行状态（session.status / session.idle 通知 + RPC 快照）→ 列表运行红点
+  const sessionRunStatus = useChatStore((s) => s.sessionRunStatus)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const projects = useProjectStore((s) => s.projects)
@@ -84,6 +86,9 @@ export const SessionsScreen: React.FC = () => {
   const loadSessions = useCallback(async () => {
     const client = useAuthStore.getState().client
     if (!client) return
+    // 会话列表加载时同步运行状态快照：校正重连后错过的 idle 事件，
+    // 让列表红点与真实运行态一致（session.status RPC 返回运行中会话集合）
+    useChatStore.getState().syncSessionRunStatus(client.call.bind(client))
     await fetchSessions(client.call.bind(client))
   }, [fetchSessions])
 
@@ -132,6 +137,8 @@ export const SessionsScreen: React.FC = () => {
 
   const renderSession = ({ item }: { item: import('../stores/sessionStore').Session }) => {
     const displayName = item.name || `Session ${item.id.slice(0, 8)}`
+    const runStatus = sessionRunStatus[item.id]
+    const isRunning = runStatus === 'busy' || runStatus === 'retry'
 
     return (
       <TouchableOpacity
@@ -146,6 +153,9 @@ export const SessionsScreen: React.FC = () => {
             {displayName}
           </Text>
           <View style={styles.sessionMeta}>
+            {isRunning ? (
+              <View style={styles.runningDot} testID="session-running-dot" />
+            ) : null}
             <Text style={styles.sessionId} numberOfLines={1}>
               {item.id}
             </Text>
@@ -486,6 +496,13 @@ const makeStyles = (colors: ThemeColors) =>
   sessionMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  runningDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.error,
+    marginRight: 6,
   },
   sessionId: {
     color: colors.textSecondary,

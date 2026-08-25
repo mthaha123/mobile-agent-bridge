@@ -3,7 +3,7 @@
  */
 
 import React from 'react'
-import TestRenderer from 'react-test-renderer'
+import TestRenderer, { act } from 'react-test-renderer'
 import { AppProvider } from '../src/components/AppProvider'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
@@ -839,5 +839,25 @@ describe('setupClient', () => {
     // 'connected' 监听自 925bde2 起移至 MainLayout（其测试已覆盖），AppProvider 不再注册
     expect(events).not.toContain('connected')
     expect(events).toContain('auth_expired')
+  })
+
+  it('校正打开中会话的运行状态（连接/重连后拉取 session.status 快照）', async () => {
+    useChatStore.setState({ activeSessionId: 'sess-1' })
+    const client = mockClient({
+      'session.status': () => ({ data: { 'sess-1': { type: 'running' } } }),
+    })
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    await act(async () => { useAuthStore.setState({ client: client as any }) })
+
+    expect(client.call).toHaveBeenCalledWith('session.status', {})
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+  })
+
+  it('无 activeSessionId 时不触发状态快照拉取', () => {
+    const client = mockClient()
+    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
+
+    expect(client.call).not.toHaveBeenCalledWith('session.status', {})
   })
 })

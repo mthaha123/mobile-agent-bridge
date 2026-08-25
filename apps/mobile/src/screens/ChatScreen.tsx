@@ -169,6 +169,9 @@ export const ChatScreen: React.FC = () => {
     let cancelled = false
     setHistoryCursor(undefined)
     setHasMoreHistory(false)
+    // 打开会话时用 session.status RPC 快照校正该会话运行状态：
+    // 若会话正在其它端/后台生成中，立刻点亮红方块（无需等下一个 SSE 事件）
+    useChatStore.getState().fetchSessionRunStatus(activeSessionId, client.call.bind(client))
     ;(async () => {
       // bridge 返回升序（旧→新）的最新窗口；cursor 为绑定来源通道的不透明 token
       const res = await useSessionStore.getState().getSessionMessages(

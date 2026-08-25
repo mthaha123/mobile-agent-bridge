@@ -13,6 +13,7 @@ function resetChatStore() {
     messages: [],
     inputText: '',
     waiting: false,
+    sessionRunStatus: {},
   })
 }
 
@@ -751,5 +752,61 @@ describe('applyServerMessages (with parts)', () => {
     expect(msgs).toHaveLength(1)
     expect(msgs[0].parts).toHaveLength(1)
     expect(msgs[0].parts![0].data.tool).toBe('read')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// sessionRunStatus（全局会话运行状态订阅）
+// ---------------------------------------------------------------------------
+
+describe('sessionRunStatus', () => {
+  it('fetchSessionRunStatus: 快照含该会话 → busy', async () => {
+    const clientCall = jest.fn().mockResolvedValue({
+      data: { 'sess-1': { type: 'running' }, 'sess-2': { type: 'running' } },
+    })
+    await useChatStore.getState().fetchSessionRunStatus('sess-1', clientCall)
+    expect(clientCall).toHaveBeenCalledWith('session.status', {})
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+  })
+
+  it('fetchSessionRunStatus: 快照缺席该会话 → idle', async () => {
+    const clientCall = jest.fn().mockResolvedValue({
+      data: { 'sess-2': { type: 'running' } },
+    })
+    await useChatStore.getState().fetchSessionRunStatus('sess-1', clientCall)
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('idle')
+  })
+
+  it('fetchSessionRunStatus: 兼容平铺快照形态', async () => {
+    const clientCall = jest.fn().mockResolvedValue({
+      'sess-1': { type: 'running' },
+    })
+    await useChatStore.getState().fetchSessionRunStatus('sess-1', clientCall)
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+  })
+
+  it('fetchSessionRunStatus: 查询失败静默，保持现状', async () => {
+    useChatStore.setState({ sessionRunStatus: { 'sess-1': 'busy' } })
+    const clientCall = jest.fn().mockRejectedValue(new Error('boom'))
+    await useChatStore.getState().fetchSessionRunStatus('sess-1', clientCall)
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+  })
+
+  it('syncSessionRunStatus: 快照标记运行中、校正残留 busy', async () => {
+    useChatStore.setState({ sessionRunStatus: { 'sess-old': 'busy', 'sess-run': 'idle' } })
+    const clientCall = jest.fn().mockResolvedValue({
+      data: { 'sess-run': { type: 'running' } },
+    })
+    await useChatStore.getState().syncSessionRunStatus(clientCall)
+    const st = useChatStore.getState().sessionRunStatus
+    expect(st['sess-run']).toBe('busy')
+    expect(st['sess-old']).toBe('idle') // 快照缺席 → 服务端视为 inactive
+  })
+
+  it('syncSessionRunStatus: 查询失败静默', async () => {
+    useChatStore.setState({ sessionRunStatus: { 'sess-1': 'busy' } })
+    const clientCall = jest.fn().mockRejectedValue(new Error('boom'))
+    await useChatStore.getState().syncSessionRunStatus(clientCall)
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
   })
 })

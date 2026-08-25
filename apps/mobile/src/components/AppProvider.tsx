@@ -155,6 +155,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     // 重连后不自动 sync（初始加载由 ChatScreen useEffect 负责，避免双路径重复加载导致消息重复）
     // 用户可在 ChatScreen 下拉刷新手动同步
 
+    // 连接/重连建立时校正当前会话运行状态：
+    // SSE 不重放历史 idle 事件，重连后权威 busy 状态需用 RPC 快照兜底，
+    // 否则打开中的会话红方块可能残留或缺失。
+    const activeId = useChatStore.getState().activeSessionId
+    if (activeId) {
+      useChatStore.getState().fetchSessionRunStatus(activeId, client.call.bind(client))
+    }
+
     client.on('auth_expired', () => {
       useAuthStore.getState().logout()
     })

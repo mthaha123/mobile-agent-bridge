@@ -456,6 +456,33 @@ function extractInfoText(info: any): string {
 
 // ─── Store ─────────────────────────────────────────────────
 
+export type SessionRunStatus = 'idle' | 'busy' | 'retry'
+
+/**
+ * 从 bridge 的 session.status RPC 响应提取「运行中会话」映射。
+ * 兼容两种形态：
+ *   - 双层包裹: { data: { [sessionID]: { type: 'running' } } }
+ *   - 平铺:     { [sessionID]: { type: 'running' } }
+ */
+function normalizeRunningMap(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== 'object') return {}
+  const obj = result as Record<string, unknown>
+  const inner = obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)
+    ? obj.data as Record<string, unknown>
+    : obj
+  return inner
+}
+
+/** 判断会话是否在运行中：值为对象时看 type==='running'，否则 truthy 兜底 */
+function isRunningEntry(entry: unknown): boolean {
+  if (!entry) return false
+  if (typeof entry === 'object') {
+    const e = entry as Record<string, unknown>
+    return e.type === 'running' || e.type === 'busy'
+  }
+  return !!entry
+}
+
 export interface ChatState {
   activeSessionId: string | null
   messages: ChatMessage[]
@@ -464,6 +491,8 @@ export interface ChatState {
   runError: string | null
   pendingSteps: number
   lastActivityAt: number
+  /** 服务端权威的每会话运行状态（session.status / session.idle 通知 + session.status RPC 快照） */
+  sessionRunStatus: Record<string, SessionRunStatus>
 
   // ── 新 API ──
   setActiveSession(id: string | null): void
@@ -482,6 +511,9 @@ export interface ChatState {
   sendMessage(sessionId: string, text: string, clientCall: ClientCall): Promise<void>
   syncSessionMessages(sessionId: string, clientCall: ClientCall): Promise<void>
   abortMessage(sessionId: string, clientCall: ClientCall): Promise<void>
+  setSessionRunStatus(sessionId: string, status: SessionRunStatus): void
+  fetchSessionRunStatus(sessionId: string, clientCall: ClientCall): Promise<void>
+  syncSessionRunStatus(clientCall: ClientCall): Promise<void>
 
   // ── 旧版兼容 shim ──
   appendAssistantDelta(assistantMessageId: string, delta: string, eventId: number | string): void
@@ -503,6 +535,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   runError: null,
   pendingSteps: 0,
   lastActivityAt: 0,
+  sessionRunStatus: {},
 
   setActiveSession: (sessionId) => {
     const prev = get().activeSessionId
@@ -667,6 +700,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const state = get()
     const p = payload ?? {}
     const sid = p.sessionID ?? p.sessionId
+
+    // ── 会话运行状态（全局订阅，先于会话过滤）──
+    // session.status / session.idle 是服务端权威的 busy/idle 信号，
+    // 无论事件属于哪个会话都记录到 sessionRunStatus（供会话列表红点/红方块），
+    // 再按 activeSessionId 过滤决定是否驱动 waiting 状态机。
+    if (method === 'session.status') {
+      const st = p.status?.type
+      if (sid && (st === 'idle' || st === 'busy' || st === 'retry')) {
+        get().setSessionRunStatus(sid, st)
+      }
+    } else if (method === 'session.idle') {
+      if (sid) get().setSessionRunStatus(sid, 'idle')
+    }
+
     if (sid && state.activeSessionId && sid !== state.activeSessionId) return
 
     const now = Date.now()
@@ -780,7 +827,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (statusType === 'idle') {
         pendingSteps = 0
         waiting = false
-      } else if (statusType === 'busy') {
+      } else if (statusType === 'busy' || statusType === 'retry') {
         waiting = true
       }
     } else if (m === 'session.idle') {
@@ -789,6 +836,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } else if (m === 'session.error') {
       pendingSteps = 0
       waiting = false
+      // 会话级致命错误：视为不再运行，清掉权威 busy 状态防止红方块残留
+      if (sid) get().setSessionRunStatus(sid, 'idle')
       runError = normalizeError(stringifyError(p.error ?? 'unknown error'))
     }
     // ── 审批终结态 ──
@@ -803,6 +852,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       waiting = false
       const err = p.error?.message ?? p.error ?? p.message ?? `${m} (no details)`
       runError = normalizeError(`${m}: ${stringifyError(err)}`)
+    }
+
+    // ── 权威状态覆盖 ──
+    // 服务端确认当前会话仍在运行（busy/retry）时，等待态/红方块持续显示，
+    // 不因 text.ended / reasoning.ended / step.ended 等瞬时事件而闪烁熄灭。
+    // 会话真正结束时服务端会广播 session.status idle / session.idle 将其清除。
+    const activeId = get().activeSessionId
+    const activeStatus = activeId ? get().sessionRunStatus[activeId] : undefined
+    if (activeStatus === 'busy' || activeStatus === 'retry') {
+      waiting = true
     }
 
     set({ messages, pendingSteps, waiting, runError, lastActivityAt: now })
@@ -828,7 +887,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await clientCall('message.abort', { sessionId })
     } finally {
       get().markToolsCancelled()
+      // 本地乐观：中断后该会话不再运行（服务端随后会广播 session.status idle 兜底）
+      get().setSessionRunStatus(sessionId, 'idle')
       set({ waiting: false, pendingSteps: 0 })
+    }
+  },
+
+  // ── 会话运行状态（全局订阅）──
+  setSessionRunStatus: (sessionId, status) => {
+    if (!sessionId) return
+    set((state) => {
+      if (state.sessionRunStatus[sessionId] === status) return state
+      return { sessionRunStatus: { ...state.sessionRunStatus, [sessionId]: status } }
+    })
+  },
+
+  /** 拉取单个会话的权威运行状态（session.status RPC 返回运行中会话快照） */
+  fetchSessionRunStatus: async (sessionId, clientCall) => {
+    if (!sessionId) return
+    try {
+      const result = await clientCall('session.status', {})
+      const map = normalizeRunningMap(result)
+      const running = isRunningEntry(map[sessionId])
+      get().setSessionRunStatus(sessionId, running ? 'busy' : 'idle')
+    } catch {
+      // 静默：查询失败保持现状，SSE 通知会在后续事件中兜底
+    }
+  },
+
+  /** 同步全部会话运行状态（会话列表进入/刷新时调用，校正重连后错过的 idle 事件） */
+  syncSessionRunStatus: async (clientCall) => {
+    try {
+      const result = await clientCall('session.status', {})
+      const map = normalizeRunningMap(result)
+      set((state) => {
+        const next: Record<string, SessionRunStatus> = { ...state.sessionRunStatus }
+        let changed = false
+        // 快照中出现的会话 → 运行中
+        for (const sid of Object.keys(map)) {
+          const st: SessionRunStatus = isRunningEntry(map[sid]) ? 'busy' : 'idle'
+          if (next[sid] !== st) {
+            next[sid] = st
+            changed = true
+          }
+        }
+        // 快照中缺席 → 服务端视为 inactive（运行中集合之外的会话都非运行态），
+        // 把此前标记 busy 的会话校正回 idle，避免重连后红点/红方块残留
+        for (const [sid, prev] of Object.entries(state.sessionRunStatus)) {
+          if ((prev === 'busy' || prev === 'retry') && !(sid in map) && next[sid] !== 'idle') {
+            next[sid] = 'idle'
+            changed = true
+          }
+        }
+        return changed ? { sessionRunStatus: next } : state
+      })
+    } catch {
+      // 静默：失败保持现状
     }
   },
 

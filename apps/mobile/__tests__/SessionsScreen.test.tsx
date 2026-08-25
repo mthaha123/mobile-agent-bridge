@@ -19,7 +19,7 @@ beforeEach(() => {
     client: null, bridgeUrl: '', token: null, authenticated: false,
     loading: false, error: null,
   })
-  useChatStore.setState({ activeSessionId: null, messages: [], inputText: '', waiting: false })
+  useChatStore.setState({ activeSessionId: null, messages: [], inputText: '', waiting: false, sessionRunStatus: {} })
   useProjectStore.setState({ directory: '', project: null, switching: false })
   useUiStore.setState({ screen: 'main', activeTab: 'chat', chatSubScreen: 'sessions' })
   jest.clearAllMocks()
@@ -54,6 +54,41 @@ describe('SessionsScreen', () => {
       <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
     )
     expect(tree.toJSON()).not.toBeNull()
+  })
+
+  /** 统计运行红点数量：react-test-renderer 会把每个元素渲染成 composite + host 两份，
+   *  只统计 host 节点（typeof type === 'string'）避免重复计数 */
+  const countRunningDots = (tree: TestRenderer.ReactTestRenderer) =>
+    tree.root.findAll(
+      (n) => n.props?.testID === 'session-running-dot' && typeof n.type === 'string',
+    ).length
+
+  it('shows running indicator on busy sessions（sessionRunStatus 订阅）', () => {
+    useSessionStore.setState({
+      sessions: [
+        { id: 's-busy', name: 'Busy', createdAt: '', updatedAt: '', messageCount: 0 },
+        { id: 's-idle', name: 'Idle', createdAt: '', updatedAt: '', messageCount: 0 },
+      ],
+    })
+    useChatStore.setState({ sessionRunStatus: { 's-busy': 'busy', 's-idle': 'idle' } })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(countRunningDots(tree)).toBe(1)
+  })
+
+  it('clears running indicator when session goes idle', () => {
+    useSessionStore.setState({
+      sessions: [{ id: 's-1', name: 'Chat', createdAt: '', updatedAt: '', messageCount: 0 }],
+    })
+    useChatStore.setState({ sessionRunStatus: { 's-1': 'busy' } })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(countRunningDots(tree)).toBe(1)
+
+    act(() => { useChatStore.setState({ sessionRunStatus: { 's-1': 'idle' } }) })
+    expect(countRunningDots(tree)).toBe(0)
   })
 
   it('renders project directory', () => {

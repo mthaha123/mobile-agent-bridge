@@ -79,6 +79,7 @@ export function resetAllStores() {
     messages: [],
     inputText: '',
     waiting: false,
+    sessionRunStatus: {},
   })
   useToolStore.setState({ pendingApprovals: [], visible: false })
   useDiffStore.setState({ diffs: {} })

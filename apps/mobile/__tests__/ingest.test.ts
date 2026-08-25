@@ -13,6 +13,7 @@ function resetStore() {
     runError: null,
     pendingSteps: 0,
     lastActivityAt: 0,
+    sessionRunStatus: {},
   })
 }
 
@@ -248,6 +249,78 @@ describe('waiting state machine', () => {
     expect(useChatStore.getState().pendingSteps).toBe(0)
   })
 
+  it('session.status busy 权威覆盖：text.ended 后 waiting 仍 true（红方块持续）', () => {
+    useChatStore.setState({ activeSessionId: 's-1' })
+    ingest('session.status', { sessionID: 's-1', status: { type: 'busy' } })
+    expect(useChatStore.getState().waiting).toBe(true)
+    expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('busy')
+
+    // 无 step 事件的文本流：text.ended 原本会让 waiting=false，
+    // 但权威 busy 覆盖后必须保持 true —— 红方块不应闪烁熄灭
+    ingest('session.next.text.started', { sessionID: 's-1', assistantMessageID: 'ams-1' })
+    ingest('session.next.text.ended', { sessionID: 's-1', assistantMessageID: 'ams-1', text: 'partial' })
+    expect(useChatStore.getState().waiting).toBe(true)
+
+    // 工具执行间隙（无任何文本/步骤事件）同样保持
+    ingest('session.next.tool.called', { sessionID: 's-1', callID: 'call-1', tool: 'bash', input: {} })
+    expect(useChatStore.getState().waiting).toBe(true)
+
+    // 服务端广播 idle 后才熄灭
+    ingest('session.idle', { sessionID: 's-1' })
+    expect(useChatStore.getState().waiting).toBe(false)
+    expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('idle')
+  })
+
+  it('session.status retry 视为运行中（waiting=true）', () => {
+    useChatStore.setState({ activeSessionId: 's-1' })
+    ingest('session.status', { sessionID: 's-1', status: { type: 'retry', attempt: 1, message: 'retry', next: 1 } })
+    expect(useChatStore.getState().waiting).toBe(true)
+    expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('retry')
+    ingest('session.status', { sessionID: 's-1', status: { type: 'idle' } })
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+
+  it('session.status 非 active 会话：只更新全局状态，不影响 waiting', () => {
+    useChatStore.setState({ activeSessionId: 's-active' })
+    ingest('session.next.step.started', { sessionID: 's-active' })
+    expect(useChatStore.getState().waiting).toBe(true)
+
+    ingest('session.status', { sessionID: 's-other', status: { type: 'busy' } })
+    // 其它会话 busy → sessionRunStatus 记录，但不驱动当前会话 waiting
+    expect(useChatStore.getState().sessionRunStatus['s-other']).toBe('busy')
+    expect(useChatStore.getState().sessionRunStatus['s-active']).toBeUndefined()
+    expect(useChatStore.getState().waiting).toBe(true)
+
+    ingest('session.status', { sessionID: 's-other', status: { type: 'idle' } })
+    expect(useChatStore.getState().sessionRunStatus['s-other']).toBe('idle')
+    expect(useChatStore.getState().waiting).toBe(true)
+  })
+
+  it('session.idle 非 active 会话：只更新全局状态，不影响 waiting', () => {
+    useChatStore.setState({ activeSessionId: 's-active', sessionRunStatus: { 's-other': 'busy' } })
+    ingest('session.idle', { sessionID: 's-other' })
+    expect(useChatStore.getState().sessionRunStatus['s-other']).toBe('idle')
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+
+  it('session.error 清掉权威 busy 状态并 waiting=false（红方块不残留）', () => {
+    useChatStore.setState({ activeSessionId: 's-1' })
+    ingest('session.status', { sessionID: 's-1', status: { type: 'busy' } })
+    expect(useChatStore.getState().waiting).toBe(true)
+    ingest('session.error', { sessionID: 's-1', error: 'Connection lost' })
+    expect(useChatStore.getState().waiting).toBe(false)
+    expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('idle')
+    expect(useChatStore.getState().runError).toContain('Connection lost')
+  })
+
+  it('abortMessage 本地乐观清掉会话运行状态', async () => {
+    useChatStore.setState({ activeSessionId: 's-1', sessionRunStatus: { 's-1': 'busy' } })
+    const clientCall = jest.fn().mockResolvedValue(undefined)
+    await useChatStore.getState().abortMessage('s-1', clientCall)
+    expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('idle')
+    expect(useChatStore.getState().waiting).toBe(false)
+  })
+
   it('session.error 归零并记录 runError', () => {
     useChatStore.setState({ activeSessionId: 's-1' })
     ingest('session.next.step.started', { sessionID: 's-1' })
@@ -363,7 +436,8 @@ describe('sendMessage / syncSessionMessages', () => {
     const clientCall = jest.fn().mockResolvedValue({ messages: raw, cursor: 'c' })
 
     await useChatStore.getState().syncSessionMessages('s-1', clientCall)
-    expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionId: 's-1', order: 'desc', limit: 50 })
+    // bridge 契约：恒定升序输出、order 参数已废弃不传（服务端忽略）
+    expect(clientCall).toHaveBeenCalledWith('session.messages', { sessionId: 's-1', limit: 50 })
     expect(useChatStore.getState().messages.map((m) => m.content)).toEqual(['question', 'answer'])
 
     // 幂等：重复同步不产生重复消息
