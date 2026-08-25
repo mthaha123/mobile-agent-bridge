@@ -189,7 +189,8 @@ describe("rawSessionMessages 翻页：cursor 绑定来源通道", () => {
       const result = await freshBackend(ctx.port).rawSessionMessages(SID, { cursor: "v2:tok456" })
       expect(ctx.requests.filter((u) => !u.startsWith("/api/"))).toHaveLength(0)
       expect(ctx.requests[0]).toContain("cursor=tok456")
-      expect(ctx.requests[0]).toContain("order=desc")
+      // 新契约：cursor 自描述方向，带 cursor 时不能再拼 order=desc（否则服务端 400）
+      expect(ctx.requests[0]).not.toContain("order=desc")
       expect(result.messages.map((m: any) => m.info.id)).toEqual(["p1", "p2"])
       expect(result.cursor).toBe("v2:proj-cursor-2")
     } finally {
@@ -261,28 +262,63 @@ describe("summarizeSession / autoNameNewSession", () => {
     }
   })
 
-  it("autoNameNewSession：默认标题 → 先 v1 镜像消息再 summarize", async () => {
+  it("autoNameNewSession：默认标题 → 临时会话种子+summarize+读标题+PATCH+DELETE 全链路", async () => {
     const urls: string[] = []
+    const deltas: string[] = []
     const ctx = await startMockServer((_channel, url, res) => {
       urls.push(url)
-      if (url.includes("/message") && !url.startsWith("/api/")) {
-        // v1 镜像消息写入（POST /session/{id}/message）
-        res.writeHead(200)
-        res.end("{}")
-      } else if (url.endsWith("/summarize")) {
-        res.writeHead(200)
-        res.end("{}")
-      } else {
-        // GET /api/session/{id}
-        json(res, { data: { id: "sess_test", title: "New session - 2026-08-25T00:00:00Z" } })
+      // 创建临时会话（POST /api/session）
+      if (url === "/api/session" && deltas.length === 0 && urls.filter((u) => u === "/api/session").length === 1) {
+        deltas.push("created")
+        json(res, { data: { id: "temp_sess_1" } })
+        return
       }
+      // 临时会话的消息（POST /session/temp_sess_1/message）
+      if (url.startsWith("/session/temp_sess_1/message")) {
+        res.writeHead(200)
+        res.end("{}")
+        return
+      }
+      // summarize（POST /api/session/{id}/summarize）
+      if (url.endsWith("/summarize")) {
+        res.writeHead(200)
+        res.end("{}")
+        return
+      }
+      // GET /api/session/{id}：目标会话(原始) 或 临时会话(已命名)
+      if (url.startsWith("/api/session/")) {
+        if (url.includes("temp_sess_1")) {
+          json(res, { data: { id: "temp_sess_1", title: "AI 生成的标题" } })
+        } else {
+          json(res, { data: { id: "sess_default_title", title: "New session - 2026-08-25T00:00:00Z" } })
+        }
+        return
+      }
+      // PATCH /session/{id} 改名真实会话
+      if (url.startsWith("/session/sess_default_title") && !url.includes("/message")) {
+        res.writeHead(200)
+        res.end("{}")
+        return
+      }
+      // DELETE /session/temp_sess_1 清理
+      if (url.startsWith("/session/temp_sess_1") && !url.includes("/message")) {
+        res.writeHead(200)
+        res.end("{}")
+        return
+      }
+      res.writeHead(404)
+      res.end("{}")
     })
     try {
       const backend = freshBackend(ctx.port)
-      const r = await backend.autoNameNewSession("sess_default_title", "首条消息文本")
+      const r = await backend.autoNameNewSession("sess_default_title", "首条消息文本", "D:\\code")
+      // DELETE 临时会话是 fire-and-forget，给异步清理留时间落地
+      await new Promise((resolve) => setTimeout(resolve, 150))
       expect(r).toBe(true)
-      expect(urls.filter((u) => !u.startsWith("/api/") && u.includes("/message"))).toHaveLength(1) // 镜像一次
-      expect(urls.filter((u) => u.endsWith("/summarize"))).toHaveLength(1) // summarize 一次
+      expect(urls.some((u) => u.startsWith("/session/temp_sess_1/message"))).toBe(true) // 种子写入临时会话
+      expect(urls.some((u) => u.endsWith("/summarize"))).toBe(true)
+      expect(urls.some((u) => u.includes("/session/sess_default_title") && !u.includes("/message"))).toBe(true) // PATCH 真实会话
+      expect(urls.some((u) => u.startsWith("/session/temp_sess_1") && !u.includes("/message"))).toBe(true) // DELETE 临时会话
     } finally {
       await ctx.close()
     }

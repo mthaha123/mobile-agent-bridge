@@ -222,7 +222,7 @@ registerHandler("message.send", async (p) => {
   }))
   // 新会话自动命名：serve 用模型生成标题（仅当标题仍为默认值；用户自定义名不受影响）。
   // fire-and-forget，不阻塞发送；内部异常静默。
-  getBackend().autoNameNewSession(sid, p.message as string).catch(() => {})
+  getBackend().autoNameNewSession(sid, p.message as string, String(getCurrentProject().directory ?? "")).catch(() => {})
   return result
 })
 registerHandler("message.abort", async (p) => {

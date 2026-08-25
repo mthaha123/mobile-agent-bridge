@@ -167,7 +167,7 @@ describe("RPC Router", () => {
       prompt: { text: "hello world" },
     })
     // 新会话自动命名：message.send 后触发 serve 命名流程（fire-and-forget）
-    expect(backend.autoNameNewSession).toHaveBeenCalledWith("sess_123", "hello world")
+    expect(backend.autoNameNewSession).toHaveBeenCalledWith("sess_123", "hello world", expect.anything())
   })
 
   it("should accept sessionID (upper case D) in message.send", async () => {

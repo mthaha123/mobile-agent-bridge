@@ -144,13 +144,26 @@ export class OpenCodeBackend {
   private async fetchV2Page(base: string, encSessionID: string, q: { limit?: number; cursor?: string }): Promise<ChannelPage> {
     const qs: string[] = []
     if (q.limit !== undefined) qs.push(`limit=${q.limit}`)
-    if (q.cursor) qs.push(`cursor=${encodeURIComponent(q.cursor)}`)
-    qs.push("order=desc")
+    if (q.cursor) {
+      // cursor 为自描述 token（内部编码了 order/direction），再拼 order 会导致 400
+      qs.push(`cursor=${encodeURIComponent(q.cursor)}`)
+    } else {
+      // 仅首屏取"最新窗口"
+      qs.push("order=desc")
+    }
     const body = await this.httpGetJson(`${base}/api/session/${encSessionID}/message?${qs.join("&")}`) as any
     const data = body?.data
     return {
       messages: Array.isArray(data) ? data : [],
-      cursor: body?.cursor != null ? String(body.cursor) : undefined,
+      // serve 的 v2 cursor 是 { previous, next } 对象：next 指向更早消息（翻历史用）。
+      // 必须取字符串，绝不能 String(对象) 变 "[object Object]"。
+      cursor: typeof body?.cursor === "string"
+        ? body.cursor
+        : typeof body?.cursor?.next === "string"
+          ? body.cursor.next
+          : body?.cursor != null
+            ? JSON.stringify(body.cursor)
+            : undefined,
     }
   }
 
@@ -280,28 +293,76 @@ export class OpenCodeBackend {
 
   /**
    * 新会话自动命名（完整链路）：
-   *   1. 仅当标题仍为 serve 默认值（未手动命名）时继续；
-   *   2. 用 v1 路由镜像写入首条用户消息——summarize 只读 v1 原始表，
-   *      v2 prompt 写入的消息对 summarize 不可见（实测验证）；
-   *   3. 调 /api/session/{id}/summarize，由 serve 用模型生成标题。
-   * 全程 fire-and-forget，任何异常静默，不阻塞消息流程。
+   * 在【隔离的临时会话】上完成命名，避免污染真实会话：
+   *   1. 仅当真实会话标题仍为 serve 默认值（未手动命名）时继续；
+   *   2. 创建临时会话，用 v1 路由写入无害化种子文本
+   *      （summarize 只读 v1 原始表，v2 消息对 summarize 不可见——实测验证；
+   *       不用真实首条消息原文，防止触发工具执行等副作用）；
+   *   3. summarize 由 serve 用模型生成标题；
+   *   4. 读回标题 PATCH 到真实会话（renameSession 同款接口）；
+   *   5. 删除临时会话。
+   * 全程 fire-and-forget，任何异常静默；临时会话在 finally 中清理。
    */
-  async autoNameNewSession(sessionID: string, firstMessageText: string): Promise<boolean> {
+  async autoNameNewSession(sessionID: string, firstMessageText: string, directory?: string): Promise<boolean> {
+    let tempSessionID: string | null = null
     try {
       if (!sessionID || !firstMessageText) return false
       const s = await this.httpGetJson(`${this.baseUrl.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}`) as any
       const title = String(s?.data?.title ?? s?.title ?? "")
       if (!title.startsWith("New session -")) return false
-      await this.mirrorMessageV1(sessionID, firstMessageText)
-      await this.summarizeSession(sessionID)
+
+      // 1) 创建隔离临时会话
+      tempSessionID = await this.createSessionV2(directory ?? "")
+      // 2) 无害化种子文本（带主题信息但不含可执行指令）
+      const seedText = `会话标题提取：首条消息主题为「${firstMessageText.replace(/\s+/g, " ").slice(0, 60)}」`
+      await this.messageV1(tempSessionID, seedText)
+      // 3) serve 生成标题
+      await this.summarizeSession(tempSessionID)
+      // 4) 读回标题
+      const generated = await this.readSessionTitle(tempSessionID);
+      if (!generated || generated.startsWith("New session -")) return false
+      await this.renameSession(sessionID, generated)
       return true
-    } catch {
+    } catch (e) {
       return false
+    } finally {
+      if (tempSessionID) this.deleteSession(tempSessionID).catch(() => {})
     }
   }
 
-  /** v1 路由镜像写入一条用户消息（供 summarize 读取，不入 v2 主显示流） */
-  private async mirrorMessageV1(sessionID: string, text: string): Promise<void> {
+  /** 创建 v2 会话（用于命名种子隔离） */
+  private async createSessionV2(directory: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify(directory ? { location: { directory } } : {})
+      const url = new URL(this.baseUrl.replace(/\/+$/, "") + "/api/session")
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : 80,
+        path: url.pathname + url.search,
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+        timeout: 30000,
+      }, (res) => {
+        let b = ""
+        res.on("data", (c) => { b += c })
+        res.on("end", () => {
+          try {
+            const j = JSON.parse(b)
+            const id = j?.data?.id ?? j?.id
+            if (id) resolve(id)
+            else reject(new Error("create temp session: no id"))
+          } catch { reject(new Error("create temp session: bad response")) }
+        })
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("create temp session timeout")) })
+      req.on("error", reject)
+      req.end(body)
+    })
+  }
+
+  /** v1 路由写入一条消息（供 summarize 读取原始表）；注意此接口会触发 agent 回合 */
+  private async messageV1(sessionID: string, text: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const body = JSON.stringify({ type: "user", parts: [{ type: "text", text }] })
       const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/session/${encodeURIComponent(sessionID)}/message`)
@@ -323,6 +384,33 @@ export class OpenCodeBackend {
       req.on("timeout", () => { req.destroy(); reject(new Error("mirror v1 message timeout")) })
       req.on("error", reject)
       req.end(body)
+    })
+  }
+
+  /** 读取会话标题（GET /api/session/{id}） */
+  private async readSessionTitle(sessionID: string): Promise<string> {
+    const s = await this.httpGetJson(`${this.baseUrl.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}`) as any
+    return String(s?.data?.title ?? s?.title ?? "")
+  }
+
+  /** 删除会话（隔离命名用的临时会话清理） */
+  private async deleteSession(sessionID: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(this.baseUrl.replace(/\/+$/, "") + `/session/${encodeURIComponent(sessionID)}`)
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port ? parseInt(url.port, 10) : 80,
+        path: url.pathname + url.search,
+        method: "DELETE",
+        timeout: 30000,
+      }, (res) => {
+        res.resume()
+        res.on("end", () => res.statusCode! >= 400 ? reject(new Error(`delete session ${res.statusCode}`)) : resolve())
+        res.on("error", reject)
+      })
+      req.on("timeout", () => { req.destroy(); reject(new Error("delete session timeout")) })
+      req.on("error", reject)
+      req.end()
     })
   }
 
@@ -381,7 +469,7 @@ export function tagCursor(channel: "v1" | "v2", token?: string): string | undefi
 
 /** 解析带通道前缀的 cursor；无前缀/为空返回 null（遗留格式走兼容路径） */
 export function parseTaggedCursor(cursor?: string): { channel: "v1" | "v2"; token: string } | null {
-  if (!cursor) return null
+  if (typeof cursor !== "string" || !cursor) return null
   if (cursor.startsWith(CURSOR_TAG_V1)) return { channel: "v1", token: cursor.slice(CURSOR_TAG_V1.length) }
   if (cursor.startsWith(CURSOR_TAG_V2)) return { channel: "v2", token: cursor.slice(CURSOR_TAG_V2.length) }
   return null
