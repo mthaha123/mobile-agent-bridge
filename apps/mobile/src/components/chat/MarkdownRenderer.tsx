@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import type { TextStyle, ViewStyle } from 'react-native'
 import { Renderer, useMarkdown } from 'react-native-marked'
 import { MarkdownTable } from './MarkdownTable'
+import { MarkdownCodeBlock } from './MarkdownCodeBlock'
 import { useThemeColors, useThemeMode } from '../../theme/ThemeContext'
 
 interface MarkdownRendererProps {
@@ -9,12 +11,30 @@ interface MarkdownRendererProps {
 }
 
 /**
- * 覆写默认 Renderer 的 table()：
- * 内置 MDTable 列宽固定为 43% 屏宽/列且横向滚动在 inverted FlatList +
- * TouchableOpacity 手势协商下经常失效（表格溢出屏幕又滑不动）。
- * 改用 MarkdownTable：自适应列宽 + 可靠横向滚动 + 全屏查看兜底。
+ * 覆写默认 Renderer 的 table() 与 code()：
+ * - table()：内置 MDTable 列宽固定为 43% 屏宽/列且横向滚动在 inverted FlatList +
+ *   TouchableOpacity 手势协商下经常失效（表格溢出屏幕又滑不动）。
+ *   改用 MarkdownTable：自适应列宽 + 可靠横向滚动 + 全屏查看兜底。
+ * - code()：内置实现未开 nestedScrollEnabled，嵌套滚动下横向拖动失效。
+ *   改用 MarkdownCodeBlock：horizontal ScrollView + nestedScrollEnabled + 溢出检测。
  */
 class TableAwareRenderer extends Renderer {
+  code(
+    text: string,
+    _language?: string,
+    containerStyle?: ViewStyle,
+    textStyle?: TextStyle,
+  ): React.ReactNode {
+    return (
+      <MarkdownCodeBlock
+        key={this.getKey()}
+        text={text}
+        containerStyle={containerStyle}
+        textStyle={textStyle}
+      />
+    )
+  }
+
   table(header: React.ReactNode[][], rows: React.ReactNode[][][]): React.ReactNode {
     return <MarkdownTable key={this.getKey()} header={header} rows={rows} />
   }
