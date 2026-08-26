@@ -254,12 +254,14 @@ describe('SettingsScreen — Defaults', () => {
   })
 
   it('点击 Default Agent 行弹出候选并可选择', async () => {
-    // opencode /api/agent 实际形态：只有 id + description，无 name/label 字段
+    // opencode /api/agent 实际形态：只有 id + description + mode，无 name/label 字段
     act(() => {
       useConfigStore.setState({
         agents: [
-          { id: 'build', description: 'The default agent.' },
-          { id: 'plan', description: 'Plan mode.' },
+          { id: 'build', description: 'The default agent.', mode: 'primary' },
+          { id: 'plan', description: 'Plan mode.', mode: 'primary' },
+          { id: 'general', description: 'General-purpose agent.', mode: 'subagent' },
+          { id: 'compaction', description: '', mode: 'primary' },
         ],
       })
     })
@@ -271,6 +273,9 @@ describe('SettingsScreen — Defaults', () => {
     expect(textOf(tree)).toContain('build')
     expect(textOf(tree)).toContain('plan')
     expect(textOf(tree)).not.toContain('Agent 1')
+    // 只列可作默认的 primary agent（subagent 与无描述的内部 agent 排除）
+    expect(textOf(tree)).not.toContain('general')
+    expect(textOf(tree)).not.toContain('compaction')
 
     await act(async () => { pressByText(tree, 'plan', 'prefix').props.onPress() })
 

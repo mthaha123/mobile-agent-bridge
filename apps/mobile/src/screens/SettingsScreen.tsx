@@ -188,7 +188,14 @@ export const SettingsScreen: React.FC = () => {
               >
                 <Text style={styles.rowLabel}>Server default</Text>
               </TouchableOpacity>
-              {agents.map((a, i) => {
+              {agents
+                .filter((a) => {
+                  // 只列可作会话默认的 primary agent：排除 subagent(general/explore)
+                  // 与系统内部 agent(compaction/title/summary，无描述)
+                  const mode = String((a as { mode?: string }).mode ?? 'primary')
+                  return mode === 'primary' && !!a.description
+                })
+                .map((a, i) => {
                 // opencode /api/agent 形态：{ id, description, mode }——无 name/label，
                 // 身份与回传值一律用 id；label/name 仅作显示优先
                 const id = String(a.id || a.name || '')
