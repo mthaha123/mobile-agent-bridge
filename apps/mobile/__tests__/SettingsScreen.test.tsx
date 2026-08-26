@@ -13,6 +13,7 @@ import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useSettingsStore } from '../src/stores/settingsStore'
 import { useConfigStore } from '../src/stores/configStore'
+import { APP_VERSION } from '../src/config/appInfo'
 import { mockClient, resetAllStores, textOf, findAllPressable } from './test-utils'
 
 beforeEach(() => {
@@ -307,5 +308,36 @@ describe('SettingsScreen — Defaults', () => {
     useSettingsStore.setState({ defaultModel: { id: 'm1', providerID: 'p1' } })
     const tree = TestRenderer.create(<SettingsScreen />)
     expect(textOf(tree)).toContain('p1/m1')
+  })
+})
+
+// ─── About 区块（版本信息）────────────────────────────────
+
+describe('SettingsScreen — About', () => {
+  it('展示 App 版本与 Bridge 版本', async () => {
+    const client = mockClient({ 'health.ping': () => ({ ok: true, bridgeVersion: '0.2.0' }) })
+    act(() => {
+      useAuthStore.setState({ client: client as any })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+    await act(async () => {})
+
+    const text = textOf(tree)
+    expect(text).toContain('App Version')
+    expect(text).toContain('Bridge Version')
+    expect(text).toContain(`v${APP_VERSION}`)
+    expect(text).toContain('v0.2.0')
+  })
+
+  it('health.ping 失败时降级显示 unknown 且不崩溃', async () => {
+    // mockClient 未声明 health.ping → call 抛错，走 catch 分支
+    const client = mockClient({})
+    act(() => {
+      useAuthStore.setState({ client: client as any })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+    await act(async () => {})
+
+    expect(textOf(tree)).toContain('(unknown)')
   })
 })

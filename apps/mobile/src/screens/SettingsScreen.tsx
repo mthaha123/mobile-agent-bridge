@@ -9,6 +9,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 import { ModelPickerModal } from '../components/ModelPickerModal'
+import { APP_VERSION } from '../config/appInfo'
 
 export const SettingsScreen: React.FC = () => {
   const colors = useThemeColors()
@@ -33,10 +34,25 @@ export const SettingsScreen: React.FC = () => {
 
   const [agentPickVisible, setAgentPickVisible] = useState(false)
   const [modelPickVisible, setModelPickVisible] = useState(false)
+  const [bridgeVersion, setBridgeVersion] = useState('')
 
   useEffect(() => {
     if (client) {
       fetchSavedRules(client.call.bind(client))
+    }
+    if (!client) return
+    let cancelled = false
+    client
+      .call('health.ping', {})
+      .then((r: unknown) => {
+        const v = (r as { bridgeVersion?: string } | null)?.bridgeVersion
+        if (!cancelled) setBridgeVersion(typeof v === 'string' && v ? v : '(unknown)')
+      })
+      .catch(() => {
+        if (!cancelled) setBridgeVersion('(unknown)')
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -148,6 +164,18 @@ export const SettingsScreen: React.FC = () => {
       <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
         <Text style={styles.disconnectBtnText}>Disconnect</Text>
       </TouchableOpacity>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>About</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>App Version</Text>
+          <Text style={styles.rowValue}>v{APP_VERSION}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Bridge Version</Text>
+          <Text style={styles.rowValue}>{bridgeVersion ? `v${bridgeVersion}` : '…'}</Text>
+        </View>
+      </View>
 
       <Modal visible={agentPickVisible} transparent animationType="slide" onRequestClose={() => setAgentPickVisible(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAgentPickVisible(false)}>
