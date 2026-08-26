@@ -128,3 +128,23 @@ describe('SettingsScreen — interactions', () => {
     expect(useUiStore.getState().screen).toBe('connect')
   })
 })
+
+// ─── 死区块删减负向断言（2026-08 设置页重构）──────────────
+
+describe('SettingsScreen — removed dead sections', () => {
+  it('不再渲染 Config 区块（后端 stub 已移除）', () => {
+    const tree = TestRenderer.create(<SettingsScreen />)
+    expect(textOf(tree)).not.toContain('Config')
+    expect(textOf(tree)).not.toContain('Edit Config')
+  })
+
+  it('不再渲染 Providers 名单区块', () => {
+    const tree = TestRenderer.create(<SettingsScreen />)
+    expect(textOf(tree)).not.toContain('Providers')
+  })
+
+  it('不再渲染 Agents 名单区块', () => {
+    const tree = TestRenderer.create(<SettingsScreen />)
+    expect(textOf(tree)).not.toContain('Agents')
+  })
+})
