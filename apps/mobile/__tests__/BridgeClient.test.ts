@@ -360,26 +360,6 @@ describe('destroy', () => {
   })
 })
 
-describe('token getter', () => {
-  afterEach(async () => {
-    client?.destroy()
-  })
-
-  it('returns the token', () => {
-    const c = makeClient()
-    c.destroy()
-    const c2 = new BridgeClient({ url: 'ws://localhost:8080/ws', token: 'sekret' })
-    expect(c2.token).toBe('sekret')
-    c2.destroy()
-  })
-
-  it('returns undefined when no token', () => {
-    const c = new BridgeClient({ url: 'ws://localhost:8080/ws' })
-    expect(c.token).toBeUndefined()
-    c.destroy()
-  })
-})
-
 describe('file operations', () => {
   afterEach(async () => {
     client?.destroy()
@@ -506,5 +486,207 @@ describe('file operations', () => {
 
     getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: fileInfo })
     await expect(callPromise).resolves.toEqual(fileInfo)
+  })
+})
+
+describe('token getter', () => {
+  afterEach(async () => {
+    client?.destroy()
+  })
+
+  it('returns the token', () => {
+    const c = makeClient()
+    c.destroy()
+    const c2 = new BridgeClient({ url: 'ws://localhost:8080/ws', token: 'sekret' })
+    expect(c2.token).toBe('sekret')
+    c2.destroy()
+  })
+
+  it('returns undefined when no token', () => {
+    const c = new BridgeClient({ url: 'ws://localhost:8080/ws' })
+    expect(c.token).toBeUndefined()
+    c.destroy()
+  })
+})
+
+// ─── 回前台秒连（AppState 驱动）───────────────────────────
+
+describe('reconnectNow', () => {
+  afterEach(() => {
+    for (const ws of wsInstances) {
+      if (ws.readyState === 0) ws._triggerOpen()
+    }
+    client?.destroy()
+  })
+
+  it('断开后立即创建新 socket，绕过退避间隔', async () => {
+    const c = makeClient({ reconnectInterval: 60000 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    getWs()._triggerClose(1006) // 排一个 60s 的退避定时器
+    expect(wsInstances.length).toBe(1)
+
+    c.reconnectNow() // 不等退避，立刻拨号
+    expect(wsInstances.length).toBe(2)
+  })
+
+  it('已连接时 no-op', async () => {
+    const c = makeClient({ reconnectInterval: 60000 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    c.reconnectNow()
+    expect(wsInstances.length).toBe(1)
+  })
+
+  it('握手中 no-op（防重复拨号）', () => {
+    const c = makeClient({ reconnectInterval: 60000 })
+    void c.connect('token123') // readyState=0 (CONNECTING)，不触发 open
+    expect(wsInstances.length).toBe(1)
+
+    c.reconnectNow()
+    expect(wsInstances.length).toBe(1)
+  })
+
+  it('destroyed 后 no-op', async () => {
+    const c = makeClient({ reconnectInterval: 60000 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+    c.destroy()
+
+    c.reconnectNow()
+    expect(wsInstances.length).toBe(1)
+  })
+
+  it('清除挂起的退避定时器，不产生重复 socket', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ reconnectInterval: 10 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    getWs()._triggerClose(1006) // scheduleReconnect @ +10ms
+    c.reconnectNow() // 立即拨号 → 第 2 个实例，同时作废上面的定时器
+    expect(wsInstances.length).toBe(2)
+
+    wsInstances[1]._triggerOpen()
+    await Promise.resolve()
+
+    // 若退避定时器未被清除，这里会创建第 3 个实例
+    jest.advanceTimersByTime(50)
+    expect(wsInstances.length).toBe(2)
+    jest.useRealTimers()
+  })
+})
+
+describe('call timeoutMs override', () => {
+  afterEach(async () => {
+    client?.destroy()
+  })
+
+  it('短超时生效，不等默认 requestTimeout', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ requestTimeout: 5000, reconnectInterval: 0 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.call('slow.rpc', {}, { timeoutMs: 200 })
+    jest.advanceTimersByTime(250)
+    await expect(callPromise).rejects.toThrow('请求超时')
+
+    // 默认 requestTimeout 未到，不应误伤其他逻辑
+    jest.useRealTimers()
+  })
+
+  it('未传 options 时沿用默认 requestTimeout', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ requestTimeout: 300, reconnectInterval: 0 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.call('session.list', {})
+    jest.advanceTimersByTime(350)
+    await expect(callPromise).rejects.toThrow('请求超时')
+    jest.useRealTimers()
+  })
+})
+
+describe('verifyAlive（僵尸半开验活）', () => {
+  afterEach(() => {
+    for (const ws of wsInstances) {
+      if (ws.readyState === 0) ws._triggerOpen()
+    }
+    client?.destroy()
+  })
+
+  const flushMicrotasks = async () => {
+    for (let i = 0; i < 4; i++) await Promise.resolve()
+  }
+
+  it('ping 正常响应：连接保持、无重连', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ reconnectInterval: 10 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const va = c.verifyAlive(200)
+    await flushMicrotasks()
+    const sentFrame = JSON.parse(getWs().send.mock.lastCall?.[0])
+    expect(sentFrame.method).toBe('health.ping')
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { ok: true } })
+    await va
+
+    expect(c.connected).toBe(true)
+    expect(wsInstances.length).toBe(1)
+    jest.useRealTimers()
+  })
+
+  it('ping 超时：判定半开并立即软重连', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ reconnectInterval: 10, requestTimeout: 30000 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const va = c.verifyAlive(100) // 短超时探测；不回响应
+    await flushMicrotasks()
+
+    jest.advanceTimersByTime(150) // 触发 verifyAlive 的 ping 超时（非 requestTimeout）
+    await flushMicrotasks()
+    await va
+
+    // 软重连已建立新 socket（而非等待保活 3 次失败 ~90s）
+    expect(wsInstances.length).toBe(2)
+    jest.useRealTimers()
+  })
+
+  it('verifying 并发守卫：同一时刻只有一个验活在途', async () => {
+    jest.useFakeTimers()
+    const c = makeClient({ reconnectInterval: 0 })
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    void c.verifyAlive(5000)
+    await flushMicrotasks()
+    const v2 = await c.verifyAlive(5000) // verifying=true → 直接返回
+
+    expect(v2).toBeUndefined()
+    expect(getWs().send.mock.calls.length).toBe(1) // 只发出一次 health.ping
+    jest.useRealTimers()
+  })
+
+  it('未连接时 no-op', async () => {
+    const c = makeClient({ reconnectInterval: 0 })
+    await c.verifyAlive(100) // 不应抛错、不应发帧
+    expect(wsInstances.length).toBe(0)
   })
 })

@@ -96,6 +96,23 @@ module.exports = {
   // LogBox
   LogBox: { ignoreLogs: jest.fn() },
 
+  // AppState（AppProvider 回前台秒连监听）
+  // 测试用 __emit 模拟系统前后台切换事件。
+  AppState: (() => {
+    const handlers = new Set()
+    return {
+      currentState: 'active',
+      addEventListener: jest.fn((_type, handler) => {
+        handlers.add(handler)
+        return { remove: () => handlers.delete(handler) }
+      }),
+      __emit: (state) => {
+        for (const h of [...handlers]) h(state)
+      },
+      __reset: () => handlers.clear(),
+    }
+  })(),
+
   // I18n
   I18nManager: { isRTL: false, allowRTL: () => {}, forceRTL: () => {} },
 }

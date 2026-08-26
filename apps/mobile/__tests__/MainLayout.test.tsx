@@ -113,14 +113,20 @@ describe('MainLayout', () => {
     expect(useUiStore.getState().chatSubScreen).toBe('sessions')
   })
 
-  it('shows ConnectionBanner when client disconnected', () => {
+  it('shows ConnectionBanner when client stays disconnected beyond delay', async () => {
+    jest.useFakeTimers()
     act(() => {
       useAuthStore.setState({
         client: { connected: false, on: jest.fn(() => jest.fn()), call: jest.fn() } as any,
       })
     })
-    const tree = TestRenderer.create(<MainLayout />)
+    let tree: any
+    await act(async () => { tree = TestRenderer.create(<MainLayout />) })
+    // 延迟窗口内不显示（防闪烁）
+    expect(textOf(tree)).not.toContain('Connection lost')
+    await act(async () => { jest.advanceTimersByTime(1600) })
     expect(textOf(tree)).toContain('Connection lost')
+    jest.useRealTimers()
   })
 
   it('hides ConnectionBanner when client connected', () => {
@@ -191,7 +197,7 @@ describe('MainLayout — client.on event tracking', () => {
     expect(eventNames).toContain('disconnected')
   })
 
-  it('disconnect event handler triggers banner display', async () => {
+  it('disconnect event handler triggers banner display after delay', async () => {
     let disconnectedHandler: Function = () => {}
     const client = {
       connected: true,
@@ -210,11 +216,49 @@ describe('MainLayout — client.on event tracking', () => {
     await act(async () => { tree = TestRenderer.create(<MainLayout />) })
     expect(textOf(tree)).not.toContain('Connection lost')
 
+    jest.useFakeTimers()
     await act(async () => { disconnectedHandler() })
+    // 延迟窗口内不闪横幅
+    expect(textOf(tree)).not.toContain('Connection lost')
+    act(() => { jest.advanceTimersByTime(1600) })
     expect(textOf(tree)).toContain('Connection lost')
+    jest.useRealTimers()
+  })
+
+  it('brief disconnect within delay window does not flash banner', async () => {
+    let disconnectedHandler: Function = () => {}
+    let connectedHandler: Function = () => {}
+    const client = {
+      connected: true,
+      on: jest.fn((event: string, handler: Function) => {
+        if (event === 'disconnected') disconnectedHandler = handler
+        if (event === 'connected') connectedHandler = handler
+        return jest.fn()
+      }),
+      call: jest.fn(),
+      listFiles: jest.fn(),
+      readFile: jest.fn(),
+      searchFiles: jest.fn(),
+    }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+
+    let tree: any
+    await act(async () => { tree = TestRenderer.create(<MainLayout />) })
+
+    // 断开 → 500ms 内恢复（回前台秒连场景）：横幅完全不出现
+    jest.useFakeTimers()
+    await act(async () => { disconnectedHandler() })
+    act(() => { jest.advanceTimersByTime(500) })
+    expect(textOf(tree)).not.toContain('Connection lost')
+
+    await act(async () => { connectedHandler() })
+    act(() => { jest.advanceTimersByTime(2000) })
+    expect(textOf(tree)).not.toContain('Connection lost')
+    jest.useRealTimers()
   })
 
   it('reconnect event handler hides banner', async () => {
+    jest.useFakeTimers()
     let connectedHandler: Function = () => {}
     const client = {
       connected: false,
@@ -231,10 +275,18 @@ describe('MainLayout — client.on event tracking', () => {
 
     let tree: any
     await act(async () => { tree = TestRenderer.create(<MainLayout />) })
+    // 初始断开：延迟窗口内不显示
+    expect(textOf(tree)).not.toContain('Connection lost')
+
+    await act(async () => { jest.advanceTimersByTime(1600) })
     expect(textOf(tree)).toContain('Connection lost')
 
     await act(async () => { connectedHandler() })
     expect(textOf(tree)).not.toContain('Connection lost')
+    // 恢复后即使推进时间也不再出现
+    act(() => { jest.advanceTimersByTime(3000) })
+    expect(textOf(tree)).not.toContain('Connection lost')
+    jest.useRealTimers()
   })
 })
 

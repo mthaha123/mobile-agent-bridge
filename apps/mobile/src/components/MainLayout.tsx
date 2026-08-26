@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
 import { useUiStore, Tab } from '../stores/uiStore'
 import { useAuthStore } from '../stores/authStore'
@@ -12,6 +12,12 @@ import { ThemeColors } from '../theme/colors'
 
 /** Tab bar 总高度（含 padding/border）。供 ChatScreen 计算 iOS 键盘 offset 使用。 */
 export const TAB_BAR_HEIGHT = 60
+
+/**
+ * 断连横幅延迟显示窗口：回前台秒连通常 <0.5s 恢复，
+ * 短暂断连不闪横幅，超过该窗口仍未恢复才提示。
+ */
+const BANNER_DELAY_MS = 1500
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
   { key: 'chat', icon: '💬', label: 'Chat' },
@@ -28,17 +34,44 @@ export const MainLayout: React.FC = () => {
   const setActiveTab = useUiStore((s) => s.setActiveTab)
   const client = useAuthStore((s) => s.client)
 
-  const [connected, setConnected] = useState(() => client?.connected ?? false)
+  // 横幅防闪烁：断开后延迟 BANNER_DELAY_MS 才显示，恢复即隐藏。
+  // 回前台秒连（AppState → reconnectNow）通常在几百毫秒内完成，
+  // 横幅不应闪现打扰；只有真正持续断连才提示。
+  // 注意：初始值恒为 false——挂载时已断开（冷启动/回前台）同样走延迟窗口。
+  const [bannerVisible, setBannerVisible] = useState(false)
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearBannerTimer = () => {
+    if (bannerTimerRef.current) {
+      clearTimeout(bannerTimerRef.current)
+      bannerTimerRef.current = null
+    }
+  }
 
   useEffect(() => {
+    clearBannerTimer()
     if (!client) {
-      setConnected(false)
+      // 无 client：维持原行为直接显示断连横幅
+      setBannerVisible(true)
       return
     }
-    setConnected(client.connected)
-    const offConnected = client.on('connected', () => setConnected(true))
-    const offDisconnected = client.on('disconnected', () => setConnected(false))
-    return () => { offConnected(); offDisconnected() }
+    setBannerVisible(false)
+    if (!client.connected) {
+      bannerTimerRef.current = setTimeout(() => setBannerVisible(true), BANNER_DELAY_MS)
+    }
+    const offConnected = client.on('connected', () => {
+      clearBannerTimer()
+      setBannerVisible(false)
+    })
+    const offDisconnected = client.on('disconnected', () => {
+      clearBannerTimer()
+      bannerTimerRef.current = setTimeout(() => setBannerVisible(true), BANNER_DELAY_MS)
+    })
+    return () => {
+      clearBannerTimer()
+      offConnected()
+      offDisconnected()
+    }
   }, [client])
 
   const renderContent = () => {
@@ -59,7 +92,7 @@ export const MainLayout: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.root}>
-      {!connected && (
+      {bannerVisible && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>⚠️ Connection lost — reconnecting…</Text>
         </View>

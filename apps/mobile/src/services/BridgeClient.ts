@@ -31,6 +31,12 @@ export interface PendingRequest {
   timer: ReturnType<typeof setTimeout>
 }
 
+/** call() 的单次调用选项 */
+export interface BridgeCallOptions {
+  /** 覆盖默认 requestTimeout 的本次请求超时 (ms)，用于验活等短超时探测 */
+  timeoutMs?: number
+}
+
 export interface BridgeClientOptions {
   /** Bridge WS URL, 如 ws://192.168.1.100:8080/ws */
   url: string
@@ -68,6 +74,8 @@ export class BridgeClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null
   private keepaliveFailures = 0
+  /** verifyAlive 并发守卫：回前台事件可能短时间连发 */
+  private verifying = false
   private readonly KEEPALIVE_INTERVAL = 30000
   private readonly KEEPALIVE_MAX_FAILURES = 3
 
@@ -185,19 +193,20 @@ export class BridgeClient {
 
   // ─── RPC 调用 ─────────────────────────────────────────
 
-  async call<T = unknown>(method: string, params: unknown = {}): Promise<T> {
+  async call<T = unknown>(method: string, params: unknown = {}, options?: BridgeCallOptions): Promise<T> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('BridgeClient: 未连接')
     }
 
     const id = String(++this.requestId)
     const frame: BridgeWsFrame = { type: 'req', id, method, params }
+    const timeoutMs = options?.timeoutMs ?? this.requestTimeout
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id)
         reject(new Error(`BridgeClient: 请求超时 (${method})`))
-      }, this.requestTimeout)
+      }, timeoutMs)
 
       this.pending.set(id, {
         resolve: resolve as (value: unknown) => void,
@@ -275,6 +284,58 @@ export class BridgeClient {
         })
       }
     }, this.reconnectInterval)
+  }
+
+  /**
+   * 立即重连——跳过退避等待。
+   *
+   * 由 AppProvider 在 AppState 回到前台时调用：后台期间系统可能已掐断 socket，
+   * 用户回前台时应立刻发起握手，而不是等 reconnectInterval 定时器到点（~3s）
+   * 或保活连续失败验尸（最长 ~90s）。3s 退避机制保留，仅作为连不上时的重试节奏。
+   */
+  reconnectNow(): void {
+    if (this.destroyed || this.connected) return
+    // 已在握手中不重复开新 socket（CONNECTING 在测试 mock 中可能未定义，回退 0）
+    const CONNECTING = (WebSocket as unknown as { CONNECTING?: number }).CONNECTING ?? 0
+    if (this.ws && this.ws.readyState === CONNECTING) return
+    // 作废挂起的退避定时器，避免稍后再重复拨号
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this._token) {
+      this.connect().catch((e) => {
+        console.warn(`[${this.tag}] 立即重连失败:`, e)
+      })
+    }
+  }
+
+  /**
+   * 验活——探测"僵尸半开"socket。
+   *
+   * 回前台时 socket 可能处于半开状态：readyState 仍为 OPEN 但实际已死
+   * （系统断网未挥手）。发一个短超时 ping 探测，失败立即走软重连，
+   * 避免等待保活连续 3 次失败（最长 ~90s）才发现。
+   */
+  async verifyAlive(timeoutMs = 5000): Promise<void> {
+    if (!this.connected || this.verifying || this.destroyed) return
+    this.verifying = true
+    try {
+      await this.call('health.ping', {}, { timeoutMs })
+      // 存活：无需处理
+    } catch {
+      if (!this.destroyed && !this.connected) return // 已被并发路径接管
+      if (this.destroyed) return
+      console.warn(`[${this.tag}] 验活失败，socket 半开，触发立即重连`)
+      // 软重连：只关 socket、保留重连资格；reconnectNow 清掉 onclose 排的
+      // 退避定时器并立即拨号
+      this.stopKeepalive()
+      try { this.ws?.close() } catch {}
+      this.ws = null
+      this.reconnectNow()
+    } finally {
+      this.verifying = false
+    }
   }
 
   // ─── 销毁 ──────────────────────────────────────────────

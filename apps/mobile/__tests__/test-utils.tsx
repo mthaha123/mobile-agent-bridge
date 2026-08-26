@@ -30,6 +30,10 @@ export interface MockClient {
   listFiles: jest.Mock
   readFile: jest.Mock
   searchFiles: jest.Mock
+  /** 回前台立即重连（AppState 秒连） */
+  reconnectNow: jest.Mock
+  /** 回前台验活（僵尸半开探测） */
+  verifyAlive: jest.Mock
 }
 
 /**
@@ -58,6 +62,8 @@ export function mockClient(
       path: '', content: '', encoding: 'utf-8', size: 0,
     }),
     searchFiles: jest.fn().mockResolvedValue([]),
+    reconnectNow: jest.fn(),
+    verifyAlive: jest.fn().mockResolvedValue(undefined),
   }
 }
 

@@ -4,6 +4,7 @@
 
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
+import { AppState } from 'react-native'
 import { AppProvider } from '../src/components/AppProvider'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
@@ -15,27 +16,45 @@ import { useQuestionStore } from '../src/stores/questionStore'
 import { useSessionStore } from '../src/stores/sessionStore'
 import { mockClient, resetAllStores } from './test-utils'
 
-function mockClientAndRender(): { notifyHandler: (method: string, payload: any) => void } {
-  let notifyHandler: ((method: string, payload: any) => void) | null = null
+function mockClientAndRender(opts?: {
+  connected?: boolean
+}): { notifyHandler: (method: string, payload: any) => void; handlers: Record<string, (...args: any[]) => void>; client: ReturnType<typeof mockClient> } {
+  const handlers: Record<string, (...args: any[]) => void> = {}
   const client = mockClient()
+  if (opts && 'connected' in opts) (client as any).connected = opts.connected
   client.on = jest.fn().mockImplementation((event: string, handler: any) => {
-    if (event === 'notification') { notifyHandler = handler }
+    handlers[event] = handler
     return jest.fn()
   })
-  TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+  TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
   TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
-  return { notifyHandler: notifyHandler! }
+  return { notifyHandler: handlers['notification'], handlers, client }
 }
 
 function resetStores() {
   resetAllStores()
 }
 
+// 跟踪本文件创建的所有 AppProvider 渲染实例。
+// zustand store 模块级持久，未卸载的 Provider 订阅会跨测试累积，
+// 导致后续测试的 setState 触发历史 Provider 重复 setupClient（监听器翻倍）。
+const appRenderers: TestRenderer.ReactTestRenderer[] = []
+
+function trackRender(r: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestRenderer {
+  appRenderers.push(r)
+  return r
+}
+
 beforeEach(() => {
   resetStores()
+  ;(AppState as any).__reset?.()
 })
 
 afterEach(() => {
+  while (appRenderers.length > 0) {
+    const r = appRenderers.pop()!
+    TestRenderer.act(() => { r.unmount() })
+  }
   resetStores()
 })
 
@@ -478,7 +497,7 @@ describe('createReplyCall sends correct WS frames', () => {
       call: mockCall, connect: jest.fn(), disconnect: jest.fn(),
       destroy: jest.fn(), connected: true, token: 'mock-token',
     }
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: mockClient as any }) })
 
     // Enqueue a tool approval
@@ -521,7 +540,7 @@ describe('createReplyCall sends correct WS frames', () => {
       call: mockCall, connect: jest.fn(), disconnect: jest.fn(),
       destroy: jest.fn(), connected: true, token: 'mock-token',
     }
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: mockClient as any }) })
 
     // Enqueue a question
@@ -770,7 +789,7 @@ describe('auth_expired handler', () => {
       return jest.fn()
     })
 
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
     expect(authExpiredHandler).toBeTruthy()
@@ -787,7 +806,7 @@ describe('auth_expired handler', () => {
 describe('teardownClient', () => {
   it('calls destroy when client is set to null', () => {
     const client = mockClient()
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
     expect(client.destroy).not.toHaveBeenCalled()
@@ -801,7 +820,7 @@ describe('teardownClient', () => {
     const client = mockClient()
     let tree: TestRenderer.ReactTestRenderer
     TestRenderer.act(() => {
-      tree = TestRenderer.create(<AppProvider>{null}</AppProvider>)
+      tree = trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>))
     })
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
@@ -873,7 +892,7 @@ describe('session.status handler', () => {
 describe('setupClient', () => {
   it('registers notification and auth_expired listeners on client', () => {
     const client = mockClient()
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
     const events = client.on.mock.calls.map((c: any[]) => c[0])
@@ -889,7 +908,7 @@ describe('setupClient', () => {
     const client = mockClient({
       'session.status': () => ({ data: { 'sess-1': { type: 'running' } } }),
     })
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     await act(async () => { useAuthStore.setState({ client: client as any }) })
 
     expect(client.call).toHaveBeenCalledWith('session.status', {})
@@ -898,7 +917,7 @@ describe('setupClient', () => {
 
   it('无 activeSessionId 时不触发状态快照拉取', () => {
     const client = mockClient()
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     TestRenderer.act(() => { useAuthStore.setState({ client: client as any }) })
 
     expect(client.call).not.toHaveBeenCalledWith('session.status', {})
@@ -929,7 +948,7 @@ describe('断线重连自愈', () => {
       'session.status': () => ({}),
     })
 
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     await act(async () => { useAuthStore.setState({ client: client as any }) })
 
     expect(ref.connected).toBeTruthy()
@@ -948,9 +967,139 @@ describe('断线重连自愈', () => {
       'session.messages': sessionMessagesCall,
       'session.status': () => ({}),
     })
-    TestRenderer.act(() => { TestRenderer.create(<AppProvider>{null}</AppProvider>) })
+    TestRenderer.act(() => { trackRender(TestRenderer.create(<AppProvider>{null}</AppProvider>)) })
     await act(async () => { useAuthStore.setState({ client: client as any }) })
     await act(async () => { ref.connected!() })
     expect(sessionMessagesCall).not.toHaveBeenCalled()
+  })
+})
+
+// ─── 回前台秒连（AppState 事件驱动）────────────────────────
+
+describe('AppState 回前台秒连', () => {
+  it('回前台且已断开：调用 reconnectNow 立即重连（不等退避定时器）', () => {
+    const { client } = mockClientAndRender({ connected: false })
+
+    TestRenderer.act(() => { (AppState as any).__emit('active') })
+    expect(client.reconnectNow).toHaveBeenCalledTimes(1)
+    expect(client.verifyAlive).not.toHaveBeenCalled()
+  })
+
+  it('回前台且显示已连接：verifyAlive 验活（探测僵尸半开）', () => {
+    const { client } = mockClientAndRender({ connected: true })
+
+    TestRenderer.act(() => { (AppState as any).__emit('active') })
+    expect(client.verifyAlive).toHaveBeenCalledTimes(1)
+    expect(client.reconnectNow).not.toHaveBeenCalled()
+  })
+
+  it('切到后台：不做任何动作（省电，系统冻结定时器）', () => {
+    const { client } = mockClientAndRender({ connected: false })
+
+    TestRenderer.act(() => { (AppState as any).__emit('background') })
+    expect(client.reconnectNow).not.toHaveBeenCalled()
+    expect(client.verifyAlive).not.toHaveBeenCalled()
+  })
+
+  it('client 置空销毁后，AppState 监听被移除', () => {
+    const { client } = mockClientAndRender({ connected: false })
+    TestRenderer.act(() => { useAuthStore.setState({ client: null }) })
+
+    TestRenderer.act(() => { (AppState as any).__emit('active') })
+    expect(client.reconnectNow).not.toHaveBeenCalled()
+  })
+})
+
+// ─── 重连后审批队列对账（permission.list）─────────────────
+
+describe('重连后审批队列对账', () => {
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  }
+
+  it('connected 后拉取 permission.list：补入队断线期间错过的审批 + 清理已处理残留', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'permission.list') {
+        return [
+          {
+            id: 'perm-1',
+            sessionID: 'sess-1',
+            permission: 'bash',
+            metadata: { command: 'npm test' },
+            tool: { messageID: 'm1', callID: 'call-1' },
+          },
+        ]
+      }
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    // 断线前本地残留一条已被服务器处理的旧审批
+    useToolStore.setState({
+      pendingApprovals: [
+        { id: 'stale', tool: 'edit', args: {}, sessionId: 'sess-1', requestedAt: 1 },
+      ],
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    expect(client.call).toHaveBeenCalledWith('permission.list', {})
+    const approvals = useToolStore.getState().pendingApprovals
+    // 断口内服务器弹出的审批被补回（字段映射对齐 SDK v2 PermissionRequest）
+    const restored = approvals.find((a) => a.id === 'perm-1')
+    expect(restored).toBeDefined()
+    expect(restored!.tool).toBe('bash')
+    expect(restored!.sessionId).toBe('sess-1')
+    expect(restored!.sourceCallID).toBe('call-1')
+    // 已在断线期间回复的残留被清理
+    expect(approvals.find((a) => a.id === 'stale')).toBeUndefined()
+  })
+
+  it('实时通知先于快照到达的新审批不被对账误删', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'permission.list') return [] // 快照为空
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    useToolStore.setState({
+      pendingApprovals: [
+        { id: 'pre-existing', tool: 'edit', args: {}, sessionId: 'sess-1', requestedAt: 1 },
+      ],
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    // 对账进行中，实时 permission.v2.asked 到达并入队
+    TestRenderer.act(() => {
+      handlers['notification']('permission.v2.asked', {
+        id: 'live-req',
+        sessionID: 'sess-1',
+        action: 'bash',
+        resources: [],
+      })
+    })
+    await flush()
+
+    const ids = useToolStore.getState().pendingApprovals.map((a) => a.id)
+    expect(ids).toContain('live-req') // 新请求保留
+    expect(ids).not.toContain('pre-existing') // 服务器已无此请求 → 清理
+  })
+
+  it('permission.list 失败时静默保持现状', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockRejectedValue(new Error('network gone'))
+
+    useToolStore.setState({
+      pendingApprovals: [
+        { id: 'keep', tool: 'edit', args: {}, sessionId: 'sess-1', requestedAt: 1 },
+      ],
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    const ids = useToolStore.getState().pendingApprovals.map((a) => a.id)
+    expect(ids).toEqual(['keep'])
   })
 })
