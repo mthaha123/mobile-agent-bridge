@@ -19,6 +19,7 @@ jest.mock('../src/services/BridgeClient', () => ({
 }))
 
 import { useSessionStore, Session, filterSessions } from '../src/stores/sessionStore'
+import { useSettingsStore } from '../src/stores/settingsStore'
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -201,6 +202,57 @@ describe('createSession', () => {
     expect(id).toBe('sdk-new')
     const session = useSessionStore.getState().sessions[0]
     expect(session.name).toBe('New Session')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createSession with local defaults (settingsStore)
+// ---------------------------------------------------------------------------
+
+describe('createSession with local defaults', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, loaded: true })
+  })
+
+  it('把 settingsStore 的默认 agent/model 传给 session.create', async () => {
+    useSettingsStore.setState({
+      defaultAgent: 'build',
+      defaultModel: { id: 'gpt-x', providerID: 'openai' },
+    })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue(mockSession)
+
+    const id = await useSessionStore.getState().createSession(clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.create', {
+      agent: 'build',
+      model: { id: 'gpt-x', providerID: 'openai' },
+    })
+    expect(id).toBe('sess-1')
+  })
+
+  it('含 variant 时透传 variant', async () => {
+    useSettingsStore.setState({
+      defaultAgent: null,
+      defaultModel: { id: 'm', providerID: 'p', variant: 'fast' },
+    })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue(mockSession)
+
+    await useSessionStore.getState().createSession(clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.create', {
+      model: { id: 'm', providerID: 'p', variant: 'fast' },
+    })
+  })
+
+  it('未配置默认值时传空参数（服务端兜底生效）', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue(mockSession)
+
+    await useSessionStore.getState().createSession(clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.create', {})
   })
 })
 

@@ -4,6 +4,7 @@
  * 管理与 OpenCode 的对话会话列表
  */
 import { create } from 'zustand'
+import { useSettingsStore } from './settingsStore'
 
 function normalizeArray<T>(result: unknown, key: string): T[] {
   if (Array.isArray(result)) return result as T[]
@@ -158,7 +159,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   createSession: async (clientCall) => {
     set({ error: null })
     try {
-      const result = await clientCall('session.create', {})
+      // 新会话默认值：客户端本地偏好优先，未配置则空参由服务端兜底
+      // （bridge session.create 原生支持 agent/model 参数）
+      const { defaultAgent, defaultModel } = useSettingsStore.getState()
+      const params: Record<string, unknown> = {}
+      if (defaultAgent) params.agent = defaultAgent
+      if (defaultModel?.id && defaultModel?.providerID) {
+        params.model = defaultModel.variant
+          ? { id: defaultModel.id, providerID: defaultModel.providerID, variant: defaultModel.variant }
+          : { id: defaultModel.id, providerID: defaultModel.providerID }
+      }
+      const result = await clientCall('session.create', params)
       const session = mapSession(normalizeItem<Session>(result, 'session'))
       if (session?.id) {
         get().addSession(session)
