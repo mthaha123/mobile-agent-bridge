@@ -1,9 +1,21 @@
+import { readFileSync } from "node:fs"
 import { WebSocket } from "ws"
 import type { TokenPayload } from "./auth.js"
 import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { fileList, fileRead, fileSearch, getFileInfo } from "./fileHandler.js"
+
+/** Bridge 包版本（package.json 读取，失败降级 unknown）。
+ *  ESM 下 import.meta.url 在 ts-jest ESM preset(--experimental-vm-modules) 与 tsx 运行时均可用 */
+const BRIDGE_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version?: string }
+    return pkg.version || "unknown"
+  } catch {
+    return "unknown"
+  }
+})()
 
 
 type Handler = (params: any, payload: TokenPayload | null) => Promise<any> | any
@@ -87,7 +99,7 @@ registerHandler("auth.login", (params) => handleLogin(params))
 registerHandler("auth.refresh", () => handleRefresh())
 registerHandler("auth.logout", () => handleLogout())
 
-registerHandler("health.ping", () => ({ ok: true }))
+registerHandler("health.ping", () => ({ ok: true, bridgeVersion: BRIDGE_VERSION }))
 
 registerHandler("project.switch", async (params) => switchProject(params.directory))
 registerHandler("project.current", async () => {

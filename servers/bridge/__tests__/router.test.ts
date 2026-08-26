@@ -121,12 +121,13 @@ describe("RPC Router", () => {
     expect(messages[0].error).toContain("unknown method")
   })
 
-  it("should handle health.ping", async () => {
+  it("should handle health.ping with bridgeVersion", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, { type: "req", id: "1", method: "health.ping", params: {} }, testPayload)
     expect(messages.length).toBe(1)
     expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ ok: true })
+    expect(typeof messages[0].payload?.bridgeVersion).toBe("string")
+    expect((messages[0].payload.bridgeVersion as string).length).toBeGreaterThan(0)
   })
 
   it("should handle auth.login", async () => {
