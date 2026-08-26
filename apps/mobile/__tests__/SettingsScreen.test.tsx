@@ -7,6 +7,7 @@
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
 import { SettingsScreen } from '../src/screens/SettingsScreen'
+import { Alert } from 'react-native'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
@@ -146,5 +147,73 @@ describe('SettingsScreen — removed dead sections', () => {
   it('不再渲染 Agents 名单区块', () => {
     const tree = TestRenderer.create(<SettingsScreen />)
     expect(textOf(tree)).not.toContain('Agents')
+  })
+})
+
+// ─── 权限规则完整管理（2026-08 设置页重构）────────────────
+
+describe('SettingsScreen — permissions management', () => {
+  const rules = [
+    { id: 'r1', tool: 'bash', action: 'allow *' },
+    { id: 'r2', tool: 'bash', action: 'allow ls' },
+    { id: 'r3', tool: 'edit', action: 'allow **' },
+    ...Array.from({ length: 12 }, (_, i) => ({ id: `w${i}`, tool: 'web', action: `allow ${i}` })),
+  ]
+
+  function setup() {
+    const client = mockClient({
+      'permission.saved.list': () => rules,
+      'permission.saved.remove': () => ({}),
+    })
+    act(() => {
+      useAuthStore.setState({ client: client as any })
+    })
+    let tree!: TestRenderer.ReactTestRenderer
+    act(() => {
+      tree = TestRenderer.create(<SettingsScreen />)
+    })
+    return { client, tree }
+  }
+
+  async function flush() {
+    await act(async () => {})
+  }
+
+  it('按 tool 分组渲染全部规则（无 10 条截断）', async () => {
+    const { tree } = setup()
+    await flush()
+
+    const text = textOf(tree)
+    expect(text).toContain('bash (2)')
+    expect(text).toContain('edit (1)')
+    expect(text).toContain('web (12)')
+    expect(text).toContain('allow 11')
+  })
+
+  it('删除需二次确认，确认后才调用 permission.saved.remove', async () => {
+    const alertMock = Alert.alert as jest.Mock
+    alertMock.mockClear()
+    const { client, tree } = setup()
+    await flush()
+
+    const deleteButtons = findAllPressable(tree).filter((b: any) =>
+      textOf({ toJSON: () => b } as any) === 'Delete',
+    )
+    // 每条规则至少一个 Delete 入口（mock 下 pressable 可能重复计数）
+    expect(deleteButtons.length).toBeGreaterThanOrEqual(rules.length)
+
+    await act(async () => { deleteButtons[0].props.onPress() })
+
+    // 仅弹确认，尚未删除
+    expect(alertMock).toHaveBeenCalledTimes(1)
+    expect(client.call).not.toHaveBeenCalledWith('permission.saved.remove', expect.anything())
+
+    // 模拟用户点击 Alert 的 Delete（destructive）
+    const buttons = alertMock.mock.calls[0][2] as Array<{ style?: string; onPress?: () => void }>
+    const destructive = buttons.find((b) => b.style === 'destructive')
+    expect(destructive).toBeDefined()
+    await act(async () => { destructive!.onPress!() })
+
+    expect(client.call).toHaveBeenCalledWith('permission.saved.remove', { id: 'r1' })
   })
 })

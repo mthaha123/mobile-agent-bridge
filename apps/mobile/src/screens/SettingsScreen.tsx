@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
@@ -37,6 +37,33 @@ export const SettingsScreen: React.FC = () => {
     await removeSavedRule(id, client.call.bind(client))
   }
 
+  // 按 tool 分组全量展示（不再截断前 10 条）
+  const groupedRules = useMemo(() => {
+    const groups = new Map<string, Array<Record<string, unknown>>>()
+    for (const rule of savedRules as Array<Record<string, unknown>>) {
+      const key = String(rule.tool || rule.action || 'other')
+      const list = groups.get(key) ?? []
+      list.push(rule)
+      groups.set(key, list)
+    }
+    return [...groups.entries()]
+  }, [savedRules])
+
+  const confirmRemoveRule = (rule: Record<string, unknown>) => {
+    Alert.alert(
+      'Delete Permission Rule',
+      String(rule.action || rule.id || ''),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => { void handleRemoveRule(String(rule.id)) },
+        },
+      ],
+    )
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Settings</Text>
@@ -67,18 +94,25 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionLabel}>Saved Permissions ({savedRules.length})</Text>
         {savedRulesLoading ? (
           <View style={styles.row}><Text style={styles.rowValue}>Loading...</Text></View>
-        ) : savedRules.length > 0 ? (
-          savedRules.slice(0, 10).map((rule: unknown, i: number) => {
-            const r = rule as Record<string, unknown>
-            return (
-              <View key={i} style={styles.row}>
-                <Text style={styles.rowLabel}>{String(r.tool || r.action || r.id || `Rule ${i + 1}`)}</Text>
-                <TouchableOpacity onPress={() => handleRemoveRule(String(r.id))}>
-                  <Text style={{ color: colors.destructive, fontSize: 13 }}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            )
-          })
+        ) : groupedRules.length > 0 ? (
+          groupedRules.map(([tool, rules]) => (
+            <View key={tool}>
+              <Text style={styles.groupLabel}>{tool} ({rules.length})</Text>
+              {rules.map((r, i) => (
+                <View key={String(r.id || i)} style={styles.row}>
+                  <Text style={styles.rowLabel} numberOfLines={1}>
+                    {String(r.action || r.pattern || r.id || `Rule ${i + 1}`)}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => confirmRemoveRule(r)}
+                  >
+                    <Text style={{ color: colors.destructive, fontSize: 13 }}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ))
         ) : (
           <View style={styles.row}><Text style={styles.rowValue}>(none)</Text></View>
         )}
@@ -136,6 +170,13 @@ const makeStyles = (colors: ThemeColors) =>
     flex: 1,
     textAlign: 'right',
     marginLeft: 12,
+  },
+  groupLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 6,
+    marginBottom: 4,
   },
   disconnectBtn: {
     backgroundColor: colors.errorBg,
