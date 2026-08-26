@@ -86,6 +86,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
         ref={flatListRef}
         data={listData}
         inverted
+        nestedScrollEnabled
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={thinkingIndicator}
