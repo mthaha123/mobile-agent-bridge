@@ -29,7 +29,7 @@ export const SettingsScreen: React.FC = () => {
   const defaultModel = useSettingsStore((s) => s.defaultModel)
   const setDefaultAgent = useSettingsStore((s) => s.setDefaultAgent)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
-  const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
+  const agents = useConfigStore((s) => s.agents) as Array<{ id?: string; name?: string; label?: string; description?: string }>
   const models = useConfigStore((s) => s.models)
 
   const [agentPickVisible, setAgentPickVisible] = useState(false)
@@ -188,15 +188,26 @@ export const SettingsScreen: React.FC = () => {
               >
                 <Text style={styles.rowLabel}>Server default</Text>
               </TouchableOpacity>
-              {agents.map((a, i) => (
-                <TouchableOpacity
-                  key={a.name || i}
-                  style={styles.row}
-                  onPress={() => { void setDefaultAgent(String(a.name || '')); setAgentPickVisible(false) }}
-                >
-                  <Text style={styles.rowLabel}>{a.label || a.name || `Agent ${i + 1}`}</Text>
-                </TouchableOpacity>
-              ))}
+              {agents.map((a, i) => {
+                // opencode /api/agent 形态：{ id, description, mode }——无 name/label，
+                // 身份与回传值一律用 id；label/name 仅作显示优先
+                const id = String(a.id || a.name || '')
+                if (!id) return null
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={styles.row}
+                    onPress={() => { void setDefaultAgent(id); setAgentPickVisible(false) }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowLabel} numberOfLines={1}>{a.label || a.name || id}</Text>
+                      {a.description ? (
+                        <Text numberOfLines={1} style={styles.agentDesc}>{a.description}</Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                )
+              })}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -294,6 +305,11 @@ const makeStyles = (colors: ThemeColors) =>
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  agentDesc: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginTop: 2,
   },
   disconnectBtn: {
     backgroundColor: colors.errorBg,

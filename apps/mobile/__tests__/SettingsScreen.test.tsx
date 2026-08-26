@@ -254,25 +254,42 @@ describe('SettingsScreen — Defaults', () => {
   })
 
   it('点击 Default Agent 行弹出候选并可选择', async () => {
+    // opencode /api/agent 实际形态：只有 id + description，无 name/label 字段
     act(() => {
-      useConfigStore.setState({ agents: [{ name: 'build', label: 'Build' }, { name: 'plan', label: 'Plan' }] })
+      useConfigStore.setState({
+        agents: [
+          { id: 'build', description: 'The default agent.' },
+          { id: 'plan', description: 'Plan mode.' },
+        ],
+      })
     })
     const tree = TestRenderer.create(<SettingsScreen />)
 
     await act(async () => { pressByText(tree, 'Default Agent', 'prefix').props.onPress() })
 
-    expect(textOf(tree)).toContain('Build')
-    expect(textOf(tree)).toContain('Plan')
+    // 显示 id 而非 "Agent N" 占位
+    expect(textOf(tree)).toContain('build')
+    expect(textOf(tree)).toContain('plan')
+    expect(textOf(tree)).not.toContain('Agent 1')
 
-    await act(async () => { pressByText(tree, 'Build').props.onPress() })
+    await act(async () => { pressByText(tree, 'plan', 'prefix').props.onPress() })
 
-    expect(useSettingsStore.getState().defaultAgent).toBe('build')
+    expect(useSettingsStore.getState().defaultAgent).toBe('plan')
+  })
+
+  it('候选行展示 description 副文本（有则显示）', async () => {
+    act(() => {
+      useConfigStore.setState({ agents: [{ id: 'build', description: 'The default agent.' }] })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+    await act(async () => { pressByText(tree, 'Default Agent', 'prefix').props.onPress() })
+    expect(textOf(tree)).toContain('The default agent.')
   })
 
   it('Agent 候选含清除项，选择后回到 Server default', async () => {
     useSettingsStore.setState({ defaultAgent: 'build' })
     act(() => {
-      useConfigStore.setState({ agents: [{ name: 'build', label: 'Build' }] })
+      useConfigStore.setState({ agents: [{ id: 'build' }] })
     })
     const tree = TestRenderer.create(<SettingsScreen />)
 
