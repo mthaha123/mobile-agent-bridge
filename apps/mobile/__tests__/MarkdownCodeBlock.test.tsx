@@ -64,4 +64,26 @@ describe('MarkdownCodeBlock', () => {
     expect(tree.toJSON()).not.toBeNull()
     tree.unmount()
   })
+
+  it('代码文本不可 selectable（Android 文本选择手势会抢横向 pan → 滑动难触发）', () => {
+    const tree = makeBlock('const x = 1;')
+    const { Text } = require('react-native')
+    const texts = tree.root.findAllByType(Text)
+    expect(texts.length).toBeGreaterThan(0)
+    const selectableOn = texts.filter((t: any) => t.props.selectable === true)
+    expect(selectableOn).toHaveLength(0)
+    tree.unmount()
+  })
+
+  it('复制按钮写入剪贴板（补偿移除 selectable 的复制能力）', () => {
+    const { Clipboard } = require('react-native')
+    ;(Clipboard.setString as jest.Mock).mockClear()
+    const code = 'const x = 1;\nconsole.log(x);'
+    const tree = makeBlock(code)
+
+    const copyBtn = tree.root.findByProps({ testID: 'md-code-copy' })
+    act(() => { copyBtn.props.onPress() })
+    expect(Clipboard.setString).toHaveBeenCalledWith(code)
+    tree.unmount()
+  })
 })
