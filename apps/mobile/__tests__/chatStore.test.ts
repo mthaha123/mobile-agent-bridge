@@ -9,6 +9,7 @@ import { useChatStore } from '../src/stores/chatStore'
 import { useAuthStore } from '../src/stores/authStore'
 
 function resetChatStore() {
+  useChatStore.getState().resetForSession() // 撤销挂起的 idleVerify 定时器
   useChatStore.setState({
     activeSessionId: null,
     messages: [],
@@ -855,8 +856,9 @@ describe('工具终态缺失自愈', () => {
   it('回合收尾后仍有 open 工具时自动核查：快照 idle → 结算为 failed', async () => {
     runRoundWithoutToolEnd()
 
-    // 回合已收尾（waiting=false）但工具卡片仍停留在 called（复现红方块）
-    expect(useChatStore.getState().waiting).toBe(false)
+    // 回合已收尾但工具卡片仍停留在 called（复现红方块）。
+    // 新语义：收尾不再立即解锁 waiting——保持 true，由下方快照核查统一裁决
+    expect(useChatStore.getState().waiting).toBe(true)
     expect(useChatStore.getState().pendingSteps).toBe(0)
     expect(getToolPart()!.data.status).toBe('called')
 

@@ -6,6 +6,7 @@ import { useChatStore, type ToolPartData } from '../src/stores/chatStore'
 import { useAuthStore } from '../src/stores/authStore'
 
 function resetStore() {
+  useChatStore.getState().resetForSession() // 撤销挂起的 idleVerify 定时器
   useChatStore.setState({
     activeSessionId: null,
     messages: [],
@@ -203,33 +204,115 @@ describe('tool ingest', () => {
 // ---------------------------------------------------------------------------
 
 describe('waiting state machine', () => {
-  it('step.started 期间 text.ended 后 waiting 仍 true，step.ended 归 false', () => {
-    useChatStore.setState({ activeSessionId: 's-1' })
-    ingest('session.next.step.started', { sessionID: 's-1' })
-    expect(useChatStore.getState().waiting).toBe(true)
-    expect(useChatStore.getState().pendingSteps).toBe(1)
+  it('步间静默不闪断：step.ended 归零后 waiting 保持 true，权威快照 idle 才解锁', async () => {
+    jest.useFakeTimers()
+    try {
+      useChatStore.setState({ activeSessionId: 's-1' })
+      const client = { call: jest.fn().mockResolvedValue({}) } as any // 快照缺席 → idle
+      useAuthStore.setState({ client: client as never })
 
-    ingest('session.next.text.started', { assistantMessageID: 'ams-1' })
-    ingest('session.next.text.ended', { assistantMessageID: 'ams-1', text: 'reply' })
-    expect(useChatStore.getState().waiting).toBe(true)
-    expect(useChatStore.getState().pendingSteps).toBe(1)
+      ingest('session.next.step.started', { sessionID: 's-1' })
+      expect(useChatStore.getState().waiting).toBe(true)
 
-    ingest('session.next.step.ended', { sessionID: 's-1' })
-    expect(useChatStore.getState().waiting).toBe(false)
-    expect(useChatStore.getState().pendingSteps).toBe(0)
+      ingest('session.next.text.started', { assistantMessageID: 'ams-1' })
+      ingest('session.next.text.ended', { assistantMessageID: 'ams-1', text: 'reply' })
+      // 步未归零：不调度核查，waiting 维持
+      expect(useChatStore.getState().waiting).toBe(true)
+
+      ingest('session.next.step.ended', { sessionID: 's-1' })
+      expect(useChatStore.getState().pendingSteps).toBe(0)
+      // 关键新契约：不再立即解锁（旧实现此处 false → 步间静默期输入框闪断）
+      expect(useChatStore.getState().waiting).toBe(true)
+
+      await jest.advanceTimersByTimeAsync(1300)
+      expect(client.call).toHaveBeenCalledWith('session.status', {})
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
-  it('pendingSteps 不会落到负数', () => {
-    ingest('session.next.step.ended', {})
-    expect(useChatStore.getState().pendingSteps).toBe(0)
-    expect(useChatStore.getState().waiting).toBe(false)
+  it('快照显示仍在运行（步间 LLM 静默）→ 维持运行态不解锁', async () => {
+    jest.useFakeTimers()
+    try {
+      useChatStore.setState({ activeSessionId: 's-1', sessionRunStatus: {} })
+      const client = { call: jest.fn().mockResolvedValue({ 's-1': { type: 'running' } }) } as any
+      useAuthStore.setState({ client: client as never })
+
+      ingest('session.next.prompt.admitted', { sessionID: 's-1', messageID: 'u1', prompt: 'x' })
+      ingest('session.next.step.started', { sessionID: 's-1' })
+      ingest('session.next.step.ended', { sessionID: 's-1' })
+
+      await jest.advanceTimersByTimeAsync(1300)
+
+      expect(client.call).toHaveBeenCalledWith('session.status', {})
+      // server agent loop 未退出 → 权威 busy 覆盖维持锁定
+      expect(useChatStore.getState().waiting).toBe(true)
+      expect(useChatStore.getState().sessionRunStatus['s-1']).toBe('busy')
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
-  it('text.started（无 step 事件）置 waiting=true，text.ended 归 false', () => {
-    ingest('session.next.text.started', { assistantMessageID: 'ams-1' })
-    expect(useChatStore.getState().waiting).toBe(true)
-    ingest('session.next.text.ended', { assistantMessageID: 'ams-1', text: 'x' })
-    expect(useChatStore.getState().waiting).toBe(false)
+  it('核查 RPC 失败时保守解锁（防回到永久占用），但不误杀工具卡片', async () => {
+    jest.useFakeTimers()
+    try {
+      useChatStore.setState({ activeSessionId: 's-1' })
+      const client = {
+        call: jest.fn(async (method: string) => {
+          if (method === 'session.status') throw new Error('network blip')
+          return []
+        }),
+      } as any
+      useAuthStore.setState({ client: client as never })
+
+      ingest('session.next.tool.called', { sessionID: 's-1', callID: 'cx', tool: 'bash', input: {}, assistantMessageID: 'amx' })
+      ingest('session.next.step.started', { sessionID: 's-1' })
+      ingest('session.next.step.ended', { sessionID: 's-1' })
+
+      await jest.advanceTimersByTimeAsync(1300)
+
+      expect(useChatStore.getState().waiting).toBe(false)
+      // 失败兜底只解锁，不做 reconcile（卡片保持原状，等后续事件/重连对账）
+      const m = useChatStore.getState().messages.find((mm) => mm.parts?.some((p) => p.id === 'cx'))
+      expect(m!.parts![0].data.status).toBe('called')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('pendingSteps 不会落到负数', async () => {
+    jest.useFakeTimers()
+    try {
+      const client = { call: jest.fn().mockResolvedValue({}) } as any
+      useAuthStore.setState({ client: client as never })
+      ingest('session.next.step.ended', {})
+      expect(useChatStore.getState().pendingSteps).toBe(0)
+      // 归零后经快照仲裁解锁（不再立即置 false）
+      await jest.advanceTimersByTimeAsync(1300)
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('text.started（无 step 事件）置 waiting=true，text.ended 后经权威快照仲裁解锁', async () => {
+    jest.useFakeTimers()
+    try {
+      useChatStore.setState({ activeSessionId: 's-1' })
+      const client = { call: jest.fn().mockResolvedValue({}) } as any // 快照缺席 → idle
+      useAuthStore.setState({ client: client as never })
+      ingest('session.next.text.started', { assistantMessageID: 'ams-1' })
+      expect(useChatStore.getState().waiting).toBe(true)
+
+      ingest('session.next.text.ended', { assistantMessageID: 'ams-1', text: 'x' })
+      // 新契约：不立即解锁，去抖后经快照确认空闲才解锁
+      expect(useChatStore.getState().waiting).toBe(true)
+      await jest.advanceTimersByTimeAsync(1300)
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   it('prompt.admitted → waiting=true、清 runError、upsert user 消息', () => {

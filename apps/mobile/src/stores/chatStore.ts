@@ -44,17 +44,19 @@ type ClientCall = (method: string, params?: unknown) => Promise<unknown>
 /** 事件静默兜底：超过该时长无任何事件，强制回到 idle */
 const ACTIVITY_TTL = 5 * 60 * 1000
 
-// ─── busy 闩锁解锁：回合完成去抖验证 ────────────────────────
+// ─── busy 闩锁解锁 + 步间静默仲裁：回合完成去抖验证 ──────────
 //
 // 权威覆盖逻辑会把 waiting 锁在 busy 上，其解锁依赖服务端广播
 // session.status(idle)/session.idle —— 但本项目对接的 opencode serve
-// 实测根本不广播这两个事件（4.2MB 真实事件流中 0 次）。一旦被快照
-// 标记 busy，事件流内不存在任何解锁信号：每个后续事件都会把 waiting
-// 重新锁回 true → 转圈不停、输入框永久锁定（"一直占用"）。
-// 解法：本地判定回合已完（步骤归零 + 无未完结工具）时，去抖 2.5s
-// 向服务器要一次权威快照，用 RPC 结果解除闩锁。
+// 实测根本不广播这两个事件（63MB 真实事件流中 0 次）。
+//
+// 同时（2026-08 步间闪断修复）：多步回合的步与步之间存在秒级静默
+// （88% 多步回合 >500ms，实测最大 30.9s），「step.ended 归零即解锁」
+// 会造成红方块→可输入→又锁回的闪烁。因此 pendingSteps 归零不再直接
+// 解锁，统一走本去抖验证：向服务器要权威快照——idle 才解锁（并结算
+// 残留工具），busy 维持运行态。快照查询失败时保守解锁防永久占用。
 
-const IDLE_VERIFY_DELAY = 2500
+const IDLE_VERIFY_DELAY = 1200
 let idleVerifyTimer: ReturnType<typeof setTimeout> | null = null
 
 function cancelIdleVerify(): void {
@@ -575,7 +577,7 @@ export interface ChatState {
   syncSessionMessages(sessionId: string, clientCall: ClientCall): Promise<void>
   abortMessage(sessionId: string, clientCall: ClientCall): Promise<void>
   setSessionRunStatus(sessionId: string, status: SessionRunStatus): void
-  fetchSessionRunStatus(sessionId: string, clientCall: ClientCall): Promise<void>
+  fetchSessionRunStatus(sessionId: string, clientCall: ClientCall): Promise<boolean>
   syncSessionRunStatus(clientCall: ClientCall): Promise<void>
   /** 对账：权威信号显示会话已空闲时，终结本地仍处于 called/progress 的工具 part。
    *  服务端（opencode）存在工具 part 永不结算的缺陷（bash 挂起/回合中断后
@@ -759,7 +761,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // 消息拉取失败不影响后续状态核查
         }
         // ② 再核状态：快照空闲 → 解除等待态 + reconcileStaleTools 终结仍残留的 ⏳
-        await get().fetchSessionRunStatus(sid, call)
+        const ok = await get().fetchSessionRunStatus(sid, call)
+        if (!ok) {
+          // RPC 失败兜底：保守解锁输入框（防回到永久占用），但不 reconcile——
+          // 不误杀可能仍在执行的工具卡片，等后续事件/重连对账修正。
+          const s = get()
+          if (s.activeSessionId === sid && (s.waiting || s.pendingSteps > 0)) {
+            set({ waiting: false, pendingSteps: 0 })
+          }
+        }
       } catch {
         // 静默：验证失败保持现状，下一个完成事件会再次调度
       }
@@ -882,7 +892,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const msgId = p.assistantMessageID ?? ''
       const text = typeof p.text === 'string' ? p.text : ''
       if (msgId) messages = finalizeText(messages, msgId, text)
-      if (pendingSteps === 0) waiting = false
+      // 不立即解锁：步间/回合尾静默经权威快照仲裁（见 IDLE_VERIFY_DELAY 注释）
+      if (pendingSteps === 0) get().scheduleIdleVerify()
     }
     // ── 推理流（与文本流同管道）──
     else if (m === 'session.next.reasoning.delta') {
@@ -894,7 +905,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const msgId = p.assistantMessageID ?? ''
       const eventId = p.eventId
       if (msgId && typeof eventId === 'number') messages = applyTextDelta(messages, msgId, '', eventId)
-      if (pendingSteps === 0) waiting = false
+      // 同 text.ended：不立即解锁，交由权威快照仲裁
+      if (pendingSteps === 0) get().scheduleIdleVerify()
     }
     // ── 权威消息 ──
     else if (m === 'message.updated') {
@@ -949,7 +961,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       waiting = true
     } else if (m === 'session.next.step.ended') {
       pendingSteps = Math.max(0, pendingSteps - 1)
-      if (pendingSteps === 0) waiting = false
+      // 不立即解锁：多步回合步间存在秒级静默（实测 88% 回合 >500ms，最大 30.9s），
+      // 「归零即解锁」造成红方块→可输入→又锁回的闪烁。交由权威快照仲裁：
+      // server agent loop 未退出则快照 running → 维持运行态；真结束才解锁。
+      if (pendingSteps === 0) get().scheduleIdleVerify()
     } else if (m === 'session.next.step.failed') {
       pendingSteps = 0
       waiting = false
@@ -1059,9 +1074,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  /** 拉取单个会话的权威运行状态（session.status RPC 返回运行中会话快照） */
+  /** 拉取单个会话的权威运行状态（session.status RPC 返回运行中会话快照）。
+   *  返回 true=快照已取得；false=查询失败（调用方自行决定兜底）。 */
   fetchSessionRunStatus: async (sessionId, clientCall) => {
-    if (!sessionId) return
+    if (!sessionId) return false
     try {
       const result = await clientCall('session.status', {})
       const map = normalizeRunningMap(result)
@@ -1078,8 +1094,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 再终结残留的"运行中"工具卡片
         get().reconcileStaleTools()
       }
+      return true
     } catch {
-      // 静默：查询失败保持现状，SSE 通知会在后续事件中兜底
+      // 查询失败：由调用方（verifySessionIdle）执行保守解锁兜底
+      return false
     }
   },
 

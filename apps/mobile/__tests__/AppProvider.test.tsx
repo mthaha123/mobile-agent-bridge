@@ -545,20 +545,31 @@ describe('createReplyCall sends correct WS frames', () => {
 // ─── Missing handler tests ──────────────────────────────────
 
 describe('session.next.text.ended handler', () => {
-  it('finalizes assistant content and sets waiting=false', () => {
-    const { notifyHandler } = mockClientAndRender()
-    useChatStore.setState({ waiting: true })
-
-    TestRenderer.act(() => {
-      notifyHandler!('session.next.text.ended', {
-        assistantMessageID: 'msg-1',
-        text: 'Final answer',
+  it('finalizes assistant content；解锁交由权威快照仲裁（idle → false）', async () => {
+    jest.useFakeTimers()
+    try {
+      const { notifyHandler } = mockClientAndRender({
+        'session.status': () => ({}), // 快照缺席当前会话 → idle
       })
-    })
+      useChatStore.setState({ waiting: true, activeSessionId: 'sess-1' })
 
-    expect(useChatStore.getState().waiting).toBe(false)
-    const msgs = useChatStore.getState().messages
-    expect(msgs.some(m => m.content === 'Final answer')).toBe(true)
+      TestRenderer.act(() => {
+        notifyHandler!('session.next.text.ended', {
+          assistantMessageID: 'msg-1',
+          text: 'Final answer',
+        })
+      })
+
+      // 新契约：收尾不立即解锁，去抖核查后由快照裁决
+      expect(useChatStore.getState().waiting).toBe(true)
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(1300) })
+
+      expect(useChatStore.getState().waiting).toBe(false)
+      const msgs = useChatStore.getState().messages
+      expect(msgs.some(m => m.content === 'Final answer')).toBe(true)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
 
@@ -627,18 +638,27 @@ describe('createReplyCall with invalid id', () => {
 })
 
 describe('session.next.reasoning.ended handler', () => {
-  it('ends waiting on session.next.reasoning.ended', () => {
-    const { notifyHandler } = mockClientAndRender()
-    useChatStore.setState({ waiting: true })
-
-    TestRenderer.act(() => {
-      notifyHandler!('session.next.reasoning.ended', {
-        assistantMessageID: 'msg-1',
-        eventId: 3,
+  it('reasoning.ended 后经权威快照仲裁解锁（idle → false）', async () => {
+    jest.useFakeTimers()
+    try {
+      const { notifyHandler } = mockClientAndRender({
+        'session.status': () => ({}),
       })
-    })
+      useChatStore.setState({ waiting: true, activeSessionId: 'sess-1' })
 
-    expect(useChatStore.getState().waiting).toBe(false)
+      TestRenderer.act(() => {
+        notifyHandler!('session.next.reasoning.ended', {
+          assistantMessageID: 'msg-1',
+          eventId: 3,
+        })
+      })
+
+      expect(useChatStore.getState().waiting).toBe(true)
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(1300) })
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
 
@@ -703,15 +723,24 @@ describe('session.next.step.started handler', () => {
 })
 
 describe('session.next.step.ended handler', () => {
-  it('sets waiting=false', () => {
-    const { notifyHandler } = mockClientAndRender()
-    useChatStore.setState({ waiting: true })
+  it('步归零后经权威快照仲裁解锁（idle → false）', async () => {
+    jest.useFakeTimers()
+    try {
+      const { notifyHandler } = mockClientAndRender({
+        'session.status': () => ({}),
+      })
+      useChatStore.setState({ waiting: true, activeSessionId: 'sess-1' })
 
-    TestRenderer.act(() => {
-      notifyHandler!('session.next.step.ended', {})
-    })
+      TestRenderer.act(() => {
+        notifyHandler!('session.next.step.ended', {})
+      })
 
-    expect(useChatStore.getState().waiting).toBe(false)
+      expect(useChatStore.getState().waiting).toBe(true)
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(1300) })
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
 
@@ -783,15 +812,24 @@ describe('teardownClient', () => {
 })
 
 describe('session.next.text.ended handler', () => {
-  it('sets waiting=false even without msg id or text', () => {
-    const { notifyHandler } = mockClientAndRender()
-    useChatStore.setState({ waiting: true })
+  it('空载荷 text.ended 同样走快照仲裁解锁', async () => {
+    jest.useFakeTimers()
+    try {
+      const { notifyHandler } = mockClientAndRender({
+        'session.status': () => ({}),
+      })
+      useChatStore.setState({ waiting: true, activeSessionId: 'sess-1' })
 
-    TestRenderer.act(() => {
-      notifyHandler!('session.next.text.ended', {})
-    })
+      TestRenderer.act(() => {
+        notifyHandler!('session.next.text.ended', {})
+      })
 
-    expect(useChatStore.getState().waiting).toBe(false)
+      expect(useChatStore.getState().waiting).toBe(true)
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(1300) })
+      expect(useChatStore.getState().waiting).toBe(false)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
 
