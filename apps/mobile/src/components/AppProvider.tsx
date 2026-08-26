@@ -7,6 +7,7 @@ import { useProjectStore } from '../stores/projectStore'
 import { useDiffStore } from '../stores/diffStore'
 import { useTodoStore } from '../stores/todoStore'
 import { useQuestionStore } from '../stores/questionStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
@@ -29,6 +30,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const clientRef = useRef<BridgeClient | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // 启动时一次性恢复本地偏好（默认 agent/model），失败静默
+  useEffect(() => {
+    void useSettingsStore.getState().load()
+  }, [])
 
   useEffect(() => {
     const unsub = useAuthStore.subscribe((state, prev) => {

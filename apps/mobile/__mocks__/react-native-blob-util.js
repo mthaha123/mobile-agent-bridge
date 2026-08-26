@@ -1,7 +1,10 @@
 /**
  * Auto-mock for react-native-blob-util — used by Jest before test files load.
+ * 带 __esModule 让 ESM 默认导入（interop）正确解到 default；
+ * 旧式 require().default.fs 访问同样不受影响。
  */
 module.exports = {
+  __esModule: true,
   default: {
     fs: {
       dirs: {
