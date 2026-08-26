@@ -72,13 +72,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('未指定项目目录，且无法探测 OpenCode 当前项目。请在连接页填写项目目录。')
       }
 
-      // ── 层2就绪后拉取全局配置（agent/provider/model/command）──
+      // ── 层2就绪后拉取聊天所需全局数据（agent/command/model）──
+      // config.get/providers 已随 stub 端点一并移除（2026-08 设置页重构）
       const { useConfigStore } = await import('./configStore')
       const call = client.call.bind(client)
       await Promise.all([
-        useConfigStore.getState().fetchConfig(call),
         useConfigStore.getState().fetchAgents(call),
-        useConfigStore.getState().fetchProviders(call),
         useConfigStore.getState().fetchCommands(call),
         useConfigStore.getState().fetchModels(call),
       ])

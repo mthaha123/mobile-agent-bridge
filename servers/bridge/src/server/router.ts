@@ -277,18 +277,12 @@ registerHandler("question.reject", async (p) => {
   }))
 })
 
-// opencode server 1.18.x 无 /config 端点：config.get/update 返回空（功能在 server 侧不存在）
-registerHandler("config.get", async () => ({ config: {} }))
-registerHandler("config.update", async () => ({ ok: true }))
-// config.agents / config.providers / model.list / command.list 依赖 OpenCode server，
+// opencode server 1.18.x 无 /config 端点：config.get/update/providers 已移除
+// （2026-08 设置页重构，provider 查询统一走 provider.list）
+// config.agents / model.list / command.list 依赖 OpenCode server，
 // 必须在 project.switch 建立 OpenCode 连接之后才能查询（客户端登录时序保证）。
 // SDK list 类返回 { location, data: [...] }，统一解包为裸数组（与手机端 extractArray 契约一致）
 registerHandler("config.agents", async () => unwrapData(await sdkCall(() => sdk().v2.agent.list({}))))
-// config.providers 真实对接 /api/provider
-registerHandler("config.providers", async () => {
-  const providers = unwrapData(await sdkCall(() => sdk().v2.provider.list({})))
-  return { providers }
-})
 registerHandler("provider.list", async () => unwrapData(await sdkCall(() => sdk().v2.provider.list({}))))
 registerHandler("command.list", async () => unwrapData(await sdkCall(() => sdk().v2.command.list({}))))
 registerHandler("model.list", async () => unwrapData(await sdkCall(() => sdk().v2.model.list({}))))

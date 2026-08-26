@@ -1,18 +1,20 @@
 /**
  * configStore tests
  *
- * Tests config fetch methods: config, providers, agents, commands.
+ * Tests config fetch methods: agents, commands, models.
  * Each method takes a clientCall function and follows loading/error patterns.
+ *
+ * 注：fetchConfig / fetchProviders / updateConfig 已随 Bridge config stub
+ * 端点移除（2026-08 设置页重构），对应用例一并删除。
  */
 
 import { useConfigStore } from '../src/stores/configStore'
 
 function resetConfigStore() {
   useConfigStore.setState({
-    config: null,
-    providers: [],
     agents: [],
     commands: [],
+    models: [],
     loading: false,
     error: null,
   })
@@ -24,71 +26,6 @@ beforeEach(() => {
 
 afterEach(() => {
   resetConfigStore()
-})
-
-// ---------------------------------------------------------------------------
-// fetchConfig
-// ---------------------------------------------------------------------------
-
-describe('fetchConfig', () => {
-  it('calls config.get and unwraps config field', async () => {
-    const configData = { theme: 'dark', logLevel: 'debug' }
-    const clientCall = jest.fn().mockResolvedValue({ config: configData })
-
-    await useConfigStore.getState().fetchConfig(clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('config.get')
-    expect(useConfigStore.getState().config).toEqual(configData)
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBeNull()
-  })
-
-  it('falls back to raw result when no config field', async () => {
-    const configData = { theme: 'dark' }
-    const clientCall = jest.fn().mockResolvedValue(configData)
-
-    await useConfigStore.getState().fetchConfig(clientCall)
-
-    expect(useConfigStore.getState().config).toEqual(configData)
-  })
-
-  it('handles fetch failure gracefully', async () => {
-    const clientCall = jest.fn().mockRejectedValue(new Error('config error'))
-
-    await useConfigStore.getState().fetchConfig(clientCall)
-
-    expect(useConfigStore.getState().config).toBeNull()
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBe('config error')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// fetchProviders
-// ---------------------------------------------------------------------------
-
-describe('fetchProviders', () => {
-  it('calls config.providers and updates providers state on success', async () => {
-    const providersData = [{ name: 'openai' }, { name: 'anthropic' }]
-    const clientCall = jest.fn().mockResolvedValue(providersData)
-
-    await useConfigStore.getState().fetchProviders(clientCall)
-
-    expect(clientCall).toHaveBeenCalledWith('config.providers')
-    expect(useConfigStore.getState().providers).toEqual(providersData)
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBeNull()
-  })
-
-  it('handles fetch failure gracefully', async () => {
-    const clientCall = jest.fn().mockRejectedValue(new Error('providers error'))
-
-    await useConfigStore.getState().fetchProviders(clientCall)
-
-    expect(useConfigStore.getState().providers).toEqual([])
-    expect(useConfigStore.getState().loading).toBe(false)
-    expect(useConfigStore.getState().error).toBe('providers error')
-  })
 })
 
 // ---------------------------------------------------------------------------
@@ -148,33 +85,29 @@ describe('fetchCommands', () => {
 })
 
 // ---------------------------------------------------------------------------
-// updateConfig
+// fetchModels
 // ---------------------------------------------------------------------------
 
-describe('updateConfig', () => {
-  beforeEach(() => {
-    resetConfigStore()
+describe('fetchModels', () => {
+  it('calls model.list and updates models state on success', async () => {
+    const modelsData = [{ id: 'm1', providerID: 'p1' }]
+    const clientCall = jest.fn().mockResolvedValue(modelsData)
+
+    await useConfigStore.getState().fetchModels(clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('model.list')
+    expect(useConfigStore.getState().models).toEqual(modelsData)
+    expect(useConfigStore.getState().loading).toBe(false)
+    expect(useConfigStore.getState().error).toBeNull()
   })
 
-  it('calls config.update with updates and refreshes config', async () => {
-    const updatedConfig = { theme: 'light', language: 'en' }
-    const clientCall = jest.fn()
-    clientCall.mockResolvedValueOnce({})            // config.update
-    clientCall.mockResolvedValueOnce(updatedConfig) // config.get (re-fetch)
+  it('handles fetch failure gracefully', async () => {
+    const clientCall = jest.fn().mockRejectedValue(new Error('models error'))
 
-    await useConfigStore.getState().updateConfig({ theme: 'light' }, clientCall)
+    await useConfigStore.getState().fetchModels(clientCall)
 
-    expect(clientCall).toHaveBeenCalledWith('config.update', { theme: 'light' })
-    expect(useConfigStore.getState().config).toEqual(updatedConfig)
-  })
-
-  it('catches errors silently', async () => {
-    const clientCall = jest.fn().mockRejectedValue(new Error('update failed'))
-    useConfigStore.setState({ config: { existing: true } })
-
-    await useConfigStore.getState().updateConfig({ theme: 'light' }, clientCall)
-
-    // config should remain unchanged
-    expect(useConfigStore.getState().config).toEqual({ existing: true })
+    expect(useConfigStore.getState().models).toEqual([])
+    expect(useConfigStore.getState().loading).toBe(false)
+    expect(useConfigStore.getState().error).toBe('models error')
   })
 })

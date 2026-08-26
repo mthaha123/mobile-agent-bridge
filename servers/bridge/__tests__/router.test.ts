@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals"
+﻿import { jest } from "@jest/globals"
 import { handleFrame } from "../src/server/router.js"
 import type { WebSocket } from "ws"
 import type { TokenPayload } from "../src/server/auth.js"
@@ -85,7 +85,7 @@ function createMockSdk() {
 
 const testPayload: TokenPayload = { sub: "test", role: "user" }
 
-/** mock backend.createClient 以设置一个含 mock subscribe 的 SDK */
+/** mock backend.createClient 浠ヨ缃竴涓惈 mock subscribe 鐨?SDK */
 function mockCreateClientForSwitch(extra?: { subscribeBlock?: Promise<void> }) {
   const backend = getBackend()
   const oldSdk = backend.sdk
@@ -166,8 +166,7 @@ describe("RPC Router", () => {
       sessionID: "sess_123",
       prompt: { text: "hello world" },
     })
-    // 新会话自动命名：message.send 后触发 serve 命名流程（fire-and-forget）
-    expect(backend.autoNameNewSession).toHaveBeenCalledWith("sess_123", "hello world", expect.anything())
+    // 鏂颁細璇濊嚜鍔ㄥ懡鍚嶏細message.send 鍚庤Е鍙?serve 鍛藉悕娴佺▼锛坒ire-and-forget锛?    expect(backend.autoNameNewSession).toHaveBeenCalledWith("sess_123", "hello world", expect.anything())
   })
 
   it("should accept sessionID (upper case D) in message.send", async () => {
@@ -355,7 +354,7 @@ describe("RPC Router", () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.create",
-      params: { model: "provider/deepseek-v4-flash-free " }, // 尾随空格（cmd set VAR=val && 会吞入空格）
+      params: { model: "provider/deepseek-v4-flash-free " }, // 灏鹃殢绌烘牸锛坈md set VAR=val && 浼氬悶鍏ョ┖鏍硷級
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.create).toHaveBeenCalledWith({
@@ -490,7 +489,7 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV3Session.list).toHaveBeenCalledWith({ limit: 2000, roots: true })
-    // SDK { data: [...] } 被解包为裸数组
+    // SDK { data: [...] } 琚В鍖呬负瑁告暟缁?
     expect(Array.isArray(messages[0].payload)).toBe(true)
   })
 
@@ -552,7 +551,7 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.list",
       params: { search: "test", limit: 10, cursor: "abc" },
     }, testPayload)
-    // cursor 不是 v2 GET /session 支持的参数，不透传；默认 roots=true 过滤子会话
+    // cursor 涓嶆槸 v2 GET /session 鏀寔鐨勫弬鏁帮紝涓嶉€忎紶锛涢粯璁?roots=true 杩囨护瀛愪細璇?
     expect(mockV3Session.list).toHaveBeenCalledWith({ search: "test", limit: 10, roots: true })
   })
 
@@ -605,7 +604,7 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", {})
-    // 返回 { messages, cursor }
+    // 杩斿洖 { messages, cursor }
     expect(messages[0].payload).toEqual({ messages: [], cursor: undefined })
   })
 
@@ -617,7 +616,7 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "session.messages",
       params: { sessionID: "sess_123", limit: 30, order: "desc", cursor: "abc" },
     }, testPayload)
-    // 契约：order 已废弃（客户端不感知底层排序策略），旧客户端传入时静默忽略
+    // 濂戠害锛歰rder 宸插簾寮冿紙瀹㈡埛绔笉鎰熺煡搴曞眰鎺掑簭绛栫暐锛夛紝鏃у鎴风浼犲叆鏃堕潤榛樺拷鐣?
     expect(backend.rawSessionMessages).toHaveBeenCalledWith("sess_123", { limit: 30, cursor: "abc" })
     expect(messages[0].payload).toEqual({ messages: [{ id: "m1" }], cursor: undefined })
   })
@@ -639,9 +638,9 @@ describe("RPC Router", () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "session.rename",
-      params: { sessionId: "sess_123", title: "  新会话名  " },
+      params: { sessionId: "sess_123", title: "  鏂颁細璇濆悕  " },
     }, testPayload)
-    expect(backend.renameSession).toHaveBeenCalledWith("sess_123", "新会话名")
+    expect(backend.renameSession).toHaveBeenCalledWith("sess_123", "鏂颁細璇濆悕")
     expect(messages[0].ok).toBe(true)
     expect(messages[0].payload).toEqual({ id: "sess_123", title: "Renamed" })
   })
@@ -736,23 +735,23 @@ describe("RPC Router", () => {
 
   // ===== Config handlers =====
 
-  it("should return empty config on config.get (endpoint removed in server 1.18)", async () => {
+  it("should reject config.get as unknown method (stub removed)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.get", params: {},
     }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ config: {} })
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("unknown method")
   })
 
-  it("should return ok on config.update (endpoint removed in server 1.18)", async () => {
+  it("should reject config.update as unknown method (stub removed)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.update",
       params: { theme: "light" },
     }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(messages[0].payload).toEqual({ ok: true })
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("unknown method")
   })
 
   it("should call config.agents", async () => {
@@ -765,15 +764,13 @@ describe("RPC Router", () => {
     expect(mockV2.agent.list).toHaveBeenCalledWith({})
   })
 
-  it("should call provider.list on config.providers (v2)", async () => {
-    const { mockV2 } = createMockSdk()
+  it("should reject config.providers as unknown method (merged into provider.list)", async () => {
     const { ws, messages } = createMockWs()
     await handleFrame("conn1", ws, {
       type: "req", id: "1", method: "config.providers", params: {},
     }, testPayload)
-    expect(messages[0].ok).toBe(true)
-    expect(mockV2.provider.list).toHaveBeenCalledWith({})
-    expect(messages[0].payload).toEqual({ providers: [] })
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("unknown method")
   })
 
   it("should call provider.list", async () => {
@@ -1050,7 +1047,7 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
 
-    // 第二次切同一目录，用一个新的 mock 追踪
+    // 绗簩娆″垏鍚屼竴鐩綍锛岀敤涓€涓柊鐨?mock 杩借釜
     const { subscribeMock: sub2 } = mockCreateClientForSwitch()
     await handleFrame("conn1", ws, {
       type: "req", id: "2", method: "project.switch",
@@ -1072,9 +1069,9 @@ describe("RPC Router", () => {
       type: "req", id: "1", method: "project.switch",
       params: { directory: process.cwd() },
     }, testPayload)
-    // 第一次的 subscribe 卡在 gate 上
+    // 绗竴娆＄殑 subscribe 鍗″湪 gate 涓?
 
-    // 第二次 switch → 应 abort 旧 SSE（即释放 gate），并启动新 subscribe
+    // 绗簩娆?switch 鈫?搴?abort 鏃?SSE锛堝嵆閲婃斁 gate锛夛紝骞跺惎鍔ㄦ柊 subscribe
     const { subscribeMock: sub2 } = mockCreateClientForSwitch()
     const p2 = handleFrame("conn1", ws, {
       type: "req", id: "2", method: "project.switch",
@@ -1083,11 +1080,11 @@ describe("RPC Router", () => {
     await p2
     await new Promise(r => setTimeout(r, 50))
 
-    // 旧的 subscribe 因 abort 被释放 → sub1 被调过
+    // 鏃х殑 subscribe 鍥?abort 琚噴鏀?鈫?sub1 琚皟杩?
     expect(sub1).toHaveBeenCalled()
-    // 新的 subscribe 也被调了
+    // 鏂扮殑 subscribe 涔熻璋冧簡
     expect(sub2).toHaveBeenCalled()
-    // 释放 gate 避免 dangling promise
+    // 閲婃斁 gate 閬垮厤 dangling promise
     blockRelease!()
   })
 
@@ -1095,7 +1092,7 @@ describe("RPC Router", () => {
     const { subscribeMock: sub1 } = mockCreateClientForSwitch()
     const { ws, messages } = createMockWs()
 
-    // 两次几乎同时发送，利用 await Promise.resolve() yield 点命中锁
+    // 涓ゆ鍑犱箮鍚屾椂鍙戦€侊紝鍒╃敤 await Promise.resolve() yield 鐐瑰懡涓攣
     const p1 = handleFrame("conn1", ws, {
       type: "req", id: "1", method: "project.switch",
       params: { directory: process.cwd() },
@@ -1107,16 +1104,16 @@ describe("RPC Router", () => {
     await Promise.all([p1, p2])
 
     const errors = messages.filter(m => !m.ok).map(m => m.error)
-    // 第二次应被已切换锁拒绝
+    // 绗簩娆″簲琚凡鍒囨崲閿佹嫆缁?
     expect(errors.some((e: string) => e?.includes("already switching"))).toBe(true)
-    // 清理避免 dangling promise
+    // 娓呯悊閬垮厤 dangling promise
     sub1.mockResolvedValue({ stream: (async function*() {})() })
   })
 
   it("should broadcast project.changed after successful switch", async () => {
     createMockSdk()
     const { subscribeMock } = mockCreateClientForSwitch()
-    // 注册一个真实 WS 连接来接收 broadcast
+    // 娉ㄥ唽涓€涓湡瀹?WS 杩炴帴鏉ユ帴鏀?broadcast
     const { ws: mockWs, messages: broadcastMsgs } = createMockWs()
     const conns = _testGetConnections()
     const testConnId = "test-broadcast-conn"
@@ -1128,10 +1125,10 @@ describe("RPC Router", () => {
       params: { directory: process.cwd() },
     }, testPayload)
 
-    // broadcast 在 setTimeout(0) 中，等下一个 tick
+    // broadcast 鍦?setTimeout(0) 涓紝绛変笅涓€涓?tick
     await new Promise(r => setTimeout(r, 10))
 
-    // 验证广播被发送
+    // 楠岃瘉骞挎挱琚彂閫?
     const changedNotif = broadcastMsgs.find(
       (m: any) => m.type === "notify" && m.method === "project.changed"
     )
@@ -1171,11 +1168,11 @@ describe("RPC Router", () => {
     }, testPayload)
 
     expect(messages[0].ok).toBe(true)
-    // SSE 循环在后台重试，不应影响主流程
-    // 重试间隔 3s，等足够长让 startSSE 走到 htmlResponseCount >= 2 分支
+    // SSE 寰幆鍦ㄥ悗鍙伴噸璇曪紝涓嶅簲褰卞搷涓绘祦绋?
+    // 閲嶈瘯闂撮殧 3s锛岀瓑瓒冲闀胯 startSSE 璧板埌 htmlResponseCount >= 2 鍒嗘敮
     await new Promise(r => setTimeout(r, 3500))
     expect(subscribeCalls).toBeGreaterThanOrEqual(2)
-    // bridge 仍是可用状态
+    // bridge 浠嶆槸鍙敤鐘舵€?
     expect(backend.sdk).not.toBeNull()
   })
 
@@ -1188,7 +1185,7 @@ describe("RPC Router", () => {
     const listenerId = "sse-event-test"
     conns.set(listenerId, listener)
 
-    // SSE stream 产出三种 SDK 事件 (V2Event 格式: { id, type, data })
+    // SSE stream 浜у嚭涓夌 SDK 浜嬩欢 (V2Event 鏍煎紡: { id, type, data })
     async function* eventStream() {
       yield { type: "session.next.text.delta", data: { sessionID: "s1", delta: "hi" } }
       yield { type: "permission.v2.asked", data: { id: "p1", action: "read", resources: ["."] } }
@@ -1337,7 +1334,7 @@ describe("RPC Router", () => {
     expect(messages[0].error).toContain("path")
   })
 
-  // ===== 时序契约：配置 RPC 依赖 project.switch，SDK 未初始化时报错 =====
+  // ===== 鏃跺簭濂戠害锛氶厤缃?RPC 渚濊禆 project.switch锛孲DK 鏈垵濮嬪寲鏃舵姤閿?=====
   it("should error when SDK not initialized for config.agents", async () => {
     const backend = getBackend()
     backend.sdk = null
@@ -1360,7 +1357,7 @@ describe("RPC Router", () => {
     expect(messages[0].error).toContain("SDK not initialized")
   })
 
-  // ===== project.current 探测：SDK 未初始化时通过 ensureClient 查询 OpenCode location =====
+  // ===== project.current 鎺㈡祴锛歋DK 鏈垵濮嬪寲鏃堕€氳繃 ensureClient 鏌ヨ OpenCode location =====
   it("should probe OpenCode location via ensureClient when SDK not initialized", async () => {
     const backend = getBackend()
     backend.sdk = null

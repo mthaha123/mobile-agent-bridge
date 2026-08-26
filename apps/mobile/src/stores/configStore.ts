@@ -10,51 +10,25 @@ function extractArray(result: unknown, key: string): unknown[] {
 }
 
 export interface ConfigState {
-  config: Record<string, unknown> | null
-  providers: unknown[]
   agents: unknown[]
   commands: unknown[]
   models: unknown[]
   loading: boolean
   error: string | null
 
-  fetchConfig: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
-  fetchProviders: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchAgents: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchCommands: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
   fetchModels: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
-  updateConfig: (updates: Record<string, unknown>, clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
 }
 
-export const useConfigStore = create<ConfigState>((set, get) => ({
-  config: null,
-  providers: [],
+// 注：config.get / config.providers 已随 Bridge stub 端点一并移除
+// （2026-08 设置页重构）；agent 查询走 config.agents，模型/命令走 model.list / command.list。
+export const useConfigStore = create<ConfigState>((set) => ({
   agents: [],
   commands: [],
   models: [],
   loading: false,
   error: null,
-
-  fetchConfig: async (clientCall) => {
-    set({ loading: true, error: null })
-    try {
-      const result = (await clientCall('config.get')) as Record<string, unknown>
-      const config = (result?.config as Record<string, unknown>) || result
-      set({ config, loading: false })
-    } catch (e: unknown) {
-      set({ loading: false, error: e instanceof Error ? e.message : '获取配置失败' })
-    }
-  },
-
-  fetchProviders: async (clientCall) => {
-    set({ loading: true, error: null })
-    try {
-      const result = await clientCall('config.providers')
-      set({ providers: extractArray(result, 'providers'), loading: false })
-    } catch (e: unknown) {
-      set({ loading: false, error: e instanceof Error ? e.message : '获取 providers 失败' })
-    }
-  },
 
   fetchAgents: async (clientCall) => {
     set({ loading: true, error: null })
@@ -83,15 +57,6 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       set({ models: extractArray(result, 'models'), loading: false })
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取 models 失败' })
-    }
-  },
-
-  updateConfig: async (updates, clientCall) => {
-    try {
-      await clientCall('config.update', updates)
-      await get().fetchConfig(clientCall)
-    } catch (e: unknown) {
-      console.warn('updateConfig failed:', e instanceof Error ? e.message : e)
     }
   },
 }))
