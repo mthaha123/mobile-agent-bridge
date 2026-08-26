@@ -6,6 +6,7 @@
  */
 
 import { useChatStore } from '../src/stores/chatStore'
+import { useAuthStore } from '../src/stores/authStore'
 
 function resetChatStore() {
   useChatStore.setState({
@@ -808,5 +809,93 @@ describe('sessionRunStatus', () => {
     const clientCall = jest.fn().mockRejectedValue(new Error('boom'))
     await useChatStore.getState().syncSessionRunStatus(clientCall)
     expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 工具终态缺失自愈（2026-08 红方块 bug）
+//
+// 上游缺陷：opencode serve 偶发不发出单条 tool.success/failed（bash 挂起/
+// 回合中断），且从不广播 session.status/session.idle。回合其余内容正常
+// 收尾后，卡住的工具卡片没有任何触发器去核查 → 永久显示运行中。
+// ---------------------------------------------------------------------------
+
+describe('工具终态缺失自愈', () => {
+  /** 跑完一整个回合，但唯独缺 tool.success */
+  function runRoundWithoutToolEnd(callID = 'c1') {
+    const ing = useChatStore.getState().ingestEvent
+    const sid = 'sess-1'
+    ing('session.next.prompt.admitted', { sessionID: sid, messageID: 'um1', prompt: 'hi' })
+    ing('session.next.step.started', { sessionID: sid })
+    ing('session.next.tool.called', { sessionID: sid, callID, tool: 'bash', input: {}, assistantMessageID: 'am1' })
+    ing('session.next.text.started', { sessionID: sid, assistantMessageID: 'am1' })
+    ing('session.next.text.delta', { sessionID: sid, assistantMessageID: 'am1', delta: 'hello' })
+    ing('session.next.text.ended', { sessionID: sid, assistantMessageID: 'am1', text: 'hello' })
+    ing('session.next.step.ended', { sessionID: sid })
+  }
+
+  function getToolPart(callID = 'c1') {
+    for (const m of useChatStore.getState().messages) {
+      const p = m.parts?.find((x) => x.id === callID)
+      if (p) return p
+    }
+    return undefined
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+    resetChatStore()
+    useChatStore.setState({ activeSessionId: 'sess-1', pendingSteps: 0, waiting: false, lastActivityAt: Date.now() })
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('回合收尾后仍有 open 工具时自动核查：快照 idle → 结算为 failed', async () => {
+    runRoundWithoutToolEnd()
+
+    // 回合已收尾（waiting=false）但工具卡片仍停留在 called（复现红方块）
+    expect(useChatStore.getState().waiting).toBe(false)
+    expect(useChatStore.getState().pendingSteps).toBe(0)
+    expect(getToolPart()!.data.status).toBe('called')
+
+    // 权威快照确认会话空闲（server 不广播 idle，只能 RPC 核查）
+    const client = { call: jest.fn().mockResolvedValue({}) } as any
+    useAuthStore.setState({ client: client as never })
+
+    await jest.advanceTimersByTimeAsync(2600)
+
+    expect(client.call).toHaveBeenCalledWith('session.status', {})
+    expect(getToolPart()!.data.status).toBe('failed')
+  })
+
+  it('核查时同步拉取权威消息：服务端已 completed 则恢复真实结果而非误标失败', async () => {
+    runRoundWithoutToolEnd()
+
+    const client = {
+      call: jest.fn(async (method: string) => {
+        if (method === 'session.messages') {
+          return [{
+            info: { id: 'am1', role: 'assistant' },
+            parts: [{
+              type: 'tool',
+              callID: 'c1',
+              tool: 'bash',
+              state: { status: 'completed', metadata: { output: 'done-out' } },
+            }],
+          }]
+        }
+        return {} // session.status → 缺席即 idle
+      }),
+    } as any
+    useAuthStore.setState({ client: client as never })
+
+    await jest.advanceTimersByTimeAsync(2600)
+
+    expect(client.call).toHaveBeenCalledWith('session.messages', expect.objectContaining({ sessionId: 'sess-1' }))
+    const part = getToolPart()!
+    expect(part.data.status).toBe('success')
+    expect(part.data.result).toBe('done-out')
   })
 })

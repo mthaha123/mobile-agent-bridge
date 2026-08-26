@@ -750,8 +750,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { useAuthStore } = await import('../stores/authStore')
         const client = useAuthStore.getState().client
         if (!client) return
-        // fetchSessionRunStatus 内部：快照空闲 → 解除等待态 + reconcileStaleTools 终结残留 ⏳
-        await get().fetchSessionRunStatus(sid, client.call.bind(client))
+        const call = client.call.bind(client)
+        // ① 先拉权威消息：终态事件可能只是丢了，服务端持久化里已有真实结果
+        //    （mergePartsOnLoad 以服务端终态覆盖本地非终态，幂等防回退）
+        try {
+          await get().syncSessionMessages(sid, call)
+        } catch {
+          // 消息拉取失败不影响后续状态核查
+        }
+        // ② 再核状态：快照空闲 → 解除等待态 + reconcileStaleTools 终结仍残留的 ⏳
+        await get().fetchSessionRunStatus(sid, call)
       } catch {
         // 静默：验证失败保持现状，下一个完成事件会再次调度
       }
@@ -1000,6 +1008,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (pendingSteps === 0 && !hasOpenToolParts(messages)) {
         get().scheduleIdleVerify()
       }
+    }
+
+    // ── 回合完成但有工具终态缺失 → 主动核查 ──
+    // 上游缺陷：opencode serve 偶发漏发单条 tool.success/failed（bash 挂起/
+    // 回合中断），且从不广播 session.status/session.idle。若只依赖重连/
+    // busy 闩锁触发自愈，纯 live 回合里丢一条终态事件 = 红方块永久卡住。
+    // 此处在「回合已收尾（waiting/steps 归零）但仍有 open 工具」时去抖核查：
+    // 快照 idle → reconcile 终结残留；顺带拉权威消息找回真实结果。
+    // （服务器真在跑则快照 busy → 不动，不误杀长任务；step.started 会撤销本定时器）
+    if (!waiting && pendingSteps === 0 && hasOpenToolParts(messages)) {
+      get().scheduleIdleVerify()
     }
 
     set({ messages, pendingSteps, waiting, runError, lastActivityAt: now })
