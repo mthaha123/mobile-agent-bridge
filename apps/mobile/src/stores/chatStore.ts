@@ -59,6 +59,26 @@ const ACTIVITY_TTL = 5 * 60 * 1000
 const IDLE_VERIFY_DELAY = 1200
 let idleVerifyTimer: ReturnType<typeof setTimeout> | null = null
 
+// ─── busy 期条件轮询（事件丢失最终兜底）────────────────────
+//
+// 事件驱动（SSE/WS）+ 单次仲裁之外的最后防线：会话处于运行态期间每 5s
+// 主动查一次 session.status 权威快照。任何原因导致的静默丢事件，最坏
+// 自愈时间 ≤ 一个周期。仅轮询 activeSessionId 对应的活跃会话——非活跃
+// 会话由会话列表的 syncSessionRunStatus 按需校正。快照判定 idle 即停止，
+// 空闲期零开销。
+
+const STATUS_POLL_INTERVAL = 5000
+let statusPollTimer: ReturnType<typeof setInterval> | null = null
+let statusPollSid: string | null = null
+
+function stopStatusPolling(): void {
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer)
+    statusPollTimer = null
+  }
+  statusPollSid = null
+}
+
 function cancelIdleVerify(): void {
   if (idleVerifyTimer) {
     clearTimeout(idleVerifyTimer)
@@ -587,6 +607,11 @@ export interface ChatState {
   scheduleIdleVerify(): void
   /** 立即向服务器请求一次权威运行快照以解除 busy 闩锁（内部由调度器触发） */
   verifySessionIdle(sessionId?: string): void
+  /** busy 期条件轮询（事件丢失最终兜底）：仅活跃会话，5s/tick，idle 自动停止。
+   *  幂等——同会话重复调用不重复挂定时器；切会话/登出经 stopStatusPolling 撤销 */
+  ensureStatusPolling(sessionId?: string): void
+  /** 停止条件轮询（teardown / 测试清理用） */
+  stopStatusPolling(): void
 
   // ── 旧版兼容 shim ──
   appendAssistantDelta(assistantMessageId: string, delta: string, eventId: number | string): void
@@ -629,6 +654,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   resetForSession: () => {
     cancelIdleVerify()
+    stopStatusPolling() // 切换会话：旧会话的条件轮询一并撤销
     set({
       messages: [],
       waiting: false,
@@ -774,6 +800,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 静默：验证失败保持现状，下一个完成事件会再次调度
       }
     })()
+  },
+
+  ensureStatusPolling: (sessionId) => {
+    const sid = sessionId ?? get().activeSessionId
+    if (!sid) return
+    // 幂等：同会话已在轮询则不重复挂表
+    if (statusPollSid === sid && statusPollTimer) return
+    stopStatusPolling()
+    statusPollSid = sid
+    statusPollTimer = setInterval(() => {
+      void (async () => {
+        const s = get()
+        // 会话已切换：本表作废（新会话的事件/状态会重新 ensure）
+        if (!statusPollSid || s.activeSessionId !== statusPollSid) {
+          stopStatusPolling()
+          return
+        }
+        const { useAuthStore } = await import('../stores/authStore')
+        const client = useAuthStore.getState().client
+        if (!client) {
+          stopStatusPolling() // 连接已销毁（登出），轮询失去意义
+          return
+        }
+        await get().fetchSessionRunStatus(statusPollSid, client.call.bind(client))
+        // 用查询后的最新状态裁决是否继续
+        const now = get()
+        const busyLike =
+          now.waiting ||
+          now.pendingSteps > 0 ||
+          ['busy', 'retry'].includes(now.sessionRunStatus[statusPollSid] ?? 'idle')
+        if (!busyLike || now.activeSessionId !== statusPollSid) stopStatusPolling()
+      })()
+    }, STATUS_POLL_INTERVAL)
+  },
+
+  stopStatusPolling: () => {
+    stopStatusPolling()
   },
 
   // ── 加载 / 同步 ──
@@ -1037,6 +1100,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     set({ messages, pendingSteps, waiting, runError, lastActivityAt: now })
+
+    // ── busy 期条件轮询兜底 ──
+    // 回合运行中（waiting/步骤未清）→ 确保活跃会话的周期快照在位；
+    // idle 后 tick 自行裁决停止。幂等，重复调用无额外开销。
+    const activeNow = get().activeSessionId
+    if (activeNow && (waiting || pendingSteps > 0)) {
+      get().ensureStatusPolling(activeNow)
+    }
   },
 
   // ── 发送 / 中止 ──
@@ -1068,6 +1139,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // ── 会话运行状态（全局订阅）──
   setSessionRunStatus: (sessionId, status) => {
     if (!sessionId) return
+    // 进入运行态：确保该会话的条件轮询在位（幂等）
+    if (status === 'busy' || status === 'retry') get().ensureStatusPolling(sessionId)
     set((state) => {
       if (state.sessionRunStatus[sessionId] === status) return state
       return { sessionRunStatus: { ...state.sessionRunStatus, [sessionId]: status } }

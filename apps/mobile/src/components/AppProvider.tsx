@@ -197,6 +197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   function teardownClient() {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
     refreshTimerRef.current = null
+    useChatStore.getState().stopStatusPolling() // 连接销毁：条件轮询一并撤销
     setQuestionRejectCall(null)
     clientRef.current?.destroy()
     clientRef.current = null

@@ -901,3 +901,100 @@ describe('工具终态缺失自愈', () => {
     expect(part.data.result).toBe('done-out')
   })
 })
+
+// ---------------------------------------------------------------------------
+// busy 期条件轮询（仅活跃会话，5s/tick，idle 自停）
+// ---------------------------------------------------------------------------
+
+describe('busy 期条件轮询', () => {
+  function makeClient(statusMap: Record<string, unknown> | 'fail') {
+    return {
+      call: jest.fn(async (method: string) => {
+        if (method === 'session.status') {
+          if (statusMap === 'fail') throw new Error('blip')
+          return statusMap
+        }
+        return []
+      }),
+    } as any
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+    resetChatStore()
+    useChatStore.setState({ activeSessionId: 'sess-1', pendingSteps: 0, waiting: false, lastActivityAt: Date.now() })
+  })
+
+  afterEach(() => {
+    useChatStore.getState().stopStatusPolling()
+    jest.useRealTimers()
+  })
+
+  it('运行态启动轮询：5s 内发出 session.status 查询', async () => {
+    const client = makeClient({}) // 缺席 → idle
+    useAuthStore.setState({ client: client as never })
+
+    useChatStore.getState().ingestEvent('session.next.step.started', { sessionID: 'sess-1' })
+
+    await jest.advanceTimersByTimeAsync(5100)
+    expect(client.call).toHaveBeenCalledWith('session.status', {})
+  })
+
+  it('快照 running → 维持运行态并继续轮询；转 idle → 解锁且停止', async () => {
+    let running = true
+    const client = makeClient({})
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'session.status') return running ? { 'sess-1': { type: 'running' } } : {}
+      return []
+    })
+
+    useAuthStore.setState({ client: client as never })
+    useChatStore.getState().ingestEvent('session.next.prompt.admitted', { sessionID: 'sess-1', messageID: 'u1', prompt: 'x' })
+    useChatStore.getState().ingestEvent('session.next.step.started', { sessionID: 'sess-1' })
+
+    await jest.advanceTimersByTimeAsync(5100)
+    expect(useChatStore.getState().waiting).toBe(true)
+    expect(useChatStore.getState().sessionRunStatus['sess-1']).toBe('busy')
+
+    await jest.advanceTimersByTimeAsync(5100)
+    expect(useChatStore.getState().waiting).toBe(true)
+    const callsWhileRunning = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+    expect(callsWhileRunning).toBeGreaterThanOrEqual(2)
+
+    running = false
+    await jest.advanceTimersByTimeAsync(5100)
+    expect(useChatStore.getState().waiting).toBe(false)
+
+    const callsAfterIdle = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+    await jest.advanceTimersByTimeAsync(11000)
+    const callsFinal = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+    expect(callsFinal).toBe(callsAfterIdle) // 已停止，不再查询
+  })
+
+  it('切换活跃会话后旧会话轮询停止', async () => {
+    const client = makeClient({ 'sess-1': { type: 'running' } })
+    useAuthStore.setState({ client: client as never })
+
+    useChatStore.getState().ingestEvent('session.next.step.started', { sessionID: 'sess-1' })
+    await jest.advanceTimersByTimeAsync(100)
+
+    useChatStore.setState({ activeSessionId: 'sess-2' })
+    const callsAtSwitch = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+
+    await jest.advanceTimersByTimeAsync(11000)
+    const callsTotal = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+    expect(callsTotal).toBe(callsAtSwitch)
+  })
+
+  it('幂等：同会话重复 ensure 不叠加定时器（tick 频率不变）', async () => {
+    const client = makeClient({ 'sess-1': { type: 'running' } })
+    useAuthStore.setState({ client: client as never })
+
+    for (let i = 0; i < 10; i++) {
+      useChatStore.getState().ensureStatusPolling('sess-1')
+    }
+    await jest.advanceTimersByTimeAsync(10100)
+    const calls = client.call.mock.calls.filter((c: any[]) => c[0] === 'session.status').length
+    expect(calls).toBe(2) // 单一定时器：5s、10s 各一次
+  })
+})

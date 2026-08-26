@@ -773,7 +773,9 @@ describe('工具结算自愈', () => {
       ingest('session.next.text.ended', { sessionID: 's-1', assistantMessageID: 'ams-x', text: 'x' }) // 触发调度
       ingest('session.next.step.started', { sessionID: 's-1' }) // 新步骤 → 取消
 
-      jest.advanceTimersByTime(5000)
+      // 推进 2s：越过 1.2s 去抖窗口（若未取消必已触发），
+      // 但 < 5s 轮询首tick（busy 轮询的查询是另一机制的预期行为，此处隔离）
+      jest.advanceTimersByTime(2000)
       await flush()
 
       expect(statusCall).not.toHaveBeenCalled()
