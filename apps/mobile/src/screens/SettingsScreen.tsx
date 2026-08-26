@@ -1,11 +1,14 @@
-import React, { useEffect, useMemo } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
+import React, { useEffect, useMemo, useState } from 'react'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Alert } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useConfigStore } from '../stores/configStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useToolStore } from '../stores/toolStore'
 import { useUiStore } from '../stores/uiStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
+import { ModelPickerModal } from '../components/ModelPickerModal'
 
 export const SettingsScreen: React.FC = () => {
   const colors = useThemeColors()
@@ -20,6 +23,16 @@ export const SettingsScreen: React.FC = () => {
   const savedRulesLoading = useToolStore((s) => s.savedRulesLoading)
   const fetchSavedRules = useToolStore((s) => s.fetchSavedRules)
   const removeSavedRule = useToolStore((s) => s.removeSavedRule)
+
+  const defaultAgent = useSettingsStore((s) => s.defaultAgent)
+  const defaultModel = useSettingsStore((s) => s.defaultModel)
+  const setDefaultAgent = useSettingsStore((s) => s.setDefaultAgent)
+  const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
+  const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
+  const models = useConfigStore((s) => s.models)
+
+  const [agentPickVisible, setAgentPickVisible] = useState(false)
+  const [modelPickVisible, setModelPickVisible] = useState(false)
 
   useEffect(() => {
     if (client) {
@@ -91,6 +104,20 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Defaults</Text>
+        <TouchableOpacity style={styles.row} onPress={() => setAgentPickVisible(true)}>
+          <Text style={styles.rowLabel}>Default Agent</Text>
+          <Text style={styles.rowValue}>{defaultAgent || 'Server default'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => setModelPickVisible(true)}>
+          <Text style={styles.rowLabel}>Default Model</Text>
+          <Text style={styles.rowValue} numberOfLines={1}>
+            {defaultModel ? `${defaultModel.providerID}/${defaultModel.id}` : 'Server default'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionLabel}>Saved Permissions ({savedRules.length})</Text>
         {savedRulesLoading ? (
           <View style={styles.row}><Text style={styles.rowValue}>Loading...</Text></View>
@@ -121,6 +148,50 @@ export const SettingsScreen: React.FC = () => {
       <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
         <Text style={styles.disconnectBtnText}>Disconnect</Text>
       </TouchableOpacity>
+
+      <Modal visible={agentPickVisible} transparent animationType="slide" onRequestClose={() => setAgentPickVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAgentPickVisible(false)}>
+          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Default Agent</Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => { void setDefaultAgent(null); setAgentPickVisible(false) }}
+              >
+                <Text style={styles.rowLabel}>Server default</Text>
+              </TouchableOpacity>
+              {agents.map((a, i) => (
+                <TouchableOpacity
+                  key={a.name || i}
+                  style={styles.row}
+                  onPress={() => { void setDefaultAgent(String(a.name || '')); setAgentPickVisible(false) }}
+                >
+                  <Text style={styles.rowLabel}>{a.label || a.name || `Agent ${i + 1}`}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <ModelPickerModal
+        visible={modelPickVisible}
+        onClose={() => setModelPickVisible(false)}
+        onSelect={(m) => {
+          // 与 ChatScreen 相同的身份提取：id + providerID(+variant)，同名跨 provider 不串
+          const entry = (m && typeof m === 'object' ? m : {}) as { id?: string; providerID?: string; variant?: string }
+          if (entry.id && entry.providerID) {
+            void setDefaultModel({
+              id: entry.id,
+              providerID: entry.providerID,
+              ...(entry.variant ? { variant: entry.variant } : {}),
+            })
+          }
+          setModelPickVisible(false)
+        }}
+        models={models}
+        currentModel={defaultModel}
+      />
     </ScrollView>
   )
 }
@@ -177,6 +248,24 @@ const makeStyles = (colors: ThemeColors) =>
     fontWeight: '600',
     marginTop: 6,
     marginBottom: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 16,
   },
   disconnectBtn: {
     backgroundColor: colors.errorBg,

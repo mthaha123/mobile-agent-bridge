@@ -11,9 +11,32 @@ import { Alert } from 'react-native'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
+import { useSettingsStore } from '../src/stores/settingsStore'
+import { useConfigStore } from '../src/stores/configStore'
 import { mockClient, resetAllStores, textOf, findAllPressable } from './test-utils'
 
-beforeEach(() => resetAllStores())
+beforeEach(() => {
+  resetAllStores()
+  useSettingsStore.setState({ defaultAgent: null, defaultModel: null, loaded: true })
+  useConfigStore.setState({ agents: [], commands: [], models: [], loading: false, error: null })
+})
+
+/** 按 text 匹配找可按压节点（mock 下可能重复，取首个）。
+ *  mode: 'exact' 全等 | 'prefix' 前缀（行内 label+value 双文本拼接场景）。
+ *  弹窗条目类交互请勿用子树匹配——遮罩层 Touchable 子树包含全部文本，
+ *  应改用"文本节点向上找可点击祖先"模式 */
+function pressByText(
+  tree: ReturnType<typeof TestRenderer.create>,
+  label: string,
+  mode: 'exact' | 'prefix' = 'exact',
+) {
+  const hit = findAllPressable(tree).find((b: any) => {
+    const t = textOf({ toJSON: () => b } as any)
+    return mode === 'exact' ? t === label : t.startsWith(label)
+  })
+  expect(hit).toBeDefined()
+  return hit!
+}
 
 // ─── 渲染测试 ─────────────────────────────────────────────
 
@@ -215,5 +238,74 @@ describe('SettingsScreen — permissions management', () => {
     await act(async () => { destructive!.onPress!() })
 
     expect(client.call).toHaveBeenCalledWith('permission.saved.remove', { id: 'r1' })
+  })
+})
+
+// ─── Defaults 区块（默认 Agent / 默认 Model）──────────────
+
+describe('SettingsScreen — Defaults', () => {
+  it('未设置时两个默认项均显示 Server default', () => {
+    const tree = TestRenderer.create(<SettingsScreen />)
+    const text = textOf(tree)
+    expect(text).toContain('Default Agent')
+    expect(text).toContain('Default Model')
+    expect(text).toContain('Server default')
+  })
+
+  it('点击 Default Agent 行弹出候选并可选择', async () => {
+    act(() => {
+      useConfigStore.setState({ agents: [{ name: 'build', label: 'Build' }, { name: 'plan', label: 'Plan' }] })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+
+    await act(async () => { pressByText(tree, 'Default Agent', 'prefix').props.onPress() })
+
+    expect(textOf(tree)).toContain('Build')
+    expect(textOf(tree)).toContain('Plan')
+
+    await act(async () => { pressByText(tree, 'Build').props.onPress() })
+
+    expect(useSettingsStore.getState().defaultAgent).toBe('build')
+  })
+
+  it('Agent 候选含清除项，选择后回到 Server default', async () => {
+    useSettingsStore.setState({ defaultAgent: 'build' })
+    act(() => {
+      useConfigStore.setState({ agents: [{ name: 'build', label: 'Build' }] })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+
+    await act(async () => { pressByText(tree, 'Default Agent', 'prefix').props.onPress() })
+    await act(async () => { pressByText(tree, 'Server default').props.onPress() })
+
+    expect(useSettingsStore.getState().defaultAgent).toBeNull()
+  })
+
+  it('Default Model 经 ModelPickerModal 选择后写入 {id, providerID}', async () => {
+    act(() => {
+      useConfigStore.setState({ models: [{ id: 'm1', providerID: 'p1', name: 'Model One' }] })
+    })
+    const tree = TestRenderer.create(<SettingsScreen />)
+
+    await act(async () => { pressByText(tree, 'Default Model', 'prefix').props.onPress() })
+
+    expect(useSettingsStore.getState().defaultModel).toBeNull()
+    // 遮罩层 Touchable 的子树同样包含条目文本，不能按子树文本匹配；
+    // 采用"文本节点向上找最近可点击祖先"（与 ModelPickerModal.test 同款）
+    const labelNode = tree.root.findAll(
+      (n: any) => n.type && n.props?.children === 'Model One',
+    )[0]
+    expect(labelNode).toBeTruthy()
+    let item: any = labelNode
+    while (item && typeof item.props?.onPress !== 'function') item = item.parent
+    await act(async () => { item.props.onPress() })
+
+    expect(useSettingsStore.getState().defaultModel).toEqual({ id: 'm1', providerID: 'p1' })
+  })
+
+  it('已设置时行值展示 provider/model 标识', () => {
+    useSettingsStore.setState({ defaultModel: { id: 'm1', providerID: 'p1' } })
+    const tree = TestRenderer.create(<SettingsScreen />)
+    expect(textOf(tree)).toContain('p1/m1')
   })
 })
