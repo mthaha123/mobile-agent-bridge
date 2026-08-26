@@ -574,7 +574,7 @@ describe('session.next.text.ended handler', () => {
 })
 
 describe('session.next.reasoning.delta handler', () => {
-  it('appends reasoning delta to chat store', () => {
+  it('reasoning delta 写入独立思考 part（不污染正文 content）', () => {
     const { notifyHandler } = mockClientAndRender()
 
     TestRenderer.act(() => {
@@ -587,7 +587,9 @@ describe('session.next.reasoning.delta handler', () => {
 
     const msgs = useChatStore.getState().messages
     expect(msgs).toHaveLength(1)
-    expect(msgs[0].content).toBe('Thinking...')
+    expect(msgs[0].content).toBe('')
+    const rp = msgs[0].parts?.find((p) => p.type === 'reasoning')
+    expect(rp?.data.content).toBe('Thinking...')
   })
 
   it('routes string eventId (SDK v3 evt_) to chat store append', () => {
@@ -834,7 +836,7 @@ describe('session.next.text.ended handler', () => {
 })
 
 describe('session.next.reasoning.delta handler', () => {
-  it('appends reasoning delta without eventId to chat store', () => {
+  it('无 eventId 的 reasoning delta 同样写入思考 part', () => {
     const { notifyHandler } = mockClientAndRender()
 
     TestRenderer.act(() => {
@@ -844,7 +846,9 @@ describe('session.next.reasoning.delta handler', () => {
       })
     })
 
-    expect(useChatStore.getState().messages[0].content).toBe('Raw reasoning')
+    expect(useChatStore.getState().messages[0].content).toBe('')
+    const rp = useChatStore.getState().messages[0].parts?.find((p) => p.type === 'reasoning')
+    expect(rp?.data.content).toBe('Raw reasoning')
   })
 })
 

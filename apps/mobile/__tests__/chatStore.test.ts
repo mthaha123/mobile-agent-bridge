@@ -903,8 +903,73 @@ describe('工具终态缺失自愈', () => {
 })
 
 // ---------------------------------------------------------------------------
-// busy 期条件轮询（仅活跃会话，5s/tick，idle 自停）
+// 思考流分通道（2026-08：修复"长文消失/无思考标签"）
 // ---------------------------------------------------------------------------
+
+describe('思考流分通道', () => {
+  const SID = 'sess-think'
+  function findReasoningPart() {
+    for (const m of useChatStore.getState().messages) {
+      const p = m.parts?.find((x) => x.type === 'reasoning')
+      if (p) return p
+    }
+    return undefined
+  }
+
+  beforeEach(() => {
+    resetChatStore()
+    useChatStore.setState({ activeSessionId: SID })
+  })
+
+  it('reasoning.delta 写入独立思考 part，不污染正文 content', () => {
+    const ing = useChatStore.getState().ingestEvent
+    ing('session.next.reasoning.started', { sessionID: SID, assistantMessageID: 'am-r' })
+    ing('session.next.reasoning.delta', { sessionID: SID, assistantMessageID: 'am-r', delta: '先分析' })
+    ing('session.next.reasoning.delta', { sessionID: SID, assistantMessageID: 'am-r', delta: '再验证' })
+
+    const part = findReasoningPart()
+    expect(part).toBeDefined()
+    expect(part!.data.content).toBe('先分析再验证')
+
+    // 正文通道未被污染
+    const msg = useChatStore.getState().messages.find((m) => m.messageID === 'am-r')
+    expect(msg!.content).toBe('')
+  })
+
+  it('混流回合：R+T 同 messageID，text.ended 覆盖正文后思考块保留', () => {
+    const ing = useChatStore.getState().ingestEvent
+    ing('session.next.step.started', { sessionID: SID })
+    ing('session.next.reasoning.started', { sessionID: SID, assistantMessageID: 'am1' })
+    ing('session.next.reasoning.delta', { sessionID: SID, assistantMessageID: 'am1', delta: '长篇思考' })
+    ing('session.next.text.started', { sessionID: SID, assistantMessageID: 'am1' })
+    ing('session.next.text.delta', { sessionID: SID, assistantMessageID: 'am1', delta: '答' })
+    ing('session.next.text.ended', { sessionID: SID, assistantMessageID: 'am1', text: '答案正文' })
+
+    const msg = useChatStore.getState().messages.find((m) => m.messageID === 'am1')
+    // 正文被权威全文覆盖为纯答案——思考不丢失
+    expect(msg!.content).toBe('答案正文')
+    const rp = findReasoningPart()
+    expect(rp).toBeDefined()
+    expect(rp!.data.content).toBe('长篇思考')
+  })
+
+  it('message.part.updated 携带 reasoning part 时按类型合入（持久化通道对齐）', () => {
+    const ing = useChatStore.getState().ingestEvent
+    ing('session.next.reasoning.started', { sessionID: SID, assistantMessageID: 'am2' })
+    ing('session.next.reasoning.delta', { sessionID: SID, assistantMessageID: 'am2', delta: 'local' })
+
+    ing('message.part.updated', {
+      sessionID: SID,
+      part: { id: 'prt_x', type: 'reasoning', messageID: 'am2', text: 'server-authoritative' },
+    })
+
+    // 服务端权威覆盖本地累计，且仍是同一个思考块（不双份）
+    const msg = useChatStore.getState().messages.find((m) => m.messageID === 'am2')
+    const rps = msg!.parts!.filter((p) => p.type === 'reasoning')
+    expect(rps).toHaveLength(1)
+    expect(rps[0].data.content).toBe('server-authoritative')
+  })
+})
 
 describe('busy 期条件轮询', () => {
   function makeClient(statusMap: Record<string, unknown> | 'fail') {

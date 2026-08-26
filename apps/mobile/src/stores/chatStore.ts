@@ -190,6 +190,77 @@ function applyTextDelta(messages: ChatMessage[], messageID: string, delta: strin
   return replaceAt(base, idx, { ...applied(msg), content: msg.content + delta })
 }
 
+// ─── 思考流 reducer（独立 part：🧠 折叠块，不与正文混流）────
+
+/** 每条 assistant 消息至多一个思考块；id 稳定派生自 messageID */
+function ensureReasoningPart(messages: ChatMessage[], messageID: string): ChatMessage[] {
+  const idx = messages.findIndex((m) => m.messageID === messageID)
+  if (idx < 0) return messages
+  const m = messages[idx]
+  const parts = m.parts ?? []
+  if (parts.some((p) => p.type === 'reasoning')) return messages
+  return replaceAt(messages, idx, {
+    ...m,
+    parts: [...parts, { id: `rsn_${messageID}`, type: 'reasoning', data: { content: '' } }],
+  })
+}
+
+/** 追加思考增量；消息/思考块缺失时自动补建（容忍 started 丢失） */
+function appendReasoningDelta(messages: ChatMessage[], messageID: string, delta: string): ChatMessage[] {
+  let base = messages
+  let idx = base.findIndex((m) => m.messageID === messageID)
+  if (idx < 0) {
+    base = [...base, {
+      id: nextId(),
+      role: 'assistant',
+      content: '',
+      status: 'streaming',
+      parts: [],
+      timestamp: Date.now(),
+      messageID,
+    }]
+    idx = base.length - 1
+  }
+  const m = base[idx]
+  const parts = m.parts ?? []
+  const rIdx = parts.findIndex((p) => p.type === 'reasoning')
+  if (rIdx < 0) {
+    return replaceAt(base, idx, {
+      ...m,
+      parts: [...parts, { id: `rsn_${messageID}`, type: 'reasoning', data: { content: delta } }],
+    })
+  }
+  const rp = parts[rIdx]
+  const newParts = [...parts]
+  newParts[rIdx] = { ...rp, data: { ...rp.data, content: String(rp.data?.content ?? '') + delta } }
+  return replaceAt(base, idx, { ...m, parts: newParts })
+}
+
+/** 服务端权威思考 part 合入指定消息（覆盖本地累计，至多一个思考块） */
+function upsertServerReasoningPart(messages: ChatMessage[], messageID: string, incoming: Part): ChatMessage[] {
+  let base = messages
+  let idx = base.findIndex((m) => m.messageID === messageID)
+  if (idx < 0) {
+    base = [...base, {
+      id: nextId(),
+      role: 'assistant',
+      content: '',
+      status: 'complete',
+      parts: [],
+      timestamp: Date.now(),
+      messageID,
+    }]
+    idx = base.length - 1
+  }
+  const m = base[idx]
+  const parts = m.parts ?? []
+  const rIdx = parts.findIndex((p) => p.type === 'reasoning')
+  const newParts = [...parts]
+  if (rIdx >= 0) newParts[rIdx] = incoming
+  else newParts.push(incoming)
+  return replaceAt(base, idx, { ...m, parts: newParts })
+}
+
 /** text.ended 权威全文覆盖；找不到 messageID 时回退到最后一条 assistant */
 function finalizeText(messages: ChatMessage[], messageID: string, fullText: string): ChatMessage[] {
   let idx = messages.findIndex((m) => m.messageID === messageID)
@@ -405,21 +476,36 @@ function mergePartsOnLoad(localParts: Part[] | undefined, incoming: Part[]): Par
   // 本地为空：整体采用服务端 parts（含 text/reasoning/tool，等价原 partsMissing 语义）
   if (!localParts || localParts.length === 0) return incoming
   const byId = new Map(incoming.map((p) => [p.id, p]))
+  // 思考块按"类型"让位：直播合成的 rsn_* 与持久化的 prt_* id 必然不同，
+  // 服务端带来的 reasoning 权威覆盖本地，避免重载后出现双份思考
+  const hasIncomingReasoning = incoming.some((p) => p.type === 'reasoning')
   let changed = false
-  const out = localParts.map((p) => {
-    if (p.type !== 'tool') return p
+  const out: Part[] = []
+  for (const p of localParts) {
+    if (p.type === 'reasoning' && hasIncomingReasoning) {
+      changed = true
+      continue
+    }
+    if (p.type !== 'tool') {
+      out.push(p)
+      continue
+    }
     const inc = byId.get(p.id)
-    if (!inc || inc.type !== 'tool') return p
+    if (!inc || inc.type !== 'tool') {
+      out.push(p)
+      continue
+    }
     const localOpen = !isTerminalToolStatus(normalizeToolPartData(p).status)
     if (localOpen || isTerminalToolStatus(normalizeToolPartData(inc).status)) {
       if (JSON.stringify(p.data) !== JSON.stringify(inc.data)) changed = true
-      return inc
+      out.push(inc)
+    } else {
+      out.push(p)
     }
-    return p
-  })
+  }
   const known = new Set(out.map((p) => p.id))
   for (const ip of incoming) {
-    if (ip.type === 'tool' && !known.has(ip.id)) {
+    if ((ip.type === 'tool' || ip.type === 'reasoning') && !known.has(ip.id)) {
       out.push(ip)
       changed = true
     }
@@ -958,16 +1044,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 不立即解锁：步间/回合尾静默经权威快照仲裁（见 IDLE_VERIFY_DELAY 注释）
       if (pendingSteps === 0) get().scheduleIdleVerify()
     }
-    // ── 推理流（与文本流同管道）──
-    else if (m === 'session.next.reasoning.delta') {
+    // ── 推理流（独立思考 part：🧠 可折叠，不与正文混流）──
+    // 旧实现把 reasoning.delta 追加进 content 累加器：思考以无标签正文呈现，
+    // 且 text.ended 权威全文（仅含答案）会整体覆盖 → "长文消失换短文"。
+    else if (m === 'session.next.reasoning.started') {
+      const msgId = p.assistantMessageID ?? ''
+      if (msgId) {
+        messages = ensureAssistant(messages, msgId)
+        messages = ensureReasoningPart(messages, msgId)
+      }
+      if (pendingSteps === 0) waiting = true
+    } else if (m === 'session.next.reasoning.delta') {
       const delta = typeof p.delta === 'string' ? p.delta : ''
       const msgId = p.assistantMessageID ?? ''
-      const eventId = p.eventId
-      if (delta && msgId) messages = applyTextDelta(messages, msgId, delta, eventId)
+      if (delta && msgId) messages = appendReasoningDelta(messages, msgId, delta)
     } else if (m === 'session.next.reasoning.ended') {
+      // R.ended 自带 text 与累计不符（实测 79≠158），不可信——不覆盖思考内容，
+      // 仅作为流结束信号；思考块保留供折叠查看
       const msgId = p.assistantMessageID ?? ''
-      const eventId = p.eventId
-      if (msgId && typeof eventId === 'number') messages = applyTextDelta(messages, msgId, '', eventId)
+      if (msgId) messages = ensureReasoningPart(messages, msgId)
       // 同 text.ended：不立即解锁，交由权威快照仲裁
       if (pendingSteps === 0) get().scheduleIdleVerify()
     }
@@ -990,6 +1085,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 共享归一化保证 callID 身份一致；终态保护防止乱序重放把成功卡片打回运行中。
         const built = buildToolPartFromRaw(part)
         if (built) messages = upsertServerToolPart(messages, built)
+      } else if (part?.type === 'reasoning') {
+        // 持久化通道的思考 part：服务端权威覆盖本地直播累计（防双份思考块）
+        const messageID = String(part.messageID ?? '')
+        if (!messageID) return messages
+        const built: Part = {
+          id: `rsn_${messageID}`,
+          type: 'reasoning',
+          data: { content: String(part.text ?? '') },
+        }
+        messages = upsertServerReasoningPart(messages, messageID, built)
       }
     }
     // ── 工具流 ──
