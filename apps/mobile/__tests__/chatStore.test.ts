@@ -971,6 +971,42 @@ describe('思考流分通道', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// 历史同步不得覆盖时间戳（2026-08 上滑翻页时间异常修复）
+// ---------------------------------------------------------------------------
+
+describe('applyLoadedMessages 时间戳保护', () => {
+  beforeEach(() => {
+    resetChatStore()
+  })
+
+  it('合入带 created 的服务端消息时采用其时间', () => {
+    useChatStore.setState({
+      messages: [{
+        id: 'x1', messageID: 'mm1', role: 'assistant',
+        content: 'old', status: 'complete', parts: [], timestamp: 123456,
+      }],
+    })
+    useChatStore.getState().applyLoadedMessages([
+      { role: 'assistant', messageID: 'mm1', content: 'new longer content', created: 1700000000000 },
+    ])
+    expect(useChatStore.getState().messages[0].timestamp).toBe(1700000000000)
+  })
+
+  it('无 created 时保留原 timestamp（不被 Date.now 冲掉）', () => {
+    useChatStore.setState({
+      messages: [{
+        id: 'x2', messageID: 'mm2', role: 'assistant',
+        content: 'old', status: 'complete', parts: [], timestamp: 123456,
+      }],
+    })
+    useChatStore.getState().applyLoadedMessages([
+      { role: 'assistant', messageID: 'mm2', content: 'updated text' },
+    ])
+    expect(useChatStore.getState().messages[0].timestamp).toBe(123456)
+  })
+})
+
 describe('busy 期条件轮询', () => {
   function makeClient(statusMap: Record<string, unknown> | 'fail') {
     return {

@@ -383,6 +383,19 @@ describe('getSessionMessages', () => {
     ])
   })
 
+  it('flattens v2 info.time.created into created（上滑翻页日期修复）', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { info: { id: 'm1', role: 'user', time: { created: 1700000000000 } }, parts: [{ type: 'text', text: 'q' }] },
+      { info: { id: 'm2', role: 'assistant', time: { created: 1700000060000 } }, parts: [{ type: 'text', text: 'a' }] },
+    ])
+
+    const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
+
+    expect(result.messages[0].created).toBe(1700000000000)
+    expect(result.messages[1].created).toBe(1700000060000)
+  })
+
   it('maps SDK event-format messages (type/text/content), preserving input order', async () => {
     const clientCall = mockClientCall()
     clientCall.mockResolvedValue([
@@ -431,8 +444,8 @@ describe('getSessionMessages', () => {
     const result = await useSessionStore.getState().getSessionMessages('sess-1', clientCall)
 
     expect(result.messages).toEqual([
-      { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }], time: { created: 2000 } },
-      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }], time: { created: 1000 } },
+      { id: 'msg_a2', role: 'assistant', content: 'Reply', text: 'Reply', rawContent: [{ id: 'p1', type: 'text', text: 'Reply' }], time: { created: 2000 }, created: 2000 },
+      { id: 'msg_u1', role: 'user', content: 'Hello?', text: 'Hello?', rawContent: [{ id: 'p2', type: 'text', text: 'Hello?' }], time: { created: 1000 }, created: 1000 },
     ])
   })
 

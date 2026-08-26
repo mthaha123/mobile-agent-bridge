@@ -956,7 +956,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ...cur,
               content: (contentChanged && !shrinkGuard) ? (norm.content ?? '') : cur.content,
               role,
-              timestamp: Date.now(),
+              // 历史时间保护：优先服务端 created；缺省保留原值，绝不被 now 冲掉
+              timestamp: norm.created ?? cur.timestamp,
               created: norm.created ?? cur.created,
               parts: partsChanged ? mergedParts : (partsMissing ? newParts : cur.parts),
               status: 'complete',

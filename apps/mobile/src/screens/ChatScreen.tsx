@@ -186,12 +186,13 @@ export const ChatScreen: React.FC = () => {
       if (!res) return
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
-      // 转成 ChatMessage 后 prepend
+      // 转成 ChatMessage 后 prepend（created 必传：日期分隔符依赖，缺失会渲染 NaN月NaN日）
       const newMsgs: any[] = []
       ;(list as any[]).forEach((msg: any) => {
         const msgId = msg.id || undefined
+        const created = typeof msg.created === 'number' ? msg.created : undefined
         const { parts, text } = buildPartsFromRaw(msg.rawContent)
-        newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text || msg.content || msg.text || '', text: text || msg.content || msg.text || '', parts: parts.length ? parts : undefined, rawContent: msg.rawContent })
+        newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text || msg.content || msg.text || '', text: text || msg.content || msg.text || '', parts: parts.length ? parts : undefined, rawContent: msg.rawContent, created, timestamp: created })
       })
       useChatStore.getState().prependMessages(newMsgs as any)
       setHistoryCursor(cursor)

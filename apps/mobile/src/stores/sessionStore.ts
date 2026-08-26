@@ -232,18 +232,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (m.info && typeof m.info === 'object') {
             const info = m.info as Record<string, unknown>
             const text = extractV2MessageText(m)
+            const time = (info.time as Record<string, unknown>) ?? m.time
+            // 拍平 created（ms）：日期分隔符与时间显示依赖此字段
+            const created = time ? (time as { created?: number }).created : undefined
             return {
               id: (info.id as string) || m.id,
               role: info.role as string,
               content: text,
               text,
               rawContent: m.parts ?? text,
-              time: (info.time as Record<string, unknown>) ?? m.time,
+              time,
+              created,
             }
           }
           const role = m.role || m.type
           const content = extractMessageText(m)
-          return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)), time: m.time }
+          const t = m.time as { created?: number } | undefined
+          return { id: m.id, role, content, text: content, rawContent: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : (typeof m.text === 'string' ? m.text : content)), time: m.time, created: t?.created }
         })
         .filter((m) => m.role === 'user' || m.role === 'assistant')
       // bridge 统一输出升序（旧→新）的 {info, parts} 消息，App 直接渲染，无需反转。
