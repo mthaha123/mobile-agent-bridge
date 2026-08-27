@@ -213,3 +213,60 @@ describe('MessageItem', () => {
     expect(mdMock).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('MessageItem grouped mode', () => {
+  const { useSettingsStore } = require('../src/stores/settingsStore')
+
+  beforeEach(() => {
+    useSettingsStore.setState({ chatDisplayMode: 'grouped' })
+  })
+
+  afterEach(() => {
+    useSettingsStore.setState({ chatDisplayMode: 'flat' })
+  })
+
+  it('in grouped mode, consecutive tools merge into ToolGroupCard', () => {
+    const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
+    const parts = [
+      { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
+      { id: 't2', type: 'tool', data: { tool: 'write', input: { path: 'b.ts' }, status: 'success' } },
+      { id: 'p1', type: 'text', data: { content: 'Done!' } },
+    ]
+    const tree = TestRenderer.create(
+      <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
+    )
+    const groups = tree.root.findAllByType(ToolGroupCard)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].props.parts).toHaveLength(2)
+    // Should NOT render individual PartBlocks for the tools
+    const blocks = tree.root.findAllByType(PartBlock)
+    expect(blocks).toHaveLength(1) // only the text part
+  })
+
+  it('in grouped mode, reasoning renders as ThinkingBlock', () => {
+    const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
+    const parts = [
+      { id: 'r1', type: 'reasoning', data: { content: 'analyzing...' } },
+      { id: 'p1', type: 'text', data: { content: 'Result' } },
+    ]
+    const tree = TestRenderer.create(
+      <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
+    )
+    const thinkers = tree.root.findAllByType(ThinkingBlock)
+    expect(thinkers).toHaveLength(1)
+    expect(thinkers[0].props.content).toBe('analyzing...')
+  })
+
+  it('in flat mode, tools remain as individual PartBlocks', () => {
+    useSettingsStore.setState({ chatDisplayMode: 'flat' })
+    const parts = [
+      { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
+      { id: 't2', type: 'tool', data: { tool: 'write', input: { path: 'b.ts' }, status: 'success' } },
+    ]
+    const tree = TestRenderer.create(
+      <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
+    )
+    const blocks = tree.root.findAllByType(PartBlock)
+    expect(blocks).toHaveLength(2)
+  })
+})
