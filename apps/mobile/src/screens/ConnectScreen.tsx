@@ -4,7 +4,7 @@
  * 用户输入 WebSocket URL 和可选密码，连接至 OpenCode Agent。
  * 读取 useAuthStore 管理连接状态。
  */
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -20,15 +20,31 @@ import { useProjectStore } from '../stores/projectStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
+const DEFAULT_URL = 'ws://localhost:8080/ws'
+const DEFAULT_PASSWORD = 'test123'
+
 export const ConnectScreen: React.FC = () => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
-  const [urlInput, setUrlInput] = useState('')
-  const [passwordInput, setPasswordInput] = useState('')
+  const [urlInput, setUrlInput] = useState(DEFAULT_URL)
+  const [passwordInput, setPasswordInput] = useState(DEFAULT_PASSWORD)
   const [directoryInput, setDirectoryInput] = useState('')
+  const autoConnectDone = useRef(false)
 
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
+
+  // Auto-connect with defaults on first mount (for dev/testing convenience)
+  useEffect(() => {
+    if (autoConnectDone.current) return
+    autoConnectDone.current = true
+    const timer = setTimeout(() => {
+      useAuthStore.getState().setBridgeUrl(DEFAULT_URL)
+      useProjectStore.getState().setDirectory('')
+      useAuthStore.getState().login(DEFAULT_PASSWORD)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleConnect = () => {
     useAuthStore.getState().setBridgeUrl(urlInput)
