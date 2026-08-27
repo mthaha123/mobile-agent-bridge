@@ -21,7 +21,7 @@ const SETTINGS_PATH = '/mock/documents/mobile-agent-bridge-settings.json'
 describe('settingsStore', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, loaded: false })
+    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, chatDisplayMode: 'flat', loaded: false })
   })
 
   it('load 从 DocumentDir 恢复持久化设置', async () => {
@@ -81,5 +81,39 @@ describe('settingsStore', () => {
 
     await expect(useSettingsStore.getState().setDefaultAgent('x')).resolves.not.toThrow()
     expect(useSettingsStore.getState().defaultAgent).toBe('x')
+  })
+
+  it('load 恢复 chatDisplayMode', async () => {
+    fs.exists.mockResolvedValue(true)
+    fs.readFile.mockResolvedValue(JSON.stringify({
+      defaultAgent: null,
+      defaultModel: null,
+      chatDisplayMode: 'grouped',
+    }))
+    await useSettingsStore.getState().load()
+
+    expect(useSettingsStore.getState().chatDisplayMode).toBe('grouped')
+  })
+
+  it('load 容忍旧格式（无 chatDisplayMode 字段）默认 flat', async () => {
+    fs.exists.mockResolvedValue(true)
+    fs.readFile.mockResolvedValue(JSON.stringify({
+      defaultAgent: 'plan',
+      defaultModel: { id: 'm1', providerID: 'p1' },
+    }))
+    await useSettingsStore.getState().load()
+
+    expect(useSettingsStore.getState().chatDisplayMode).toBe('flat')
+  })
+
+  it('setChatDisplayMode 更新状态并持久化', async () => {
+    await useSettingsStore.getState().setChatDisplayMode('grouped')
+
+    expect(useSettingsStore.getState().chatDisplayMode).toBe('grouped')
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      SETTINGS_PATH,
+      expect.stringContaining('"chatDisplayMode":"grouped"'),
+      'utf8',
+    )
   })
 })

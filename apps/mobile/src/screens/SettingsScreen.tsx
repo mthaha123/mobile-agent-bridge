@@ -27,8 +27,10 @@ export const SettingsScreen: React.FC = () => {
 
   const defaultAgent = useSettingsStore((s) => s.defaultAgent)
   const defaultModel = useSettingsStore((s) => s.defaultModel)
+  const chatDisplayMode = useSettingsStore((s) => s.chatDisplayMode)
   const setDefaultAgent = useSettingsStore((s) => s.setDefaultAgent)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
+  const setChatDisplayMode = useSettingsStore((s) => s.setChatDisplayMode)
   const agents = useConfigStore((s) => s.agents) as Array<{ id?: string; name?: string; label?: string; description?: string }>
   const models = useConfigStore((s) => s.models)
 
@@ -129,6 +131,22 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.rowLabel}>Default Model</Text>
           <Text style={styles.rowValue} numberOfLines={1}>
             {defaultModel ? `${defaultModel.providerID}/${defaultModel.id}` : 'Server default'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Chat</Text>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            const next = chatDisplayMode === 'flat' ? 'grouped' : 'flat'
+            void setChatDisplayMode(next)
+          }}
+        >
+          <Text style={styles.rowLabel}>Message Display</Text>
+          <Text style={styles.rowValue}>
+            {chatDisplayMode === 'grouped' ? 'Grouped（聚合）' : 'Flat（平铺）'}
           </Text>
         </TouchableOpacity>
       </View>
