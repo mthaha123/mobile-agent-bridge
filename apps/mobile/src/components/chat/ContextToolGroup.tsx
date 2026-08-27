@@ -1,3 +1,8 @@
+/**
+ * @deprecated Use ToolGroupCard + buildSegments for grouped chat display.
+ * This component is retained for backward compatibility with flat mode's
+ * "Read 2 files" style inline group. New code should use ToolGroupCard.
+ */
 import React, { useState, useMemo } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { getToolInfo } from '../../types/message'
