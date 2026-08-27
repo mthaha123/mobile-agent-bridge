@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 将 assistant 消息中的连续工具调用和思考内容按段聚合显示，提升移动端阅读体验。
+**Goal:** 将 assistant 消息中的连续工具调用和思考内容按段聚合显示，提升移动端阅读体验。通过设置开关支持在旧版平铺模式和新版聚合模式之间切换。
 
-**Architecture:** 纯渲染层改造。`MessageItem` 内新增 `buildSegments()` 将 `parts[]` 分段，连续 tool 合并为 `ToolGroupCard`（三层展开），每个 reasoning 独立为 `ThinkingBlock`。数据模型（chatStore）完全不变。
+**Architecture:** 纯渲染层改造。`settingsStore` 新增 `chatDisplayMode: 'flat' | 'grouped'` 设置项（默认 `'flat'`，向后兼容），`MessageItem` 读取该设置决定渲染路径：`flat` 走现有 `PartBlock` 逐个渲染，`grouped` 走 `buildSegments()` 分段后交给 `ToolGroupCard` / `ThinkingBlock`。数据模型（chatStore）完全不变。
 
-**Tech Stack:** React Native, TypeScript, Zustand (只读), Jest + react-test-renderer
+**Tech Stack:** React Native, TypeScript, Zustand, Jest + react-test-renderer
 
 **Design Doc:** `docs/plans/2026-08-27-conversation-grouped-mode-design.md`
 
@@ -143,7 +143,6 @@ export function buildSegments(parts: Part[]): Segment[] {
   while (i < parts.length) {
     const p = parts[i]
     if (p.type === 'tool') {
-      // 收集连续的 tool parts
       const group: Part[] = []
       while (i < parts.length && parts[i].type === 'tool') {
         group.push(parts[i])
@@ -151,7 +150,6 @@ export function buildSegments(parts: Part[]): Segment[] {
       }
       result.push({ type: 'tool-group', parts: group })
     } else {
-      // reasoning / text / error / file / compaction 各自独立
       const segType: SegmentType = p.type as SegmentType
       result.push({ type: segType, parts: [p] })
       i++
@@ -207,9 +205,7 @@ function makeToolParts(overrides: Partial<{ tool: string; status: string; input:
 describe('ToolGroupCard', () => {
   it('renders collapsed header with tool count', () => {
     const parts = makeToolParts([
-      { tool: 'read' },
-      { tool: 'glob' },
-      { tool: 'bash' },
+      { tool: 'read' }, { tool: 'glob' }, { tool: 'bash' },
     ])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
@@ -219,8 +215,7 @@ describe('ToolGroupCard', () => {
 
   it('shows success summary when all tools succeeded', () => {
     const parts = makeToolParts([
-      { tool: 'read', status: 'success' },
-      { tool: 'edit', status: 'success' },
+      { tool: 'read', status: 'success' }, { tool: 'edit', status: 'success' },
     ])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
@@ -229,8 +224,7 @@ describe('ToolGroupCard', () => {
 
   it('shows failure summary when any tool failed', () => {
     const parts = makeToolParts([
-      { tool: 'read', status: 'success' },
-      { tool: 'bash', status: 'failed' },
+      { tool: 'read', status: 'success' }, { tool: 'bash', status: 'failed' },
     ])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
@@ -239,8 +233,7 @@ describe('ToolGroupCard', () => {
 
   it('shows running indicator when any tool is in progress', () => {
     const parts = makeToolParts([
-      { tool: 'read', status: 'success' },
-      { tool: 'bash', status: 'progress' },
+      { tool: 'read', status: 'success' }, { tool: 'bash', status: 'progress' },
     ])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
@@ -253,11 +246,9 @@ describe('ToolGroupCard', () => {
       { tool: 'glob', input: { pattern: '**/*.ts' } },
     ])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
-    // Initially collapsed — no glance rows
     let allText = tree.root.findAllByType(Text).map(t => t.props.children).join('')
     expect(allText).not.toContain('App.tsx')
 
-    // Press to expand
     const touchables = tree.root.findAllByType(TouchableOpacity)
     act(() => { touchables[0].props.onPress() })
 
@@ -266,18 +257,17 @@ describe('ToolGroupCard', () => {
     expect(allText).toContain('**/*.ts')
   })
 
-  it('shows chevron direction changes on expand/collapse', () => {
+  it('chevron direction changes on expand/collapse', () => {
     const parts = makeToolParts([{ tool: 'read' }])
     const tree = TestRenderer.create(<ToolGroupCard parts={parts} />)
     const chevrons = () => tree.root.findAll(
       (n: any) => n.type === Text && (n.props.children === '▶' || n.props.children === '▼')
     )
-    expect(chevrons()).toHaveLength(1)
-    expect(chevrons()[0].props.children).toBe('▶') // collapsed
+    expect(chevrons()[0].props.children).toBe('▶')
 
     const touchables = tree.root.findAllByType(TouchableOpacity)
     act(() => { touchables[0].props.onPress() })
-    expect(chevrons()[0].props.children).toBe('▼') // expanded
+    expect(chevrons()[0].props.children).toBe('▼')
   })
 })
 ```
@@ -290,7 +280,7 @@ Expected: FAIL — module not found
 **Step 3: Write minimal implementation**
 
 参考 `BasicTool.tsx` 和 `ContextToolGroup.tsx` 的样式模式，创建 `ToolGroupCard.tsx`：
-- 折叠态：显示标题栏（图标 + "工具调用（N 个）" + 状态 + 展开箭头）
+- 折叠态：标题栏（🔧 + "工具调用（N 个）" + 成功/失败统计 + ▶/▼ 箭头）
 - 展开态：每个 tool 一行 glance（复用 `getToolInfo` 获取图标/标题/副标题）
 - 状态计算：遍历 parts 统计 success/failed/progress 数量
 
@@ -325,18 +315,14 @@ import { ThinkingBlock } from '../src/components/chat/ThinkingBlock'
 
 describe('ThinkingBlock', () => {
   it('renders collapsed by default with 思考过程 label', () => {
-    const tree = TestRenderer.create(
-      <ThinkingBlock content="分析代码结构..." />
-    )
+    const tree = TestRenderer.create(<ThinkingBlock content="分析代码结构..." />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
     expect(text).toContain('思考过程')
     expect(text).not.toContain('分析代码结构')
   })
 
   it('expands to show content on press', () => {
-    const tree = TestRenderer.create(
-      <ThinkingBlock content="分析代码结构，决定先读取..." />
-    )
+    const tree = TestRenderer.create(<ThinkingBlock content="分析代码结构，决定先读取..." />)
     const touchables = tree.root.findAllByType(TouchableOpacity)
     act(() => { touchables[0].props.onPress() })
 
@@ -345,21 +331,17 @@ describe('ThinkingBlock', () => {
   })
 
   it('collapses again on second press', () => {
-    const tree = TestRenderer.create(
-      <ThinkingBlock content="thinking..." />
-    )
+    const tree = TestRenderer.create(<ThinkingBlock content="thinking..." />)
     const touchables = () => tree.root.findAllByType(TouchableOpacity)
-    act(() => { touchables()[0].props.onPress() }) // expand
-    act(() => { touchables()[0].props.onPress() }) // collapse
+    act(() => { touchables()[0].props.onPress() })
+    act(() => { touchables()[0].props.onPress() })
 
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
     expect(text).not.toContain('thinking...')
   })
 
   it('shows streaming indicator when streaming=true', () => {
-    const tree = TestRenderer.create(
-      <ThinkingBlock content="" streaming={true} />
-    )
+    const tree = TestRenderer.create(<ThinkingBlock content="" streaming={true} />)
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
     expect(text).toContain('思考中')
   })
@@ -392,7 +374,91 @@ git commit -m "feat(chat): add ThinkingBlock for collapsible reasoning display"
 
 ---
 
-### Task 4: MessageItem 改造 — 集成分段渲染
+### Task 4: settingsStore + Settings UI 开关
+
+**Files:**
+- Modify: `apps/mobile/src/stores/settingsStore.ts`
+- Modify: `apps/mobile/__tests__/settingsStore.test.ts`
+- Modify: `apps/mobile/src/screens/SettingsScreen.tsx`
+
+**Step 1: Write the failing test**
+
+在 `apps/mobile/__tests__/settingsStore.test.ts` 中追加：
+
+```typescript
+it('chatDisplayMode defaults to flat', () => {
+  const { useSettingsStore } = require('../src/stores/settingsStore')
+  expect(useSettingsStore.getState().chatDisplayMode).toBe('flat')
+})
+
+it('setChatDisplayMode persists the value', async () => {
+  const { useSettingsStore } = require('../src/stores/settingsStore')
+  await useSettingsStore.getState().setChatDisplayMode('grouped')
+  expect(useSettingsStore.getState().chatDisplayMode).toBe('grouped')
+  // reset
+  await useSettingsStore.getState().setChatDisplayMode('flat')
+})
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cd apps/mobile && npx jest __tests__/settingsStore.test.ts --no-coverage`
+Expected: FAIL — `chatDisplayMode` / `setChatDisplayMode` not found
+
+**Step 3: Add setting to settingsStore**
+
+```typescript
+// settingsStore.ts 新增：
+export type ChatDisplayMode = 'flat' | 'grouped'
+
+interface SettingsFile {
+  defaultAgent: string | null
+  defaultModel: DefaultModel | null
+  chatDisplayMode: ChatDisplayMode   // ← 新增
+}
+
+export interface SettingsState {
+  // ... existing fields ...
+  chatDisplayMode: ChatDisplayMode   // ← 新增, default 'flat'
+  setChatDisplayMode: (mode: ChatDisplayMode) => Promise<void>  // ← 新增
+}
+```
+
+persist 函数保持 `SettingsFile` 同步写入 `chatDisplayMode`。
+
+**Step 4: Run test to verify it passes**
+
+Run: `cd apps/mobile && npx jest __tests__/settingsStore.test.ts --no-coverage`
+Expected: PASS
+
+**Step 5: Add toggle to SettingsScreen**
+
+在 Defaults section 之后新增 "Chat" section：
+
+```tsx
+<View style={styles.section}>
+  <Text style={styles.sectionLabel}>Chat</Text>
+  <TouchableOpacity style={styles.row} onPress={() => {
+    void setChatDisplayMode(chatDisplayMode === 'flat' ? 'grouped' : 'flat')
+  }}>
+    <Text style={styles.rowLabel}>Message Display</Text>
+    <Text style={styles.rowValue}>
+      {chatDisplayMode === 'grouped' ? 'Grouped（聚合）' : 'Flat（平铺）'}
+    </Text>
+  </TouchableOpacity>
+</View>
+```
+
+**Step 6: Commit**
+
+```bash
+git add apps/mobile/src/stores/settingsStore.ts apps/mobile/__tests__/settingsStore.test.ts apps/mobile/src/screens/SettingsScreen.tsx
+git commit -m "feat(settings): add chatDisplayMode toggle (flat/grouped)"
+```
+
+---
+
+### Task 5: MessageItem 改造 — 条件渲染（flat/grouped）
 
 **Files:**
 - Modify: `apps/mobile/src/components/chat/MessageItem.tsx`
@@ -400,43 +466,58 @@ git commit -m "feat(chat): add ThinkingBlock for collapsible reasoning display"
 
 **Step 1: Write the failing test**
 
-在现有 `MessageItem.test.tsx` 中新增测试用例：
+在 `MessageItem.test.tsx` 中新增 grouped 模式测试：
 
 ```typescript
-it('renders tool parts as ToolGroupCard instead of individual PartBlocks', () => {
+it('grouped mode: renders tool parts as ToolGroupCard', () => {
+  jest.doMock('../src/stores/settingsStore', () => ({
+    useSettingsStore: { getState: () => ({ chatDisplayMode: 'grouped' }) },
+  }))
+  const { MessageItem: GroupedMessageItem } = require('../src/components/chat/MessageItem')
+  const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
   const parts = [
     { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
     { id: 't2', type: 'tool', data: { tool: 'glob', input: { pattern: '*.ts' }, status: 'success' } },
   ]
   const tree = TestRenderer.create(
-    <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
+    <GroupedMessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
   )
-  // Should NOT render PartBlock for tools anymore
-  const toolPartBlocks = tree.root.findAll(
-    (n: any) => n.type === PartBlock && n.props?.part?.type === 'tool'
-  )
-  expect(toolPartBlocks).toHaveLength(0)
-  // Should render ToolGroupCard
-  const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
-  const groups = tree.root.findAllByType(ToolGroupCard)
-  expect(groups).toHaveLength(1)
-  expect(groups[0].props.parts).toHaveLength(2)
+  expect(tree.root.findAllByType(ToolGroupCard)).toHaveLength(1)
 })
 
-it('renders reasoning parts as ThinkingBlock', () => {
+it('flat mode: renders tool parts as individual PartBlocks (default)', () => {
   const parts = [
-    { id: 'r1', type: 'reasoning', data: { content: 'thinking...' } },
+    { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
   ]
   const tree = TestRenderer.create(
     <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
   )
-  const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
-  const blocks = tree.root.findAllByType(ThinkingBlock)
-  expect(blocks).toHaveLength(1)
-  expect(blocks[0].props.content).toBe('thinking...')
+  const toolBlocks = tree.root.findAll(
+    (n: any) => n.type === PartBlock && n.props?.part?.type === 'tool'
+  )
+  expect(toolBlocks).toHaveLength(1)
 })
 
-it('preserves interleaving order of thinking and tools', () => {
+it('grouped mode: renders reasoning as ThinkingBlock', () => {
+  jest.doMock('../src/stores/settingsStore', () => ({
+    useSettingsStore: { getState: () => ({ chatDisplayMode: 'grouped' }) },
+  }))
+  const { MessageItem: GroupedMessageItem } = require('../src/components/chat/MessageItem')
+  const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
+  const parts = [{ id: 'r1', type: 'reasoning', data: { content: 'thinking...' } }]
+  const tree = TestRenderer.create(
+    <GroupedMessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
+  )
+  expect(tree.root.findAllByType(ThinkingBlock)).toHaveLength(1)
+})
+
+it('grouped mode: preserves interleaving order', () => {
+  jest.doMock('../src/stores/settingsStore', () => ({
+    useSettingsStore: { getState: () => ({ chatDisplayMode: 'grouped' }) },
+  }))
+  const { MessageItem: GroupedMessageItem } = require('../src/components/chat/MessageItem')
+  const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
+  const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
   const parts = [
     { id: 'r1', type: 'reasoning', data: { content: 'think1' } },
     { id: 't1', type: 'tool', data: { tool: 'read', input: {}, status: 'success' } },
@@ -444,56 +525,70 @@ it('preserves interleaving order of thinking and tools', () => {
     { id: 't2', type: 'tool', data: { tool: 'edit', input: {}, status: 'success' } },
   ]
   const tree = TestRenderer.create(
-    <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
+    <GroupedMessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />
   )
-  const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
-  const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
-  const thinking = tree.root.findAllByType(ThinkingBlock)
-  const tools = tree.root.findAllByType(ToolGroupCard)
-  expect(thinking).toHaveLength(2)
-  expect(tools).toHaveLength(2)
-  // Verify interleaving via render order in tree
+  expect(tree.root.findAllByType(ThinkingBlock)).toHaveLength(2)
+  expect(tree.root.findAllByType(ToolGroupCard)).toHaveLength(2)
 })
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `cd apps/mobile && npx jest __tests__/MessageItem.test.tsx --no-coverage`
-Expected: FAIL — ToolGroupCard / ThinkingBlock not rendered
+Expected: FAIL
 
 **Step 3: Modify MessageItem**
 
-改造 `MessageItem.tsx` 的渲染逻辑：
-
 ```typescript
-// 改造前：直接 map parts → PartBlock
-// {item.parts?.map((p) => <PartBlock key={p.id} part={p} ... />)}
-
-// 改造后：buildSegments → 按 segment type 分别渲染
+import { useSettingsStore } from '../../stores/settingsStore'
 import { buildSegments } from './segmentParts'
 import { ToolGroupCard } from './ToolGroupCard'
 import { ThinkingBlock } from './ThinkingBlock'
 
-// 在 MessageItem 内部：
-const segments = useMemo(() => buildSegments(item.parts ?? []), [item.parts])
+export const MessageItem: React.FC<MessageItemProps> = memo(({ item, onRevert }) => {
+  const chatDisplayMode = useSettingsStore((s) => s.chatDisplayMode)
+  const isGrouped = chatDisplayMode === 'grouped'
+  // ... existing isUser, isSystem, colors, styles, hasTextPart logic ...
 
-// 渲染：
-{segments.map((seg) => {
-  if (seg.type === 'tool-group') {
-    return <ToolGroupCard key={`seg_${seg.parts[0].id}`} parts={seg.parts} />
-  }
-  if (seg.type === 'reasoning') {
-    return <ThinkingBlock
-      key={`seg_${seg.parts[0].id}`}
-      content={String(seg.parts[0].data?.content ?? '')}
-      streaming={item.status === 'streaming'}
-    />
-  }
-  // text / error / file / compaction 仍走 PartBlock
-  return seg.parts.map((p) => (
-    <PartBlock key={p.id} part={p} message={item as any} onRevert={onRevert} />
-  ))
-})}
+  const segments = useMemo(
+    () => (isGrouped ? buildSegments(item.parts ?? []) : []),
+    [isGrouped, item.parts],
+  )
+
+  return (
+    <View style={isUser ? styles.userBubble : styles.nonUserBlock}>
+      {item.agent ? <Text style={styles.messageMeta}>{item.agent}</Text> : null}
+      {item.content && !hasTextPart ? (
+        <MessageWrapperForFallback content={item.content} message={item as any} onRevert={onRevert}>
+          <MarkdownRenderer content={item.content} />
+        </MessageWrapperForFallback>
+      ) : null}
+      {isGrouped ? (
+        segments.map((seg) => {
+          if (seg.type === 'tool-group') {
+            return <ToolGroupCard key={`seg_${seg.parts[0].id}`} parts={seg.parts} />
+          }
+          if (seg.type === 'reasoning') {
+            return (
+              <ThinkingBlock
+                key={`seg_${seg.parts[0].id}`}
+                content={String(seg.parts[0].data?.content ?? '')}
+                streaming={item.status === 'streaming'}
+              />
+            )
+          }
+          return seg.parts.map((p) => (
+            <PartBlock key={p.id} part={p} message={item as any} onRevert={onRevert} />
+          ))
+        })
+      ) : (
+        item.parts?.map((p) => (
+          <PartBlock key={p.id} part={p} message={item as any} onRevert={onRevert} />
+        ))
+      )}
+    </View>
+  )
+})
 ```
 
 **Step 4: Run test to verify it passes**
@@ -501,7 +596,7 @@ const segments = useMemo(() => buildSegments(item.parts ?? []), [item.parts])
 Run: `cd apps/mobile && npx jest __tests__/MessageItem.test.tsx --no-coverage`
 Expected: PASS
 
-**Step 5: Run all chat component tests to ensure no regression**
+**Step 5: Run all chat component tests**
 
 Run: `cd apps/mobile && npx jest __tests__/chatComponents.test.tsx __tests__/MessageItem.test.tsx __tests__/MessageList.test.tsx --no-coverage`
 Expected: PASS
@@ -510,12 +605,12 @@ Expected: PASS
 
 ```bash
 git add apps/mobile/src/components/chat/MessageItem.tsx apps/mobile/__tests__/MessageItem.test.tsx
-git commit -m "feat(chat): integrate segmented rendering in MessageItem"
+git commit -m "feat(chat): MessageItem supports flat/grouped display mode toggle"
 ```
 
 ---
 
-### Task 5: 全量测试 + 清理
+### Task 6: 全量测试 + 清理
 
 **Files:**
 - Delete or deprecate: `apps/mobile/src/components/chat/ContextToolGroup.tsx`
