@@ -276,4 +276,45 @@ describe('MessageItem grouped mode', () => {
     const blocks = tree.root.findAllByType(PartBlock)
     expect(blocks).toHaveLength(2)
   })
+
+  it('user message with short text part is NEVER grouped (regression: history-loaded user bubble)', () => {
+    const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
+    // 历史加载路径：buildPartsFromRaw 给用户消息生成 text parts，
+    // 13 字符 < 100 → 若参与分组会被折叠成 action-block（bug）
+    const parts = [
+      { id: 'u1', type: 'text', data: { content: '核心问题用户消息渲染的对了吗' } },
+    ]
+    const tree = TestRenderer.create(
+      <MessageItem
+        item={makeMessage({ role: 'user', content: '', parts: parts as any })}
+        onRevert={noop}
+      />,
+    )
+    // 不产生 action-block
+    expect(tree.root.findAllByType(ToolGroupCard)).toHaveLength(0)
+    // 短文本以 PartBlock 平铺渲染
+    expect(tree.root.findAllByType(PartBlock)).toHaveLength(1)
+    expect(textOf(tree)).toContain('核心问题用户消息渲染的对了吗')
+    // 仍在用户气泡容器内（右对齐）
+    expect(containerView(tree).props.style).toMatchObject({ maxWidth: '80%', alignSelf: 'flex-end' })
+  })
+
+  it('user message with content + text part renders text exactly once', () => {
+    const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
+    // hasTextPart 抑制 content，文本只经 parts 渲染一遍，修复后也不得出现两遍
+    const parts = [
+      { id: 'u1', type: 'text', data: { content: '核心问题' } },
+    ]
+    const tree = TestRenderer.create(
+      <MessageItem
+        item={makeMessage({ role: 'user', content: '核心问题', parts: parts as any })}
+        onRevert={noop}
+      />,
+    )
+    expect(tree.root.findAllByType(ToolGroupCard)).toHaveLength(0)
+    // content 被抑制（顶层不渲染）；唯一 1 个 MarkdownRenderer 来自 part 内的 TextPartDisplay
+    expect(tree.root.findAllByType(MarkdownRenderer)).toHaveLength(1)
+    const text = textOf(tree)
+    expect((text.match(/核心问题/g) || []).length).toBe(1)
+  })
 })

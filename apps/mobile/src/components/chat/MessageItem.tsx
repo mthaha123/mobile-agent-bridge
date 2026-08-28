@@ -24,10 +24,14 @@ export const MessageItem: React.FC<MessageItemProps> = memo(({ item, onRevert })
   // 否则同一文本会经 content 与 parts.text 渲染两遍。流式消息文本在 content（parts 无 text），仍走 content。
   const hasTextPart = Array.isArray(item.parts) && item.parts.some((p) => p.type === 'text')
 
-  // Grouped mode: build segments, then render action-block / text / error / compaction
-  const groupedSegments = chatDisplayMode === 'grouped' && Array.isArray(item.parts) && item.parts.length > 0
-    ? buildSegments(item.parts)
-    : null
+  // Grouped mode: build segments, then render action-block / text / error / compaction.
+  // 用户消息永不分组：历史加载的用户消息经 buildPartsFromRaw 会带上非空 text parts，
+  // 短文本（<100字符）会被 buildSegments 折叠成 action-block（ToolGroupCard），
+  // 破坏用户气泡外观。用户输入始终走 flat PartBlock 渲染（hasTextPart 抑制 content，文本只渲染一次）。
+  const groupedSegments =
+    chatDisplayMode === 'grouped' && !isUser && Array.isArray(item.parts) && item.parts.length > 0
+      ? buildSegments(item.parts)
+      : null
 
   return (
     <View style={isUser ? styles.userBubble : styles.nonUserBlock}>
