@@ -46,6 +46,8 @@ export interface BridgeClientOptions {
   reconnectInterval?: number
   /** 请求超时 (ms) */
   requestTimeout?: number
+  /** 连接超时 (ms)，默认与 requestTimeout 相同 */
+  connectTimeout?: number
   /** 日志 tag */
   tag?: string
 }
@@ -65,6 +67,7 @@ export class BridgeClient {
   private _token: string | undefined
   private reconnectInterval: number
   private requestTimeout: number
+  private connectTimeout: number
   private tag: string
 
   private requestId = 0
@@ -85,6 +88,7 @@ export class BridgeClient {
     this._token = options.token || undefined
     this.reconnectInterval = options.reconnectInterval ?? 3000
     this.requestTimeout = options.requestTimeout ?? 30000
+    this.connectTimeout = options.connectTimeout ?? this.requestTimeout
     this.tag = options.tag ?? 'BridgeClient'
   }
 
@@ -124,8 +128,8 @@ export class BridgeClient {
         const connectTimer = setTimeout(() => {
           this.ws?.close()
           this.ws = null
-          reject(new Error(`BridgeClient: 连接超时 (${this.requestTimeout}ms)`))
-        }, this.requestTimeout)
+          reject(new Error(`BridgeClient: 连接超时 (${this.connectTimeout}ms)`))
+        }, this.connectTimeout)
 
         this.ws.onopen = () => {
           clearTimeout(connectTimer)

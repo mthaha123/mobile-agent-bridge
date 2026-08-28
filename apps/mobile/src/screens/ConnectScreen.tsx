@@ -22,6 +22,8 @@ import { ThemeColors } from '../theme/colors'
 
 const DEFAULT_URL = 'ws://10.0.2.2:8080/ws'
 const DEFAULT_PASSWORD = 'test123'
+/** 自动登录使用较短的连接超时（秒），避免用户长时间等待不可达的地址 */
+const AUTO_CONNECT_TIMEOUT_MS = 5000
 
 export const ConnectScreen: React.FC = () => {
   const colors = useThemeColors()
@@ -38,10 +40,14 @@ export const ConnectScreen: React.FC = () => {
   useEffect(() => {
     if (autoConnectDone.current) return
     autoConnectDone.current = true
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       useAuthStore.getState().setBridgeUrl(DEFAULT_URL)
       useProjectStore.getState().setDirectory('')
-      useAuthStore.getState().login(DEFAULT_PASSWORD)
+      try {
+        await useAuthStore.getState().login(DEFAULT_PASSWORD, AUTO_CONNECT_TIMEOUT_MS)
+      } catch {
+        // login() 内部已处理错误，此处仅防止未捕获异常
+      }
     }, 500)
     return () => clearTimeout(timer)
   }, [])

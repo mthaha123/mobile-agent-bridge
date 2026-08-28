@@ -21,7 +21,7 @@ export interface AuthState {
   client: BridgeClient | null
 
   setBridgeUrl: (url: string) => void
-  login: (password?: string) => Promise<void>
+  login: (password?: string, connectTimeout?: number) => Promise<void>
   logout: () => void
   clearError: () => void
   refreshToken: () => Promise<void>
@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ bridgeUrl: url, error: null })
   },
 
-  login: async (password?: string) => {
+  login: async (password?: string, connectTimeout?: number) => {
     const { bridgeUrl } = get()
     if (!bridgeUrl) {
       set({ error: '请先输入 Bridge 地址' })
@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       // ── 层1：连接 Bridge（WS + auth.login）──
-      const loginClient = new BridgeClient({ url: bridgeUrl })
+      const loginClient = new BridgeClient({ url: bridgeUrl, connectTimeout })
       await loginClient.connect()
       const result = (await loginClient.call('auth.login', {
         password: password ?? null,
