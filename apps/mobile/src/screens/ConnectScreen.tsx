@@ -20,7 +20,7 @@ import { useProjectStore } from '../stores/projectStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
-const DEFAULT_URL = 'ws://localhost:8080/ws'
+const DEFAULT_URL = 'ws://10.0.2.2:8080/ws'
 const DEFAULT_PASSWORD = 'test123'
 
 export const ConnectScreen: React.FC = () => {

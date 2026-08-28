@@ -98,7 +98,21 @@
 - 标题栏更新为成功/失败统计
 - 默认折叠
 
-## 4. 架构
+## 4. 设置切换
+
+在 `settingsStore` 中新增 `chatDisplayMode` 设置项：
+
+- **`flat`（默认）**：保持现有行为，每个 part 独立通过 `PartBlock` 渲染，向后兼容
+- **`grouped`**：启用聚合模式，连续 tool 合并为 `ToolGroupCard`，reasoning 独立为 `ThinkingBlock`
+
+在 Settings 页面新增 "Chat" section，包含一个切换行：
+```
+Message Display    Flat（平铺）  →  Grouped（聚合）
+```
+
+设置持久化到 `mobile-agent-bridge-settings.json`，跨 session 保持。
+
+## 5. 架构
 
 ### 4.1 新增组件
 
