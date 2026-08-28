@@ -59,21 +59,25 @@ function mergeConsecutiveAssistantMsgs(msgs: any[]): any[] {
   let accRawContent: any[] = []
   let accText = ''
   let accId: string | undefined
+  let accCreated: number | undefined
+  let accTime: any = undefined
 
   const flush = () => {
     if (accRawContent.length === 0 && !accText) return
-    // 将累积的 rawContent 作为合并后消息的 rawContent
-    // buildPartsFromRaw 会从 rawContent 重新生成 parts
     const mergedRaw = accRawContent.length > 0 ? accRawContent : accText
     result.push({
       id: accId,
       role: 'assistant',
       rawContent: mergedRaw,
       content: accText,
+      created: accCreated,
+      time: accTime,
     })
     accRawContent = []
     accText = ''
     accId = undefined
+    accCreated = undefined
+    accTime = undefined
   }
 
   for (const msg of msgs) {
@@ -89,6 +93,9 @@ function mergeConsecutiveAssistantMsgs(msgs: any[]): any[] {
       const { text } = buildPartsFromRaw(rawContent)
       accText = accText ? accText + text : text
       accId = msg.id || accId
+      // 保留最早的消息时间（升序排列，第一个 assistant 消息的时间最旧）
+      if (accCreated === undefined && msg.created != null) accCreated = msg.created
+      if (accTime === undefined && msg.time != null) accTime = msg.time
     } else {
       flush()
       result.push(msg)
