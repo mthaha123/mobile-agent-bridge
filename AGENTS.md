@@ -155,6 +155,22 @@ python -c "..."  2>&1     # timeout ≤ 15s，不加 sleep
 - 禁止直接运行 `./gradlew` 或 `npx react-native build-android`（阻塞 > 2s 违反核心原则）。
 - 如果构建脚本需要 timeout 兜底，在 `-ScriptBlock` 内部用 `Start-Process -Wait -TimeoutSeconds 180`，而不是外部等待。
 
+## JS Bundle 重新生成（修改 React Native 代码后）
+
+`gradlew assembleDebug` **不会**自动重新生成 JS bundle。Gradle 从 `app/src/main/assets/index.android.bundle`（预打包文件）复制到 APK。
+
+**修改 JS/TSX 后必须手动重新打包并更新源 bundle：**
+
+```bash
+cd apps/mobile
+npx react-native bundle --platform android --dev false --entry-file index.js \
+  --bundle-output android/app/src/main/assets/index.android.bundle --reset-cache
+```
+
+⚠️ **关键：`--bundle-output` 必须指向 `android/app/src/main/assets/index.android.bundle`**，不能是 `build/intermediates/assets/debug/`。Gradle 从 `src/main/assets/` 复制到 `intermediates/assets/`，再打入 APK。写到 intermediates 会被 Gradle 覆盖。
+
+重新打包后，再执行 `gradlew assembleDebug` 构建 APK。
+
 ## E2E 模拟器测试（Maestro 原生 Windows）
 
 Maestro **有 Windows 原生版本**（不需要 WSL2），安装在项目目录 `.maestro/`。
