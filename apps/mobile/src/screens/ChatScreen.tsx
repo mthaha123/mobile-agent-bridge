@@ -46,6 +46,58 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
  * 则不重复渲染 content，避免文本显示两遍。
  * tool part 统一走共享归一化（utils/toolParts）：callID 身份、metadata.output 提取、
  * pending/running/completed/error 状态映射——与 chatStore 加载路径保持同一实现。 */
+/**
+ * 合并连续的 assistant 消息为单条消息。
+ *
+ * SDK v2 中，tool call、reasoning、text 可能作为独立消息（不同 info.id）返回，
+ * 而非同一条消息的多个 parts。buildSegments 只在单条消息的 parts[] 上运行，
+ * 不跨消息合并。此函数将连续 assistant 消息的 parts 拼接为一条，
+ * 使 buildSegments 能正确地跨原始消息分组。
+ */
+function mergeConsecutiveAssistantMsgs(msgs: any[]): any[] {
+  const result: any[] = []
+  let accRawContent: any[] = []
+  let accText = ''
+  let accId: string | undefined
+
+  const flush = () => {
+    if (accRawContent.length === 0 && !accText) return
+    // 将累积的 rawContent 作为合并后消息的 rawContent
+    // buildPartsFromRaw 会从 rawContent 重新生成 parts
+    const mergedRaw = accRawContent.length > 0 ? accRawContent : accText
+    result.push({
+      id: accId,
+      role: 'assistant',
+      rawContent: mergedRaw,
+      content: accText,
+    })
+    accRawContent = []
+    accText = ''
+    accId = undefined
+  }
+
+  for (const msg of msgs) {
+    const role = (msg.role as string) || 'assistant'
+    if (role === 'assistant') {
+      const rawContent = msg.rawContent
+      if (Array.isArray(rawContent)) {
+        accRawContent.push(...rawContent)
+      } else if (rawContent) {
+        // 字符串 rawContent（v1 格式）：转换为 text part 以便统一处理
+        accRawContent.push({ type: 'text', text: rawContent })
+      }
+      const { text } = buildPartsFromRaw(rawContent)
+      accText = accText ? accText + text : text
+      accId = msg.id || accId
+    } else {
+      flush()
+      result.push(msg)
+    }
+  }
+  flush()
+  return result
+}
+
 function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
   const parts: Part[] = []
   let text = ''
@@ -123,7 +175,8 @@ export const ChatScreen: React.FC = () => {
   // sessionStore 已把 v2 {info, parts} 归一化为 { id, role, content, text, rawContent, time }，
   // 其中 rawContent 是原始 parts 数组，需 buildPartsFromRaw 映射为 App Part[]。
   const applyLoadedMessages = (msgs: any[]) => {
-    msgs.forEach((msg: any) => {
+    const merged = mergeConsecutiveAssistantMsgs(msgs)
+    merged.forEach((msg: any) => {
       const msgId = msg.id || undefined
       const rawContent = msg.rawContent
       const role = (msg.role as 'user' | 'assistant' | 'system') || 'assistant'
@@ -188,7 +241,8 @@ export const ChatScreen: React.FC = () => {
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       // 转成 ChatMessage 后 prepend（created 必传：日期分隔符依赖，缺失会渲染 NaN月NaN日）
       const newMsgs: any[] = []
-      ;(list as any[]).forEach((msg: any) => {
+      const merged = mergeConsecutiveAssistantMsgs(list as any[])
+      ;(merged as any[]).forEach((msg: any) => {
         const msgId = msg.id || undefined
         const created = typeof msg.created === 'number' ? msg.created : undefined
         const { parts, text } = buildPartsFromRaw(msg.rawContent)
