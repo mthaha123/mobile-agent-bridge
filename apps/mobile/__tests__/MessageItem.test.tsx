@@ -225,36 +225,43 @@ describe('MessageItem grouped mode', () => {
     useSettingsStore.setState({ chatDisplayMode: 'flat' })
   })
 
-  it('in grouped mode, consecutive tools merge into ToolGroupCard', () => {
+  it('in grouped mode, consecutive tools + short text merge into ToolGroupCard', () => {
     const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
     const parts = [
       { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
       { id: 't2', type: 'tool', data: { tool: 'write', input: { path: 'b.ts' }, status: 'success' } },
-      { id: 'p1', type: 'text', data: { content: 'Done!' } },
+      { id: 'p1', type: 'text', data: { content: 'Done!' } }, // short text <100 chars → absorbed
     ]
     const tree = TestRenderer.create(
       <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
     )
     const groups = tree.root.findAllByType(ToolGroupCard)
     expect(groups).toHaveLength(1)
-    expect(groups[0].props.parts).toHaveLength(2)
-    // Should NOT render individual PartBlocks for the tools
+    // action-block should contain 2 tools + 1 short text = 3 parts
+    expect(groups[0].props.parts).toHaveLength(3)
+    // Should NOT render individual PartBlocks
     const blocks = tree.root.findAllByType(PartBlock)
-    expect(blocks).toHaveLength(1) // only the text part
+    expect(blocks).toHaveLength(0)
   })
 
-  it('in grouped mode, reasoning renders as ThinkingBlock', () => {
-    const { ThinkingBlock } = require('../src/components/chat/ThinkingBlock')
+  it('in grouped mode, reasoning + tools merge into single ToolGroupCard', () => {
+    const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
     const parts = [
       { id: 'r1', type: 'reasoning', data: { content: 'analyzing...' } },
-      { id: 'p1', type: 'text', data: { content: 'Result' } },
+      { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
+      { id: 't2', type: 'tool', data: { tool: 'write', input: { path: 'b.ts' }, status: 'success' } },
+      { id: 'p1', type: 'text', data: { content: 'Long answer text that exceeds threshold' + 'x'.repeat(150) } },
     ]
     const tree = TestRenderer.create(
       <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
     )
-    const thinkers = tree.root.findAllByType(ThinkingBlock)
-    expect(thinkers).toHaveLength(1)
-    expect(thinkers[0].props.content).toBe('analyzing...')
+    const groups = tree.root.findAllByType(ToolGroupCard)
+    expect(groups).toHaveLength(1)
+    // action-block should contain reasoning + 2 tools = 3 parts
+    expect(groups[0].props.parts).toHaveLength(3)
+    // Should NOT render individual PartBlocks for the tools or reasoning
+    const blocks = tree.root.findAllByType(PartBlock)
+    expect(blocks).toHaveLength(1) // only the long text part
   })
 
   it('in flat mode, tools remain as individual PartBlocks', () => {

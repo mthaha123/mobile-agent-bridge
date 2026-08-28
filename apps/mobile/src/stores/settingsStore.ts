@@ -27,7 +27,7 @@ export interface SettingsState {
   defaultAgent: string | null
   /** 新会话默认模型；null = 跟随服务端默认 */
   defaultModel: DefaultModel | null
-  /** 聊天消息显示模式：flat = 平铺（逐个 PartBlock），grouped = 聚合（ToolGroupCard/ThinkingBlock） */
+  /** 聊天消息显示模式：flat = 平铺（逐个 PartBlock），grouped = 聚合（ToolGroupCard 合并 reasoning+tool） */
   chatDisplayMode: ChatDisplayMode
   /** 磁盘恢复是否已完成（无论成败） */
   loaded: boolean

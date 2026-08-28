@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { getToolInfo } from '../../types/message'
+import { MarkdownRenderer } from './MarkdownRenderer'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
 import type { Part } from '../../types/message'
@@ -14,10 +15,23 @@ function getToolData(p: Part): ToolPartData {
   return p.data as unknown as ToolPartData
 }
 
+function getReasoningContent(p: Part): string {
+  return (p.data as { content?: string })?.content ?? ''
+}
+
 /**
- * 工具调用聚合卡片。
- * 折叠态：显示标题栏（🔧 + "工具调用（N 个）" + 状态 + 箭头）
- * 展开态：每个 tool 一行 glance（图标 + 标题 + 副标题）
+ * 操作块聚合卡片（reasoning + tool 混合）。
+ *
+ * 折叠态：标题栏显示操作摘要
+ *   - 有思考+工具：🧠🔧 操作（思考 + N 个工具）✓/✗/⏳
+ *   - 仅工具：🔧 工具调用（N 个）✓/✗/⏳
+ *   - 仅思考：🧠 思考过程
+ *
+ * 展开态：
+ *   - 思考部分：可折叠的 Markdown 文本
+ *   - 工具部分：每个 tool 一行 glance（图标 + 标题 + 副标题）
+ *   - 短文本：直接显示
+ *
  * 默认折叠，点击展开。
  */
 export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
@@ -25,22 +39,46 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
 
-  const { count, statusIcon } = useMemo(() => {
+  const { toolParts, reasoningParts, textParts, count, statusIcon } = useMemo(() => {
+    const tools: Part[] = []
+    const reasoning: Part[] = []
+    const texts: Part[] = []
+    for (const p of parts) {
+      if (p.type === 'tool') tools.push(p)
+      else if (p.type === 'reasoning') reasoning.push(p)
+      else if (p.type === 'text') texts.push(p)
+    }
+    // 计算工具状态
     let success = 0
     let failed = 0
     let running = 0
-    for (const p of parts) {
+    for (const p of tools) {
       const d = getToolData(p)
       if (d.status === 'success') success++
       else if (d.status === 'failed') failed++
-      else running++ // called / progress
+      else running++
     }
-    const total = parts.length
     let icon = '✓'
     if (failed > 0) icon = '✗'
     else if (running > 0) icon = '⏳'
-    return { count: total, statusIcon: icon }
+    return { toolParts: tools, reasoningParts: reasoning, textParts: texts, count: tools.length, statusIcon: icon }
   }, [parts])
+
+  const hasReasoning = reasoningParts.length > 0
+  const hasTools = toolParts.length > 0
+
+  // 标题文本
+  let headerLabel = ''
+  if (hasReasoning && hasTools) {
+    headerLabel = `操作（思考 + ${count} 个工具）`
+  } else if (hasTools) {
+    headerLabel = `工具调用（${count} 个）`
+  } else if (hasReasoning) {
+    headerLabel = '思考过程'
+  }
+
+  // 图标
+  const headerIcon = hasReasoning && hasTools ? '🧠🔧' : hasTools ? '🔧' : '🧠'
 
   return (
     <View style={styles.card}>
@@ -49,21 +87,31 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
         onPress={() => setExpanded(v => !v)}
         activeOpacity={0.7}
       >
-        <Text style={styles.headerIcon}>🔧</Text>
+        <Text style={styles.headerIcon}>{headerIcon}</Text>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          工具调用（{count} 个）
+          {headerLabel}
         </Text>
-        <Text style={styles.statusText}>{statusIcon}</Text>
+        {hasTools ? <Text style={styles.statusText}>{statusIcon}</Text> : null}
         <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
       </TouchableOpacity>
       {expanded ? (
         <View style={styles.body}>
-          {parts.map((p, i) => {
+          {/* 思考部分 */}
+          {reasoningParts.map((p, i) => {
+            const content = getReasoningContent(p)
+            return content ? (
+              <View key={p.id || `r-${i}`} style={styles.reasoningBlock}>
+                <MarkdownRenderer content={content} />
+              </View>
+            ) : null
+          })}
+          {/* 工具部分 */}
+          {toolParts.map((p, i) => {
             const d = getToolData(p)
             const info = getToolInfo(d.tool, d.input)
             const toolStatus = d.status === 'success' ? '✓' : d.status === 'failed' ? '✗' : '⏳'
             return (
-              <View key={p.id || i} style={styles.glanceRow}>
+              <View key={p.id || `t-${i}`} style={styles.glanceRow}>
                 <Text style={styles.glanceIcon}>{info.icon}</Text>
                 <Text style={styles.glanceTitle} numberOfLines={1}>{info.title}</Text>
                 {info.subtitle ? (
@@ -72,6 +120,15 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
                 <Text style={styles.glanceStatus}>{toolStatus}</Text>
               </View>
             )
+          })}
+          {/* 短文本部分 */}
+          {textParts.map((p, i) => {
+            const content = (p.data as { content?: string })?.content ?? ''
+            return content ? (
+              <View key={p.id || `txt-${i}`} style={styles.textBlock}>
+                <MarkdownRenderer content={content} />
+              </View>
+            ) : null
           })}
         </View>
       ) : null}
@@ -105,6 +162,12 @@ const makeStyles = (colors: ThemeColors) =>
       borderTopColor: colors.surfaceVariant,
       paddingVertical: 4,
     },
+    reasoningBlock: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceVariant,
+    },
     glanceRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -115,4 +178,8 @@ const makeStyles = (colors: ThemeColors) =>
     glanceTitle: { color: colors.text, fontSize: 12, fontWeight: '500', marginRight: 6 },
     glanceSubtitle: { color: colors.textTertiary, fontSize: 11, flex: 1 },
     glanceStatus: { color: colors.textTertiary, fontSize: 11, marginLeft: 4 },
+    textBlock: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
   })
