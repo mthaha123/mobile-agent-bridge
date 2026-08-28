@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import type { ChatMessage } from '../stores/chatStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
@@ -28,6 +29,7 @@ import { buildToolPartFromRaw } from '../utils/toolParts'
 import { MessageList } from '../components/chat/MessageList'
 import { TAB_BAR_HEIGHT } from '../components/MainLayout'
 import { MessageItem } from '../components/chat/MessageItem'
+import { mergeConsecutiveAssistantMsgs } from '../components/chat/mergeAssistantMessages'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
 import { PermissionDock } from '../components/chat/PermissionDock'
 import { QuestionDock } from '../components/chat/QuestionDock'
@@ -46,64 +48,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
  * 则不重复渲染 content，避免文本显示两遍。
  * tool part 统一走共享归一化（utils/toolParts）：callID 身份、metadata.output 提取、
  * pending/running/completed/error 状态映射——与 chatStore 加载路径保持同一实现。 */
-/**
- * 合并连续的 assistant 消息为单条消息。
- *
- * SDK v2 中，tool call、reasoning、text 可能作为独立消息（不同 info.id）返回，
- * 而非同一条消息的多个 parts。buildSegments 只在单条消息的 parts[] 上运行，
- * 不跨消息合并。此函数将连续 assistant 消息的 parts 拼接为一条，
- * 使 buildSegments 能正确地跨原始消息分组。
- */
-function mergeConsecutiveAssistantMsgs(msgs: any[]): any[] {
-  const result: any[] = []
-  let accRawContent: any[] = []
-  let accText = ''
-  let accId: string | undefined
-  let accCreated: number | undefined
-  let accTime: any = undefined
-
-  const flush = () => {
-    if (accRawContent.length === 0 && !accText) return
-    const mergedRaw = accRawContent.length > 0 ? accRawContent : accText
-    result.push({
-      id: accId,
-      role: 'assistant',
-      rawContent: mergedRaw,
-      content: accText,
-      created: accCreated,
-      time: accTime,
-    })
-    accRawContent = []
-    accText = ''
-    accId = undefined
-    accCreated = undefined
-    accTime = undefined
-  }
-
-  for (const msg of msgs) {
-    const role = (msg.role as string) || 'assistant'
-    if (role === 'assistant') {
-      const rawContent = msg.rawContent
-      if (Array.isArray(rawContent)) {
-        accRawContent.push(...rawContent)
-      } else if (rawContent) {
-        // 字符串 rawContent（v1 格式）：转换为 text part 以便统一处理
-        accRawContent.push({ type: 'text', text: rawContent })
-      }
-      const { text } = buildPartsFromRaw(rawContent)
-      accText = accText ? accText + text : text
-      accId = msg.id || accId
-      // 保留最早的消息时间（升序排列，第一个 assistant 消息的时间最旧）
-      if (accCreated === undefined && msg.created != null) accCreated = msg.created
-      if (accTime === undefined && msg.time != null) accTime = msg.time
-    } else {
-      flush()
-      result.push(msg)
-    }
-  }
-  flush()
-  return result
-}
 
 function buildPartsFromRaw(rawContent: unknown): { parts: Part[]; text: string; partId?: string } {
   const parts: Part[] = []
@@ -138,6 +82,13 @@ export const ChatScreen: React.FC = () => {
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   const messages = useChatStore((s) => s.messages)
+  const chatDisplayMode = useSettingsStore((s) => s.chatDisplayMode)
+  // 渲染层合并连续 assistant 消息（仅 grouped 模式）：SDK v2 的思考/工具/文本是独立
+  // message，实时流式与历史加载统一在此合并，store 数据保持逐条不变
+  const displayMessages = useMemo(
+    () => (chatDisplayMode === 'grouped' ? mergeConsecutiveAssistantMsgs(messages) : messages),
+    [messages, chatDisplayMode],
+  )
   const inputText = useChatStore((s) => s.inputText)
   const waiting = useChatStore((s) => s.waiting)
   const runError = useChatStore((s) => s.runError)
@@ -182,8 +133,7 @@ export const ChatScreen: React.FC = () => {
   // sessionStore 已把 v2 {info, parts} 归一化为 { id, role, content, text, rawContent, time }，
   // 其中 rawContent 是原始 parts 数组，需 buildPartsFromRaw 映射为 App Part[]。
   const applyLoadedMessages = (msgs: any[]) => {
-    const merged = mergeConsecutiveAssistantMsgs(msgs)
-    merged.forEach((msg: any) => {
+    msgs.forEach((msg: any) => {
       const msgId = msg.id || undefined
       const rawContent = msg.rawContent
       const role = (msg.role as 'user' | 'assistant' | 'system') || 'assistant'
@@ -247,9 +197,10 @@ export const ChatScreen: React.FC = () => {
       const list = Array.isArray(res) ? res : (res?.messages ?? [])
       const cursor = res && typeof res === 'object' ? (res as any).cursor : undefined
       // 转成 ChatMessage 后 prepend（created 必传：日期分隔符依赖，缺失会渲染 NaN月NaN日）
+      // 不在此处合并：合并统一在渲染层（mergeConsecutiveAssistantMsgs）处理，
+      // store 保持逐条 SDK 消息，messageID 去重才能正确工作
       const newMsgs: any[] = []
-      const merged = mergeConsecutiveAssistantMsgs(list as any[])
-      ;(merged as any[]).forEach((msg: any) => {
+      ;(list as any[]).forEach((msg: any) => {
         const msgId = msg.id || undefined
         const created = typeof msg.created === 'number' ? msg.created : undefined
         const { parts, text } = buildPartsFromRaw(msg.rawContent)
@@ -438,7 +389,7 @@ export const ChatScreen: React.FC = () => {
       ) : null}
 
       <MessageList
-        messages={messages}
+        messages={displayMessages}
         renderMessage={renderMessage}
         thinkingIndicator={waiting ? <ThinkingShimmer /> : undefined}
         historyHint={hasMoreHistory ? (
