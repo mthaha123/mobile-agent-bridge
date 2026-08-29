@@ -30,7 +30,6 @@ function getReasoningContent(p: Part): string {
  * 展开态：
  *   - 思考部分：可折叠的 Markdown 文本
  *   - 工具部分：每个 tool 一行 glance（图标 + 标题 + 副标题）
- *   - 短文本：直接显示
  *
  * 默认折叠，点击展开。
  */
@@ -39,14 +38,12 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
 
-  const { toolParts, reasoningParts, textParts, count, statusIcon } = useMemo(() => {
+  const { toolParts, reasoningParts, count, statusIcon } = useMemo(() => {
     const tools: Part[] = []
     const reasoning: Part[] = []
-    const texts: Part[] = []
     for (const p of parts) {
       if (p.type === 'tool') tools.push(p)
       else if (p.type === 'reasoning') reasoning.push(p)
-      else if (p.type === 'text') texts.push(p)
     }
     // 计算工具状态
     let success = 0
@@ -61,7 +58,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
     let icon = '✓'
     if (failed > 0) icon = '✗'
     else if (running > 0) icon = '⏳'
-    return { toolParts: tools, reasoningParts: reasoning, textParts: texts, count: tools.length, statusIcon: icon }
+    return { toolParts: tools, reasoningParts: reasoning, count: tools.length, statusIcon: icon }
   }, [parts])
 
   const hasReasoning = reasoningParts.length > 0
@@ -121,15 +118,6 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
               </View>
             )
           })}
-          {/* 短文本部分 */}
-          {textParts.map((p, i) => {
-            const content = (p.data as { content?: string })?.content ?? ''
-            return content ? (
-              <View key={p.id || `txt-${i}`} style={styles.textBlock}>
-                <MarkdownRenderer content={content} />
-              </View>
-            ) : null
-          })}
         </View>
       ) : null}
     </View>
@@ -178,8 +166,4 @@ const makeStyles = (colors: ThemeColors) =>
     glanceTitle: { color: colors.text, fontSize: 12, fontWeight: '500', marginRight: 6 },
     glanceSubtitle: { color: colors.textTertiary, fontSize: 11, flex: 1 },
     glanceStatus: { color: colors.textTertiary, fontSize: 11, marginLeft: 4 },
-    textBlock: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-    },
   })

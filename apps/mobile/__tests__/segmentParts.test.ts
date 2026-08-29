@@ -58,7 +58,7 @@ describe('buildSegments', () => {
     expect(segs[0].parts).toHaveLength(4)
   })
 
-  it('separates long text from action-block', () => {
+  it('separates text from action-block (any length)', () => {
     const longText = 'a'.repeat(150)
     const parts = [
       reasoningPart('r1', 'thinking'),
@@ -73,16 +73,20 @@ describe('buildSegments', () => {
     expect(segs[1].parts).toHaveLength(1)
   })
 
-  it('absorbs short text between action parts into action-block', () => {
+  it('short text between action parts is NOT absorbed — stays as own segment', () => {
     const parts = [
       reasoningPart('r1', 'thinking'),
-      textPart('txt1', 'short'), // <100 chars
+      textPart('txt1', 'short'), // even short text is standalone now
       toolPart('t1'),
     ]
     const segs = buildSegments(parts)
-    expect(segs).toHaveLength(1)
+    expect(segs).toHaveLength(3)
     expect(segs[0].type).toBe('action-block')
-    expect(segs[0].parts).toHaveLength(3) // reasoning + short text + tool
+    expect(segs[0].parts).toHaveLength(1) // reasoning only
+    expect(segs[1].type).toBe('text')
+    expect(segs[1].parts).toHaveLength(1) // short text standalone
+    expect(segs[2].type).toBe('action-block')
+    expect(segs[2].parts).toHaveLength(1) // tool only
   })
 
   it('groups consecutive reasoning parts into one action-block', () => {
