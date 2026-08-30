@@ -33,6 +33,36 @@ function findInput(root: TestRenderer.ReactTestRenderer) {
   return root.root.find((node) => typeof node.props.onChangeText === 'function')
 }
 
+/** 所有创建过的渲染树：用例结束后统一 unmount。
+ *
+ *  不卸载会留下"活的"组件：ConnectScreen mount 后有一个 500ms 的自动登录
+ *  定时器（组件 cleanup 里 clearTimeout，但只有卸载才会执行）。用例跑完后
+ *  定时器照样触发 login() → 测试结束后再 setState → React 报
+ *  "update ... was not wrapped in act(...)" / "Cannot log after tests are done"，
+ *  甚至让 jest worker 抛出未捕获异常（退出码非 0，但用例本身全过）。
+ */
+const rendered: TestRenderer.ReactTestRenderer[] = []
+function render(element: React.ReactElement): TestRenderer.ReactTestRenderer {
+  const tree = TestRenderer.create(element)
+  rendered.push(tree)
+  return tree
+}
+
+afterEach(() => {
+  while (rendered.length > 0) {
+    const tree = rendered.pop()
+    try { tree?.unmount() } catch { /* 已卸载则忽略 */ }
+  }
+  // 撤销用例遗留的定时器（ingestEvent → scheduleIdleVerify 排的 1.2s setTimeout、
+  // ensureStatusPolling 的 statusPoll interval）。它们一旦在环境拆除后触发，
+  // 就会惰性 import authStore 并抛 "import a file after the Jest environment
+  // has been torn down" → worker 异常、进程退出码非 0（用例本身全过，容易被
+  // 误判成 flaky）。
+  useChatStore.getState().stopStatusPolling()
+  useChatStore.getState().stopIdleVerify()
+  jest.clearAllTimers()
+})
+
 beforeEach(() => {
   useAuthStore.setState({
     bridgeUrl: '', token: null, authenticated: false,
@@ -54,14 +84,14 @@ beforeEach(() => {
 describe('ConnectScreen — user interaction', () => {
   it('clicking Connect button triggers login', () => {
     useAuthStore.setState({ bridgeUrl: 'ws://localhost:8080/ws' })
-    const tree = TestRenderer.create(<ConnectScreen />)
+    const tree = render(<ConnectScreen />)
     const button = findPressable(tree)
     expect(button.props.onPress).toBeDefined()
   })
 
   it('shows loading state after clicking Connect', () => {
     useAuthStore.setState({ bridgeUrl: 'ws://localhost:8080/ws' })
-    const tree = TestRenderer.create(<ConnectScreen />)
+    const tree = render(<ConnectScreen />)
 
     TestRenderer.act(() => {
       useAuthStore.setState({ loading: true })
@@ -73,7 +103,7 @@ describe('ConnectScreen — user interaction', () => {
 
   it('displays error when login fails', () => {
     useAuthStore.setState({ bridgeUrl: 'ws://localhost:8080/ws' })
-    const tree = TestRenderer.create(<ConnectScreen />)
+    const tree = render(<ConnectScreen />)
 
     TestRenderer.act(() => {
       useAuthStore.setState({ error: 'Connection refused' })
@@ -97,7 +127,7 @@ describe('SessionsScreen — user interaction', () => {
       }],
     })
 
-    const tree = TestRenderer.create(
+    const tree = render(
       <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
     )
     expect(tree.toJSON()).not.toBeNull()
@@ -116,7 +146,7 @@ describe('SessionsScreen — user interaction', () => {
       } as any,
     })
 
-    const tree = TestRenderer.create(
+    const tree = render(
       <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
     )
 
@@ -138,7 +168,7 @@ describe('ToolApprovalSheet — user interaction', () => {
       }],
     })
 
-    const tree = TestRenderer.create(<ToolApprovalSheet />)
+    const tree = render(<ToolApprovalSheet />)
     const pressables = findAllPressable(tree)
     // Dismiss (overlay) + Reject + Approve
     expect(pressables.length).toBeGreaterThanOrEqual(2)
@@ -177,7 +207,7 @@ describe('ToolApprovalSheet — user interaction', () => {
 describe('ChatScreen — user interaction', () => {
   it('new session button navigates in empty state', () => {
     const onNavigateToSessions = jest.fn()
-    const tree = TestRenderer.create(
+    const tree = render(
       <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
     )
     expect(tree.toJSON()).not.toBeNull()
@@ -192,7 +222,7 @@ describe('ChatScreen — user interaction', () => {
       client: { call: jest.fn(), on: jest.fn(), connected: true } as any,
     })
 
-    const tree = TestRenderer.create(
+    const tree = render(
       <ChatScreen onNavigateToSessions={jest.fn()} />,
     )
     expect(tree.toJSON()).not.toBeNull()

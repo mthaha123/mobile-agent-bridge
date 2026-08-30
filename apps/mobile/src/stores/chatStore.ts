@@ -698,6 +698,10 @@ export interface ChatState {
   ensureStatusPolling(sessionId?: string): void
   /** 停止条件轮询（teardown / 测试清理用） */
   stopStatusPolling(): void
+  /** 取消挂起的空闲验证（scheduleIdleVerify 排的那个 setTimeout）。
+   *  只做取消、不改状态——供 teardown / 测试清理使用，避免定时器在环境
+   *  销毁后仍触发（触发后要惰性 import authStore，跨环境会抛异常）。 */
+  stopIdleVerify(): void
 
   // ── 旧版兼容 shim ──
   appendAssistantDelta(assistantMessageId: string, delta: string, eventId: number | string): void
@@ -923,6 +927,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   stopStatusPolling: () => {
     stopStatusPolling()
+  },
+
+  stopIdleVerify: () => {
+    cancelIdleVerify()
   },
 
   // ── 加载 / 同步 ──
