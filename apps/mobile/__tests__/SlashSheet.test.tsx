@@ -229,4 +229,47 @@ describe('SlashSheet', () => {
     expect(text).toContain('model')
     expect(text).not.toContain('agent')
   })
+
+  // ── 当前 agent 标记（服务端权威值回显）──────────────────────────────
+  it('marks the current agent and shows current hint', () => {
+    const tree = TestRenderer.create(
+      <SlashSheet
+        visible={true}
+        onClose={onClose}
+        onSelect={onSelect}
+        onSwitchAgent={jest.fn()}
+        filter="@"
+        currentAgent="CodeStral"
+      />,
+    )
+    const text = textOf(tree)
+    expect(text).toContain('当前：CodeStral')
+    expect(text).toContain('当前 agent')
+  })
+
+  it('non-current agents keep the Switch agent label', () => {
+    const tree = TestRenderer.create(
+      <SlashSheet
+        visible={true}
+        onClose={onClose}
+        onSelect={onSelect}
+        onSwitchAgent={jest.fn()}
+        filter="@"
+        currentAgent="GPT-4o"
+      />,
+    )
+    const text = textOf(tree)
+    expect(text).toContain('当前：GPT-4o')
+    expect(text).toContain('Switch agent')
+    expect(text).toContain('当前 agent')
+  })
+
+  it('omits current hint when session has no explicit agent', () => {
+    const tree = TestRenderer.create(
+      <SlashSheet visible={true} onClose={onClose} onSelect={onSelect} onSwitchAgent={jest.fn()} filter="@" />,
+    )
+    const text = textOf(tree)
+    expect(text).not.toContain('当前：')
+    expect(text).toContain('Switch agent')
+  })
 })

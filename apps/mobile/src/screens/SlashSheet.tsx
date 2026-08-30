@@ -18,9 +18,11 @@ interface SlashSheetProps {
   onSelect: (command: string) => void
   onSwitchAgent?: (agent: string) => void
   filter?: string  // 输入前缀如 / 或 @，用于过滤
+  /** 当前会话的 agent（服务端权威值），用于标记列表中"当前选中"项；为空表示跟随服务端默认 */
+  currentAgent?: string
 }
 
-export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent, filter }) => {
+export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSelect, onSwitchAgent, filter, currentAgent }) => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   const agents = useConfigStore((s) => s.agents) as Array<{ name?: string; id?: string; label?: string }>
@@ -65,6 +67,11 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
           <Text style={styles.title}>
             {filter === '@' ? '选择 Agent' : filter === '/' ? '选择命令' : '命令 & Agent'}
           </Text>
+          {showAgents && currentAgent ? (
+            <Text style={styles.currentHint} accessibilityRole="text">
+              当前：{currentAgent}
+            </Text>
+          ) : null}
 
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
             {showCommands && filteredCommands.length > 0 && (
@@ -95,10 +102,12 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
                 <Text style={styles.sectionTitle}>Agents</Text>
                 {filteredAgents.map((agent, i) => {
                   const label = agent.label || agent.name || agent.id || ''
+                  const isCurrent = !!currentAgent && label === currentAgent
                   return (
                     <TouchableOpacity
                       key={`agent-${i}`}
-                      style={styles.item}
+                      style={[styles.item, isCurrent && styles.itemCurrent]}
+                      accessibilityState={{ selected: isCurrent }}
                       onPress={() => {
                         if (onSwitchAgent) {
                           onSwitchAgent(label)
@@ -108,10 +117,14 @@ export const SlashSheet: React.FC<SlashSheetProps> = ({ visible, onClose, onSele
                         onClose()
                       }}
                     >
-                      <Text style={[styles.itemIcon, styles.agentIcon]}>@</Text>
+                      <Text style={[styles.itemIcon, styles.agentIcon]}>{isCurrent ? '✓' : '@'}</Text>
                       <View style={styles.itemContent}>
                         <Text style={styles.itemLabel}>{label}</Text>
-                        {onSwitchAgent ? <Text style={styles.itemDesc}>Switch agent</Text> : null}
+                        {isCurrent ? (
+                          <Text style={styles.itemDesc}>当前 agent</Text>
+                        ) : onSwitchAgent ? (
+                          <Text style={styles.itemDesc}>Switch agent</Text>
+                        ) : null}
                       </View>
                     </TouchableOpacity>
                   )
@@ -167,6 +180,15 @@ const makeStyles = (colors: ThemeColors) =>
     borderRadius: 8,
     padding: 12,
     marginBottom: 6,
+  },
+  currentHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginBottom: 4,
+  },
+  itemCurrent: {
+    borderWidth: 1,
+    borderColor: colors.success,
   },
   itemIcon: {
     fontSize: 16,

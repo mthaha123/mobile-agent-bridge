@@ -108,9 +108,14 @@ export const ChatScreen: React.FC = () => {
   // Dock 区域显隐动画：监听审批/问题/附件状态，显隐变化时用 LayoutAnimation 平滑过渡
   const approvals = useToolStore((s) => s.pendingApprovals)
   const questionVisible = useQuestionStore((s) => s.visible)
+  const setVisibleSession = useQuestionStore((s) => s.setVisibleSession)
   const pendingQuestions = useQuestionStore((s) => s.pending)
   const attachments = useAttachmentStore((s) => s.attachments)
-  const dockVisible = approvals.length > 0 || (questionVisible && pendingQuestions.length > 0) || attachments.length > 0
+  // 本会话的提问走内联 Dock（其余会话的交给全局 QuestionSheet）
+  const ownQuestions = activeSessionId
+    ? pendingQuestions.filter((q) => q.sessionId === activeSessionId)
+    : []
+  const dockVisible = approvals.length > 0 || (questionVisible && ownQuestions.length > 0) || attachments.length > 0
   const prevDockVisibleRef = useRef(false)
 
   React.useLayoutEffect(() => {
@@ -119,6 +124,13 @@ export const ChatScreen: React.FC = () => {
       prevDockVisibleRef.current = dockVisible
     }
   }, [dockVisible])
+
+  // 声明"当前可见会话"：属于本会话的提问由内联 QuestionDock 展示，
+  // 其余会话的提问交给 MainLayout 上的全局 QuestionSheet（两者互斥，不会双弹）。
+  useEffect(() => {
+    setVisibleSession(activeSessionId ?? null)
+    return () => { setVisibleSession(null) }
+  }, [activeSessionId, setVisibleSession])
 
   useEffect(() => {
     if (chatSubScreen === 'chat' && !activeSessionId) {
@@ -458,6 +470,7 @@ export const ChatScreen: React.FC = () => {
         onSelect={handleSlashSelect}
         onSwitchAgent={handleSwitchAgent}
         filter={slashFilter}
+        currentAgent={currentSession?.agent}
       />
 
       <ModelPickerModal

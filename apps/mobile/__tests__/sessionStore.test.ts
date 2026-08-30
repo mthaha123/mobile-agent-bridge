@@ -20,6 +20,7 @@ jest.mock('../src/services/BridgeClient', () => ({
 
 import { useSessionStore, Session, filterSessions } from '../src/stores/sessionStore'
 import { useSettingsStore } from '../src/stores/settingsStore'
+import { useQuestionStore } from '../src/stores/questionStore'
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -502,6 +503,104 @@ describe('revertSession', () => {
 
     expect(warnSpy).toHaveBeenCalledWith('session.revert failed:', 'revert failed')
     warnSpy.mockRestore()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchSessions 清理"会话已不存在"的待回答提问残留
+// ---------------------------------------------------------------------------
+
+describe('fetchSessions 清理孤儿提问', () => {
+  beforeEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
+  })
+
+  afterEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
+  })
+
+  it('会话已从列表消失（被删/换项目）→ 其待回答提问被清理', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { id: 'sess-1', title: 'T1', time: { created: 1, updated: 2 } },
+    ])
+    useQuestionStore.setState({
+      pending: [
+        { id: 'que-1', sessionId: 'sess-1', questions: [] },
+        { id: 'que-gone', sessionId: 'sess-deleted', questions: [] },
+      ],
+      visible: true,
+    })
+
+    await useSessionStore.getState().fetchSessions(clientCall)
+
+    const ids = useQuestionStore.getState().pending.map((q) => q.id)
+    expect(ids).toContain('que-1') // 会话仍在 → 保留
+    expect(ids).not.toContain('que-gone') // 会话已不在 → 清理
+  })
+
+  it('会话列表为空时不误删（避免冷启动/异常列表清空提问）', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([])
+    useQuestionStore.setState({
+      pending: [{ id: 'que-1', sessionId: 'sess-1', questions: [] }],
+      visible: true,
+    })
+
+    await useSessionStore.getState().fetchSessions(clientCall)
+
+    expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['que-1'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 会话当前 agent — 回读（mapSession）与切换后本地即时更新
+// ---------------------------------------------------------------------------
+
+describe('session agent 回读与切换', () => {
+  it('fetchSessions 保留服务端返回的 agent 字段', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue([
+      { id: 'sess-1', title: 'T1', agent: 'plan', time: { created: 1, updated: 2 } },
+      { id: 'sess-2', title: 'T2', time: { created: 1, updated: 2 } },
+    ])
+
+    await useSessionStore.getState().fetchSessions(clientCall)
+
+    const sessions = useSessionStore.getState().sessions
+    expect(sessions[0].agent).toBe('plan')
+    expect(sessions[1].agent).toBeUndefined()
+  })
+
+  it('getSession 保留服务端返回的 agent 字段', async () => {
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({ id: 'sess-1', title: 'T1', agent: 'build' })
+
+    const session = await useSessionStore.getState().getSession('sess-1', clientCall)
+
+    expect(session?.agent).toBe('build')
+  })
+
+  it('switchAgent 成功后本地即时回写 agent（无需等列表刷新）', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession, agent: 'build' }] })
+    const clientCall = mockClientCall()
+    clientCall.mockResolvedValue({ ok: true })
+
+    await useSessionStore.getState().switchAgent('sess-1', 'plan', clientCall)
+
+    expect(clientCall).toHaveBeenCalledWith('session.switchAgent', { sessionId: 'sess-1', agent: 'plan' })
+    expect(useSessionStore.getState().sessions[0].agent).toBe('plan')
+  })
+
+  it('switchAgent 失败时不动本地 agent 并记录错误', async () => {
+    useSessionStore.setState({ sessions: [{ ...mockSession, agent: 'build' }] })
+    const clientCall = mockClientCall()
+    clientCall.mockRejectedValue(new Error('switch failed'))
+
+    await useSessionStore.getState().switchAgent('sess-1', 'plan', clientCall)
+
+    expect(useSessionStore.getState().sessions[0].agent).toBe('build')
+    expect(useSessionStore.getState().error).toBe('switch failed')
   })
 })
 

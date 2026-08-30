@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand'
 import { useSettingsStore } from './settingsStore'
+import { useQuestionStore } from './questionStore'
 
 function normalizeArray<T>(result: unknown, key: string): T[] {
   if (Array.isArray(result)) return result as T[]
@@ -47,6 +48,8 @@ function mapSession(raw: any): Session {
     updatedAt: raw.updatedAt || (time.updated ? new Date(time.updated).toISOString() : ''),
     messageCount: typeof raw.messageCount === 'number' ? raw.messageCount : 0,
     model,
+    // 会话当前 agent（服务端权威；未显式指定时服务端不返回该字段 → undefined）
+    agent: typeof raw.agent === 'string' && raw.agent ? raw.agent : undefined,
   }
 }
 
@@ -82,6 +85,8 @@ export interface Session {
   updatedAt: string
   messageCount: number
   model?: { id: string; providerID?: string; name?: string; variant?: string }
+  /** 会话当前 agent（服务端权威值）；会话未显式指定 agent 时为空 */
+  agent?: string
 }
 
 /**
@@ -151,6 +156,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const result = await clientCall('session.list', {})
       const sessions = normalizeArray<Session>(result, 'sessions').map(mapSession)
       set({ sessions, loading: false })
+      // 清理"会话已不存在"的待回答提问残留（会话被删/换项目后，弹框无从回答）。
+      // 误删是安全的：若服务端其实仍在等（如不在根列表里的 fork/子会话），
+      // 下一次 question.list 对账会把它补回来。
+      const ids = new Set(sessions.map((s) => s.id))
+      const q = useQuestionStore.getState()
+      if (ids.size > 0) {
+        for (const item of q.pending) {
+          if (!ids.has(item.sessionId)) q.removeQuestion(item.id)
+        }
+      }
     } catch (e: unknown) {
       set({ loading: false, error: e instanceof Error ? e.message : '获取会话列表失败' })
     }
@@ -275,6 +290,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ error: null })
     try {
       await clientCall('session.switchAgent', { sessionId: id, agent })
+      // 服务端已生效 → 本地即时回写，UI（SlashSheet 当前项标记）无需等下次列表刷新
+      get().patchSession(id, { agent })
     } catch (e: unknown) {
       set({ error: e instanceof Error ? e.message : '切换 Agent 失败' })
     }
