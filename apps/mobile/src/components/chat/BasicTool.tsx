@@ -8,12 +8,18 @@ import { ThemeColors } from '../../theme/colors'
 
 // ─── 工具 Part 渲染器 ────────────────────────────────────
 
-export const ToolPart: React.FC<{ data: Record<string, unknown>; messageRole: string }> = ({ data, messageRole }) => {
+export const ToolPart: React.FC<{
+  data: Record<string, unknown>
+  messageRole: string
+  /** 初始是否展开详情（ToolGroupCard 二级展开时传 true）。
+   *  只作初值：用户仍可点击收起，避免超长输出（如 bash）无法折叠。 */
+  defaultExpanded?: boolean
+}> = ({ data, messageRole, defaultExpanded }) => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   const tool = String(data.tool ?? '')
   const info = getToolInfo(tool, (data.input ?? {}) as Record<string, unknown>)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded ?? false)
   const status = String(data.status ?? '')
   const isUserTool = messageRole === 'user'
 
