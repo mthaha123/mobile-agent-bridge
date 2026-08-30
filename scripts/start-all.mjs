@@ -88,13 +88,17 @@ function readPid(pidFile) {
   } catch { return 0 }
 }
 
-/** 读 PID 文件，返回进程是否存活 */
+/** 读 PID 文件，返回进程是否存活（兼容中/英文 Windows） */
 function pidAlive(pidFile) {
   const pid = readPid(pidFile)
   if (!pid) return false
   try {
     const out = execSync(`tasklist /fi "PID eq ${pid}" /fo csv /nh`, { encoding: "utf8", timeout: 5000 })
-    return out.trim().length > 0 && !out.includes("INFO: No tasks")
+    if (!out.trim()) return false
+    // 英文: "INFO: No tasks are running..." / 中文: "没有运行的任务匹配指定标准"
+    if (/INFO:|没有运行的任务/i.test(out)) return false
+    // CSV 输出包含 PID 即为存在
+    return out.includes(String(pid))
   } catch { return false }
 }
 
