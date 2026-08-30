@@ -10,13 +10,18 @@ export const QuestionDock: React.FC = () => {
   const styles = makeStyles(colors)
   const pending = useQuestionStore(s => s.pending)
   const visible = useQuestionStore(s => s.visible)
+  const visibleSessionId = useQuestionStore(s => s.visibleSessionId)
   const removeQuestion = useQuestionStore(s => s.removeQuestion)
 
-  if (!visible || pending.length === 0) return null
+  // 内联 Dock 只负责"当前会话"的提问；其它会话的提问交给全局 QuestionSheet，
+  // 避免同一个提问被弹两次，也避免 A 会话的问题显示在 B 会话页。
+  const items = visibleSessionId ? pending.filter(q => q.sessionId === visibleSessionId) : []
+
+  if (!visible || items.length === 0) return null
 
   return (
     <View style={styles.dockArea}>
-      {pending.map(q => (
+      {items.map(q => (
         <QuestionItem
           key={q.id}
           question={q}

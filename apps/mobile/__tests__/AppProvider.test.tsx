@@ -1103,3 +1103,157 @@ describe('重连后审批队列对账', () => {
     expect(ids).toEqual(['keep'])
   })
 })
+
+// ─── 重连/回前台后待回答问题对账（question.list）─────────────
+//
+// 场景：息屏/切后台期间 agent 提问（question.v2.asked）。SSE 不重放，事件永久丢失，
+// 但服务端仍在等回答 → 会话恒 busy（一直转圈），手机端却没有任何弹框可交互。
+describe('重连后待回答问题对账', () => {
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+  }
+
+  const pendingQuestion = {
+    id: 'que-1',
+    sessionID: 'sess-1',
+    questions: [
+      {
+        question: 'Which option?',
+        header: 'Preference',
+        options: [{ label: 'Option A', description: 'A' }],
+        multiple: false,
+      },
+    ],
+    tool: { messageID: 'm1', callID: 'call-1' },
+  }
+
+  beforeEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false })
+  })
+
+  afterEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false })
+  })
+
+  it('connected 后拉取 question.list：补回断口内错过的提问（弹框立即可见）', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'question.list') return [pendingQuestion]
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    expect(client.call).toHaveBeenCalledWith('question.list', {})
+    const state = useQuestionStore.getState()
+    expect(state.visible).toBe(true)
+    expect(state.pending).toHaveLength(1)
+    expect(state.pending[0].id).toBe('que-1')
+    expect(state.pending[0].sessionId).toBe('sess-1')
+    expect(state.pending[0].questions[0].question).toBe('Which option?')
+    expect(state.pending[0].tool?.callID).toBe('call-1')
+  })
+
+  it('服务端已不再等待的本地残留被清理（已回答/被 reject）', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'question.list') return []
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    useQuestionStore.setState({
+      pending: [
+        { id: 'stale', sessionId: 'sess-1', questions: [] },
+      ],
+      visible: true,
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    expect(useQuestionStore.getState().pending).toHaveLength(0)
+    expect(useQuestionStore.getState().visible).toBe(false)
+  })
+
+  it('实时通知先到达的提问不被对账重复入队', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    // 服务端快照里同样存在该提问（未回答 → 必然在 pending 里）
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'question.list') {
+        return [{ ...pendingQuestion, id: 'live-q' }]
+      }
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    TestRenderer.act(() => {
+      handlers['notification']('question.v2.asked', {
+        id: 'live-q',
+        sessionID: 'sess-1',
+        questions: [],
+      })
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    const pending = useQuestionStore.getState().pending
+    expect(pending.filter((q) => q.id === 'live-q')).toHaveLength(1)
+  })
+
+  it('对账进行中到达的新提问不被误删（快照早于通知）', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    let resolveList: (v: unknown) => void = () => {}
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'question.list') {
+        return new Promise((resolve) => { resolveList = resolve })
+      }
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    // 对账请求仍在飞行中，此时实时 question.v2.asked 到达并入队
+    TestRenderer.act(() => {
+      handlers['notification']('question.v2.asked', {
+        id: 'live-q',
+        sessionID: 'sess-1',
+        questions: [],
+      })
+    })
+    // 快照返回（不含刚到达的提问）
+    await act(async () => { resolveList([]) })
+    await flush()
+
+    const ids = useQuestionStore.getState().pending.map((q) => q.id)
+    expect(ids).toContain('live-q')
+  })
+
+  it('回前台（AppState active）且连接未断时也直接对账', async () => {
+    const { client } = mockClientAndRender({ connected: true })
+    let called = 0
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'question.list') { called++; return [pendingQuestion] }
+      throw new Error(`Unhandled method: ${method}`)
+    })
+
+    TestRenderer.act(() => { (AppState as any).__emit('active') })
+    await flush()
+
+    expect(called).toBe(1)
+    expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['que-1'])
+  })
+
+  it('question.list 失败时静默保持现状', async () => {
+    const { handlers, client } = mockClientAndRender({ connected: false })
+    client.call.mockRejectedValue(new Error('network gone'))
+    useQuestionStore.setState({
+      pending: [{ id: 'keep', sessionId: 'sess-1', questions: [] }],
+      visible: true,
+    })
+
+    await act(async () => { handlers['connected']?.() })
+    await flush()
+
+    expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['keep'])
+  })
+})

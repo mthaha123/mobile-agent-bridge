@@ -180,13 +180,13 @@ describe('QuestionDock', () => {
   }
 
   it('renders nothing when not visible', () => {
-    useQuestionStore.setState({ pending: [question], visible: false })
+    useQuestionStore.setState({ pending: [question], visible: false, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     expect(tree.toJSON()).toBeNull()
   })
 
   it('renders question text and options when visible', () => {
-    useQuestionStore.setState({ pending: [question], visible: true })
+    useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     const t = textOf(tree)
     expect(t).toContain('选择操作方式')
@@ -199,7 +199,7 @@ describe('QuestionDock', () => {
   it('reject calls question.reject and removes question', async () => {
     const client = mockClient()
     useAuthStore.setState({ client: client as any })
-    useQuestionStore.setState({ pending: [question], visible: true })
+    useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     const btn = findPressableByText(tree, 'Reject')!
     await act(async () => { btn.props.onPress() })
@@ -210,7 +210,7 @@ describe('QuestionDock', () => {
   it('submit with no selection sends empty answer', async () => {
     const client = mockClient()
     useAuthStore.setState({ client: client as any })
-    useQuestionStore.setState({ pending: [question], visible: true })
+    useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     const btn = findPressableByText(tree, 'Submit')!
     await act(async () => { btn.props.onPress() })
@@ -222,7 +222,7 @@ describe('QuestionDock', () => {
   it('selecting an option and submitting sends that answer', async () => {
     const client = mockClient()
     useAuthStore.setState({ client: client as any })
-    useQuestionStore.setState({ pending: [question], visible: true })
+    useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     const opt = findPressableByText(tree, '只读')!
     await act(async () => { opt.props.onPress() })
@@ -238,6 +238,7 @@ describe('QuestionDock', () => {
     useAuthStore.setState({ client: client as any })
     useQuestionStore.setState({
       visible: true,
+      visibleSessionId: 's1',
       pending: [{
         id: 'q2', sessionId: 's1',
         questions: [{
@@ -262,7 +263,7 @@ describe('QuestionDock', () => {
   it('single-select toggles off on second press', async () => {
     const client = mockClient()
     useAuthStore.setState({ client: client as any })
-    useQuestionStore.setState({ pending: [question], visible: true })
+    useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 's1' })
     const tree = TestRenderer.create(<QuestionDock />)
     const opt = findPressableByText(tree, '只读')!
     await act(async () => { opt.props.onPress() })
@@ -272,6 +273,44 @@ describe('QuestionDock', () => {
     expect(client.call).toHaveBeenCalledWith('question.reply', {
       id: 'q1', sessionId: 's1', answers: [''],
     })
+  })
+
+  // ── 与全局 QuestionSheet 的互斥：Dock 只渲染"当前可见会话"的提问 ──
+  it('只渲染当前可见会话的提问（其它会话交给全局弹窗，避免双弹）', () => {
+    useQuestionStore.setState({
+      visible: true,
+      visibleSessionId: 's1',
+      pending: [
+        question, // sessionId: 's1' → 由 Dock 展示
+        { id: 'q-other', sessionId: 's2', questions: [{ question: '别处的提问', header: 'x', options: [], multiple: false }] },
+      ],
+    })
+    const tree = TestRenderer.create(<QuestionDock />)
+    const t = textOf(tree)
+    expect(t).toContain('选择操作方式')
+    expect(t).not.toContain('别处的提问')
+  })
+
+  it('提问不属于当前可见会话时 Dock 不渲染（由全局弹窗接管）', () => {
+    useQuestionStore.setState({
+      visible: true,
+      visibleSessionId: 's1',
+      pending: [
+        { id: 'q-other', sessionId: 's2', questions: [{ question: '别处的提问', header: 'x', options: [], multiple: false }] },
+      ],
+    })
+    const tree = TestRenderer.create(<QuestionDock />)
+    expect(tree.toJSON()).toBeNull()
+  })
+
+  it('未进入会话（visibleSessionId 为空）时 Dock 不渲染', () => {
+    useQuestionStore.setState({
+      visible: true,
+      visibleSessionId: null,
+      pending: [question],
+    })
+    const tree = TestRenderer.create(<QuestionDock />)
+    expect(tree.toJSON()).toBeNull()
   })
 })
 

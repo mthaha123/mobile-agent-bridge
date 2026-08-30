@@ -6,6 +6,7 @@ import { useAuthStore } from '../src/stores/authStore'
 import { useChatStore } from '../src/stores/chatStore'
 import { useSessionStore } from '../src/stores/sessionStore'
 import { useProjectStore } from '../src/stores/projectStore'
+import { useQuestionStore } from '../src/stores/questionStore'
 import { mockClient, resetAllStores } from './test-utils'
 
 function textOf(tree: TestRenderer.ReactTestRenderer): string {
@@ -312,5 +313,52 @@ describe('MainLayout — session screen tab bar', () => {
     expect(t).toContain('Chat')
     expect(t).toContain('Files')
     expect(t).toContain('Settings')
+  })
+})
+
+// ─── 全局提问弹窗挂在 MainLayout（任意 Tab 都能弹出）──────────────
+describe('MainLayout — 全局提问弹窗', () => {
+  const question = {
+    id: 'que-global',
+    sessionId: 'sess-other',
+    questions: [
+      { question: 'Deploy to production?', header: 'deploy', options: [{ label: 'Yes', description: '' }], multiple: false },
+    ],
+  }
+
+  beforeEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
+  })
+
+  afterEach(() => {
+    useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
+  })
+
+  it('会话列表页也有全局弹窗（不再只能进会话才看得到）', () => {
+    setup({ activeTab: 'chat', chatSubScreen: 'sessions' })
+    act(() => {
+      useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: null })
+    })
+    const tree = TestRenderer.create(<MainLayout />)
+    expect(textOf(tree)).toContain('Deploy to production?')
+  })
+
+  it('Settings / Files 页同样能弹出', () => {
+    setup({ activeTab: 'settings' })
+    act(() => {
+      useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: null })
+    })
+    const tree = TestRenderer.create(<MainLayout />)
+    expect(textOf(tree)).toContain('Deploy to production?')
+  })
+
+  it('提问属于当前会话时全局弹窗不接管（由内联 Dock 展示，避免双弹）', () => {
+    setup({ activeTab: 'chat', chatSubScreen: 'chat' })
+    act(() => {
+      useChatStore.setState({ activeSessionId: 'sess-other' })
+      useQuestionStore.setState({ pending: [question], visible: true, visibleSessionId: 'sess-other' })
+    })
+    const tree = TestRenderer.create(<MainLayout />)
+    expect(textOf(tree)).not.toContain('Deploy to production?')
   })
 })

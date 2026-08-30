@@ -90,7 +90,7 @@ export function resetAllStores() {
   useToolStore.setState({ pendingApprovals: [], visible: false })
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
-  useQuestionStore.setState({ pending: [], visible: false })
+  useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
   useProjectStore.setState({ directory: '', project: null, switching: false })
   useUiStore.setState({
     screen: 'connect',

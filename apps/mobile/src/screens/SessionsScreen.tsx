@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useUiStore } from '../stores/uiStore'
+import { useQuestionStore } from '../stores/questionStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
@@ -58,6 +59,8 @@ export const SessionsScreen: React.FC = () => {
   const renameSession = useSessionStore((s) => s.renameSession)
   // 会话运行状态（session.status / session.idle 通知 + RPC 快照）→ 列表运行红点
   const sessionRunStatus = useChatStore((s) => s.sessionRunStatus)
+  // 待回答提问（含息屏/断线期间对账补回的）→ 列表徽标，未进入会话也能发现
+  const pendingQuestions = useQuestionStore((s) => s.pending)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
   const projects = useProjectStore((s) => s.projects)
@@ -139,6 +142,8 @@ export const SessionsScreen: React.FC = () => {
     const displayName = item.name || `Session ${item.id.slice(0, 8)}`
     const runStatus = sessionRunStatus[item.id]
     const isRunning = runStatus === 'busy' || runStatus === 'retry'
+    // 该会话有待回答的提问（可能是息屏期间对账补回的）→ 列表页也要看得见
+    const pendingCount = pendingQuestions.filter((q) => q.sessionId === item.id).length
 
     return (
       <TouchableOpacity
@@ -155,6 +160,11 @@ export const SessionsScreen: React.FC = () => {
           <View style={styles.sessionMeta}>
             {isRunning ? (
               <View style={styles.runningDot} testID="session-running-dot" />
+            ) : null}
+            {pendingCount > 0 ? (
+              <Text style={styles.pendingBadge} testID="session-pending-question">
+                ❓ 待回答{pendingCount > 1 ? ` ${pendingCount}` : ''}
+              </Text>
             ) : null}
             <Text style={styles.sessionId} numberOfLines={1}>
               {item.id}
@@ -502,6 +512,12 @@ const makeStyles = (colors: ThemeColors) =>
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.error,
+    marginRight: 6,
+  },
+  pendingBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.warning,
     marginRight: 6,
   },
   sessionId: {

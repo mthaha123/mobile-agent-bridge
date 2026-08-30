@@ -256,6 +256,12 @@ registerHandler("permission.reply", async (p) => {
 })
 registerHandler("permission.list", async () =>
   sdkCall(() => sdk().v2.permission.request.list({})))
+
+// 待回答 question 的权威快照（SDK v2: GET /api/question/request）。
+// 与 permission.list 对称：供手机端在断线重连/回前台后对账，补回断口内错过的
+// question.v2.asked（服务端仍在等回答 → 会话卡在 busy，若不补弹用户无从交互）。
+registerHandler("question.list", async () =>
+  unwrapData(await sdkCall(() => sdk().v2.question.request.list({}))))
 registerHandler("permission.saved.list", async () =>
   sdkCall(() => sdk().v2.permission.saved.list({})))
 registerHandler("permission.saved.remove", async (p) => {

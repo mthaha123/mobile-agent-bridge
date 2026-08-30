@@ -10,6 +10,9 @@ import {
   Platform,
 } from 'react-native'
 import { useQuestionStore, SingleQuestion } from '../stores/questionStore'
+import { useSessionStore, type Session } from '../stores/sessionStore'
+import { useUiStore } from '../stores/uiStore'
+import { useChatStore } from '../stores/chatStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
@@ -36,21 +39,38 @@ export function setQuestionRejectCall(
 export const QuestionSheet: React.FC = () => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
-  const visible = useQuestionStore((s) => s.visible)
   const pending = useQuestionStore((s) => s.pending)
+  const visibleSessionId = useQuestionStore((s) => s.visibleSessionId)
   const removeQuestion = useQuestionStore((s) => s.removeQuestion)
-  const setVisible = useQuestionStore((s) => s.setVisible)
+  const sessions = useSessionStore((s: { sessions: Session[] }) => s.sessions)
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const pushChat = useUiStore((s) => s.pushChat)
+  const setActiveSession = useChatStore((s) => s.setActiveSession)
 
   const [selected, setSelected] = useState<Record<number, string[]>>({})
   const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
+  // 用户手动关掉的提问（仅本地生效）：关掉后不再打扰，但新提问（新 id）仍会弹出，
+  // 且不写回 store.visible —— 否则会连带把内联 Dock 也关掉。
+  const [dismissed, setDismissed] = useState<string[]>([])
 
-  useEffect(() => {
-    if (visible && pending.length === 0) {
-      setVisible(false)
-    }
-  }, [visible, pending, setVisible])
+  // 全局弹窗只接管"非当前可见会话"的提问：当前会话的由内联 QuestionDock 展示，
+  // 两者互斥，避免同一个提问被弹两次。
+  const items = pending.filter(
+    (q) => q.sessionId !== visibleSessionId && !dismissed.includes(q.id),
+  )
+  const visible = items.length > 0
 
-  const current = pending[0]
+  const current = items[0]
+  const currentSessionName = current
+    ? (sessions.find((s: Session) => s.id === current.sessionId)?.name ?? '')
+    : ''
+
+  const handleGoToSession = () => {
+    if (!current?.sessionId) return
+    setActiveSession(current.sessionId)
+    setActiveTab('chat')
+    pushChat()
+  }
 
   useEffect(() => {
     setSelected({})
@@ -90,7 +110,8 @@ export const QuestionSheet: React.FC = () => {
   }
 
   const handleDismiss = () => {
-    setVisible(false)
+    if (!current) return
+    setDismissed((prev) => (prev.includes(current.id) ? prev : [...prev, current.id]))
   }
 
   return (
@@ -112,7 +133,25 @@ export const QuestionSheet: React.FC = () => {
         >
           {current ? (
             <>
-              <Text style={styles.title}>Question</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>Question</Text>
+                {items.length > 1 ? (
+                  <Text style={styles.counter}>{items.length} 条待回答</Text>
+                ) : null}
+              </View>
+
+              {/* 全局弹窗可能展示的是"别的会话"的提问 → 标明来源并给一键跳转 */}
+              <TouchableOpacity
+                style={styles.sourceRow}
+                onPress={handleGoToSession}
+                accessibilityLabel="Go to session"
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sourceText} numberOfLines={1}>
+                  {currentSessionName ? `来自会话：${currentSessionName}` : '来自其它会话'}
+                </Text>
+                <Text style={styles.sourceLink}>去处理 ›</Text>
+              </TouchableOpacity>
 
               <ScrollView
                 style={styles.body}
@@ -199,6 +238,37 @@ export const QuestionSheet: React.FC = () => {
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  counter: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  sourceText: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginRight: 8,
+  },
+  sourceLink: {
+    fontSize: 12,
+    color: colors.link,
+    fontWeight: '600',
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

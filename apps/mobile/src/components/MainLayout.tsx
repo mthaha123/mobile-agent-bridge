@@ -7,6 +7,7 @@ import { ChatScreen } from '../screens/ChatScreen'
 import { FileBrowserScreen } from '../screens/FileBrowserScreen'
 import { FileViewerScreen } from '../screens/FileViewerScreen'
 import { SettingsScreen } from '../screens/SettingsScreen'
+import { QuestionSheet } from '../screens/QuestionSheet'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
@@ -120,6 +121,10 @@ export const MainLayout: React.FC = () => {
           ))}
         </View>
       )}
+
+      {/* 全局提问弹窗：接管"非当前会话"的待回答问题（含息屏/断线期间对账补回的）。
+          当前会话的提问由 ChatScreen 内的内联 QuestionDock 展示，两者互斥。 */}
+      <QuestionSheet />
     </SafeAreaView>
   )
 }

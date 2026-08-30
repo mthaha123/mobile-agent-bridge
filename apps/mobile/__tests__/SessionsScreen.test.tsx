@@ -8,6 +8,7 @@ import { useChatStore } from '../src/stores/chatStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { mockClient, resetAllStores, textOf, findAllPressable } from './test-utils'
+import { useQuestionStore } from '../src/stores/questionStore'
 
 const onNavigateToChat = jest.fn()
 const onBack = jest.fn()
@@ -62,6 +63,41 @@ describe('SessionsScreen', () => {
     tree.root.findAll(
       (n) => n.props?.testID === 'session-running-dot' && typeof n.type === 'string',
     ).length
+
+  /** 统计"❓ 待回答"徽标数量（只统计 host 节点，避免 composite/host 重复计数） */
+  const countPendingBadges = (tree: TestRenderer.ReactTestRenderer) =>
+    tree.root.findAll(
+      (n) => n.props?.testID === 'session-pending-question' && typeof n.type === 'string',
+    ).length
+
+  it('有待回答提问的会话显示徽标（未进入会话也能发现）', () => {
+    useSessionStore.setState({
+      sessions: [
+        { id: 's-q', name: 'Asked', createdAt: '', updatedAt: '', messageCount: 0 },
+        { id: 's-plain', name: 'Plain', createdAt: '', updatedAt: '', messageCount: 0 },
+      ],
+    })
+    useQuestionStore.setState({
+      pending: [{ id: 'que-1', sessionId: 's-q', questions: [] }],
+      visible: true,
+      visibleSessionId: 's-plain', // 当前在别的会话 → 该提问由全局弹窗接管
+    })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(countPendingBadges(tree)).toBe(1)
+  })
+
+  it('没有待回答提问时不显示徽标', () => {
+    useSessionStore.setState({
+      sessions: [{ id: 's-plain', name: 'Plain', createdAt: '', updatedAt: '', messageCount: 0 }],
+    })
+    useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(countPendingBadges(tree)).toBe(0)
+  })
 
   it('shows running indicator on busy sessions（sessionRunStatus 订阅）', () => {
     useSessionStore.setState({

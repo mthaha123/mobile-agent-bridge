@@ -7,7 +7,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useDiffStore } from '../stores/diffStore'
 import { useTodoStore } from '../stores/todoStore'
-import { useQuestionStore } from '../stores/questionStore'
+import { useQuestionStore, type QuestionItem } from '../stores/questionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
@@ -77,6 +77,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         c.reconnectNow()
       } else {
         void c.verifyAlive().catch(() => {})
+        // 息屏/后台期间到达的审批与提问不会重放；连接"看起来还活着"时不会触发
+        // connected（无重连→无对账），所以回前台无论是否重连都直接对账一次
+        void reconcilePermissions()
+        void reconcileQuestions()
       }
     })
 
@@ -226,6 +230,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     }
 
+    // ── 待回答 question 对账：修复断线/息屏期间错过的 question.v2.asked ──
+    //
+    // 与 permission 对账同构，但后果更严重：question 未被回答时服务端 agent loop
+    // 一直不返回（会话恒为 busy → 手机端一直转圈/锁输入），而 SSE 不重放历史，
+    // 断口内到达的 question.v2.asked 会永久丢失 → "卡住但没有任何弹框"。
+    // 重连/回前台后用 question.list（GET /api/question/request 权威快照）双向对账：
+    //   - 服务器有而本地无 → 补入 questionStore（弹框立即出现）
+    //   - 本地有而服务器无 → 仅移除"快照前已存在"的条目，避免与实时通知竞态
+    const reconcileQuestions = async () => {
+      try {
+        const beforeIds = new Set(
+          useQuestionStore.getState().pending.map((q) => q.id),
+        )
+        const list = (await client.call('question.list', {})) as Array<{
+          id?: unknown
+          sessionID?: unknown
+          questions?: unknown
+          tool?: unknown
+        }>
+        if (!Array.isArray(list)) return
+        const serverIds = new Set<string>()
+        for (const req of list) {
+          if (!req || typeof req.id !== 'string' || !req.id) continue
+          serverIds.add(req.id)
+          if (beforeIds.has(req.id)) continue // 本地已有（实时通知先到）
+          useQuestionStore.getState().addQuestion({
+            id: req.id,
+            sessionId: typeof req.sessionID === 'string' ? req.sessionID : '',
+            questions: (Array.isArray(req.questions)
+              ? req.questions
+              : []) as QuestionItem['questions'],
+            tool: req.tool as QuestionItem['tool'],
+          })
+        }
+        for (const item of useQuestionStore.getState().pending) {
+          if (beforeIds.has(item.id) && !serverIds.has(item.id)) {
+            useQuestionStore.getState().removeQuestion(item.id)
+          }
+        }
+      } catch {
+        // 静默：对账失败保持现状，等待下一次 connected/实时事件
+      }
+    }
+
     // 连接/重连建立时校正当前会话状态。
     //
     // 背景：SSE 不重放历史事件，WS 断线断口内产生的通知（工具终态 tool.success/
@@ -247,6 +295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         useChatStore.getState().fetchSessionRunStatus(activeId, client.call.bind(client))
       }
       void reconcilePermissions()
+      void reconcileQuestions()
     })
     // setupClient 晚于首次 connect() 完成（authStore 先 await connect 再 set client），
     // 此时补一次首次连接语义的状态校正

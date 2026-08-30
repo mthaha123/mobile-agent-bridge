@@ -75,6 +75,28 @@ function createMockSdk() {
         remove: jest.fn<any>().mockResolvedValue({ data: { ok: true } }),
       },
     },
+    question: {
+      request: {
+        list: jest.fn<any>().mockResolvedValue({
+          data: {
+            data: [
+              {
+                id: "que_123",
+                sessionID: "sess_123",
+                questions: [
+                  {
+                    question: "Which option?",
+                    header: "Preference",
+                    options: [{ label: "Option A", description: "A" }],
+                    multiple: false,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+    },
   }
   backend.sdk = { session: mockSession2, v2: mockV2, global: mockGlobal, config: mockConfig, project: { list: jest.fn<any>().mockResolvedValue({ data: [] }) } } as any
   backend.rawSessionMessages = jest.fn<any>().mockResolvedValue({ messages: [], cursor: undefined })
@@ -289,6 +311,22 @@ describe("RPC Router", () => {
     }, testPayload)
     expect(messages[0].ok).toBe(true)
     expect(mockV2.permission.request.list).toHaveBeenCalledWith({})
+  })
+
+  // 待回答 question 的权威快照：手机端断线/息屏后对账用（补回错过的 question.v2.asked）
+  it("should call question.list and unwrap to a bare array", async () => {
+    const { mockV2 } = createMockSdk()
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "question.list", params: {},
+    }, testPayload)
+    expect(messages[0].ok).toBe(true)
+    expect(mockV2.question.request.list).toHaveBeenCalledWith({})
+    // SDK 返回 { data: { data: [...] } } → 解包为裸数组（与 config.agents / command.list 契约一致）
+    const payload = messages[0].payload as unknown[]
+    expect(Array.isArray(payload)).toBe(true)
+    expect(payload).toHaveLength(1)
+    expect((payload[0] as { id: string }).id).toBe("que_123")
   })
 
   it("should call permission.saved.list", async () => {
