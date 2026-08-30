@@ -225,23 +225,24 @@ describe('MessageItem grouped mode', () => {
     useSettingsStore.setState({ chatDisplayMode: 'flat' })
   })
 
-  it('in grouped mode, consecutive tools + short text merge into ToolGroupCard', () => {
+  it('in grouped mode, consecutive tools merge into ToolGroupCard; short text stays standalone', () => {
     const { ToolGroupCard } = require('../src/components/chat/ToolGroupCard')
     const parts = [
       { id: 't1', type: 'tool', data: { tool: 'read', input: { path: 'a.ts' }, status: 'success' } },
       { id: 't2', type: 'tool', data: { tool: 'write', input: { path: 'b.ts' }, status: 'success' } },
-      { id: 'p1', type: 'text', data: { content: 'Done!' } }, // short text <100 chars → absorbed
+      { id: 'p1', type: 'text', data: { content: 'Done!' } }, // 短文本不再被吸收（a3805e8 起）
     ]
     const tree = TestRenderer.create(
       <MessageItem item={makeMessage({ content: '', parts: parts as any })} onRevert={noop} />,
     )
     const groups = tree.root.findAllByType(ToolGroupCard)
     expect(groups).toHaveLength(1)
-    // action-block should contain 2 tools + 1 short text = 3 parts
-    expect(groups[0].props.parts).toHaveLength(3)
-    // Should NOT render individual PartBlocks
+    // action-block 只含 2 个工具，短文本不并入
+    expect(groups[0].props.parts).toHaveLength(2)
+    // 短文本独立渲染为 PartBlock，文本对用户可见
     const blocks = tree.root.findAllByType(PartBlock)
-    expect(blocks).toHaveLength(0)
+    expect(blocks).toHaveLength(1)
+    expect(textOf(tree)).toContain('Done!')
   })
 
   it('in grouped mode, reasoning + tools merge into single ToolGroupCard', () => {
