@@ -15,6 +15,7 @@
     "react-native-blob-util": "^0.24.10",
     "react-native-markdown-display": "7.0.2",
     "react-native-marked": "^8.1.1",
+    "react-native-webview": "^14.0.1",
     "zustand": "^4.5.0"
   },
   "devDependencies": {

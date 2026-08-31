@@ -194,3 +194,71 @@ describe('FileViewerScreen — image', () => {
     expect(textOf(tree)).toContain('pic.png')
   })
 })
+
+describe('FileViewerScreen — html', () => {
+  function openHtmlFile(path: string, content: string, size = content.length) {
+    act(() => {
+      useAuthStore.setState({ client: mockClient() as any })
+      useFileStore.getState().openHtmlViewer({ path, content, encoding: 'utf-8', size })
+      useUiStore.setState({ activeTab: 'files', filesSubScreen: 'viewer' })
+    })
+  }
+
+  it('renders WebView in html mode by default (viewerHtmlRendered=true)', () => {
+    openHtmlFile('/test/index.html', '<h1>Hello</h1>')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const webviews = tree.root.findAll((n: any) => n.props?.testID === 'webview')
+    expect(webviews.length).toBe(1)
+    expect(webviews[0].props.source.html).toBe('<h1>Hello</h1>')
+  })
+
+  it('shows file name in header', () => {
+    openHtmlFile('/test/src/index.html', '<p>Hi</p>')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    expect(textOf(tree)).toContain('index.html')
+  })
+
+  it('shows source toggle button for HTML files', () => {
+    openHtmlFile('/test/index.html', '<p>Hi</p>')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    expect(textOf(tree)).toContain('源码')
+  })
+
+  it('toggleHtmlRendered switches to source mode (no WebView)', () => {
+    openHtmlFile('/test/index.html', '<p>Hi</p>')
+    act(() => { useFileStore.getState().toggleHtmlRendered() })
+    expect(useFileStore.getState().viewerHtmlRendered).toBe(false)
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    // 源码模式下不应有 WebView
+    const webviews = tree.root.findAll((n: any) => n.props?.testID === 'webview')
+    expect(webviews.length).toBe(0)
+    // 应显示 HTML 源码
+    expect(textOf(tree)).toContain('<p>Hi</p>')
+  })
+
+  it('toggle button switches back to rendered mode', () => {
+    openHtmlFile('/test/index.html', '<p>Hi</p>')
+    act(() => { useFileStore.getState().toggleHtmlRendered() })
+    act(() => { useFileStore.getState().toggleHtmlRendered() })
+    expect(useFileStore.getState().viewerHtmlRendered).toBe(true)
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const webviews = tree.root.findAll((n: any) => n.props?.testID === 'webview')
+    expect(webviews.length).toBe(1)
+  })
+
+  it('back button closes viewer', () => {
+    openHtmlFile('/test/index.html', '<p>Hi</p>')
+    const tree = TestRenderer.create(<FileViewerScreen />)
+    const pressables = tree.root.findAll((n: any) => typeof n.props?.onPress === 'function')
+    const back = pressables.find((n: any) => {
+      let t = ''
+      function walk(node: any) { if (!node) return; if (typeof node === 'string') t += node; if (node.children) node.children.forEach(walk) }
+      walk(n)
+      return t.includes('←')
+    })
+    expect(back).toBeTruthy()
+    act(() => { back!.props.onPress() })
+    expect(useUiStore.getState().filesSubScreen).toBe('browser')
+    expect(useFileStore.getState().viewerMode).toBeNull()
+  })
+})

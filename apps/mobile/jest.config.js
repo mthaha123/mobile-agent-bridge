@@ -10,6 +10,7 @@ export default {
     '^react-native-blob-util$': '<rootDir>/__mocks__/react-native-blob-util.js',
     '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
     '^react-native-marked$': '<rootDir>/__mocks__/react-native-marked.js',
+    '^react-native-webview$': '<rootDir>/__mocks__/react-native-webview.js',
   },
   transform: {
     '^.+\\.tsx?$': [

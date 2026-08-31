@@ -19,6 +19,7 @@ import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
+const HTML_EXTS = ['html', 'htm']
 
 const MIME_TYPES: Record<string, string> = {
   txt: 'text/plain', md: 'text/markdown', json: 'application/json', js: 'application/javascript',
@@ -58,6 +59,7 @@ export const FileBrowserScreen: React.FC = () => {
   const projectDir = useProjectStore((s) => s.directory)
   const openTextViewer = useFileStore((s) => s.openTextViewer)
   const openImageViewer = useFileStore((s) => s.openImageViewer)
+  const openHtmlViewer = useFileStore((s) => s.openHtmlViewer)
   const pushViewer = useUiStore((s) => s.pushViewer)
 
   const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
@@ -114,6 +116,23 @@ export const FileBrowserScreen: React.FC = () => {
           }
         } catch (err: unknown) {
           Alert.alert('Error', err instanceof Error ? err.message : 'Failed to preview image')
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
+      // HTML 文件 → WebView 查看器
+      if (HTML_EXTS.includes(ext)) {
+        setLoading(true)
+        try {
+          const filePath = currentPath + '/' + file.name
+          const content = await client?.readFile(filePath)
+          if (content) {
+            openHtmlViewer(content)
+            pushViewer()
+          }
+        } catch (err: unknown) {
+          Alert.alert('Error', err instanceof Error ? err.message : 'Failed to read HTML file')
         } finally {
           setLoading(false)
         }

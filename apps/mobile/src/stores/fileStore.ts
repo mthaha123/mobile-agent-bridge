@@ -32,7 +32,7 @@ export interface ViewerImage {
   name: string
 }
 
-export type ViewerMode = 'text' | 'image' | null
+export type ViewerMode = 'text' | 'image' | 'html' | null
 
 export interface FileState {
   /** 当前浏览路径 */
@@ -60,6 +60,8 @@ export interface FileState {
   viewerShowLineNumbers: boolean
   /** markdown 文件：是否显示源码（false=渲染） */
   viewerShowSource: boolean
+  /** HTML 文件：是否显示渲染后的页面（true=WebView 渲染，false=源码） */
+  viewerHtmlRendered: boolean
   /** 文本查看器：是否折行（true=换行模式，false=不换行+横向滚动） */
   viewerWrap: boolean
 
@@ -81,6 +83,8 @@ export interface FileState {
   openTextViewer: (file: FileContent) => void
   /** 打开图片查看器 */
   openImageViewer: (image: ViewerImage) => void
+  /** 打开 HTML 查看器（WebView 渲染） */
+  openHtmlViewer: (file: FileContent) => void
   /** 关闭查看器 */
   closeViewer: () => void
   /** 调节字号 */
@@ -89,6 +93,8 @@ export interface FileState {
   toggleLineNumbers: () => void
   /** 切换 markdown 渲染/源码 */
   toggleViewerSource: () => void
+  /** 切换 HTML 渲染/源码 */
+  toggleHtmlRendered: () => void
   /** 切换换行/不换行模式 */
   toggleViewerWrap: () => void
   /** 导航到上级目录 */
@@ -139,6 +145,7 @@ const initialState = {
   viewerFontSize: 14,
   viewerShowLineNumbers: true,
   viewerShowSource: false,
+  viewerHtmlRendered: true,
   viewerWrap: true,
 }
 
@@ -172,6 +179,13 @@ export const useFileStore = create<FileState>((set, get) => ({
     currentFile: null,
   }),
 
+  openHtmlViewer: (file) => set({
+    currentFile: file,
+    viewerMode: 'html',
+    viewerImage: null,
+    viewerHtmlRendered: true,
+  }),
+
   closeViewer: () => set({ viewerMode: null, viewerImage: null }),
 
   setViewerFontSize: (size) => set({ viewerFontSize: Math.max(10, Math.min(24, size)) }),
@@ -179,6 +193,8 @@ export const useFileStore = create<FileState>((set, get) => ({
   toggleLineNumbers: () => set((s) => ({ viewerShowLineNumbers: !s.viewerShowLineNumbers })),
 
   toggleViewerSource: () => set((s) => ({ viewerShowSource: !s.viewerShowSource })),
+
+  toggleHtmlRendered: () => set((s) => ({ viewerHtmlRendered: !s.viewerHtmlRendered })),
 
   toggleViewerWrap: () => set((s) => ({ viewerWrap: !s.viewerWrap })),
 
