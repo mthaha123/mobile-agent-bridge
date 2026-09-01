@@ -29,7 +29,7 @@ const TSX = path.join(rootDir, "servers", "bridge", "node_modules", "tsx", "dist
 const BRIDGE_SRC = path.join(rootDir, "servers", "bridge", "src", "index.ts")
 const CLOUDFLARED = path.join(rootDir, "scripts", "tools", "cloudflared.exe")
 
-const SERVE_PORT = 4096
+const SERVE_PORT = 4097
 const BRIDGE_PORT = 8080
 const BRIDGE_PASSWORD = "test123"
 const SERVE_CWD = "D:\\code\\mobile-agent-bridge"

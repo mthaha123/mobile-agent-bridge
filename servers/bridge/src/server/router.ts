@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs"
+import { join, resolve } from "node:path"
 import { WebSocket } from "ws"
 import type { TokenPayload } from "./auth.js"
 import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
@@ -115,6 +116,89 @@ registerHandler("project.list", async () => {
   } catch {
     return []
   }
+})
+
+/**
+ * 读取项目的 opencode.json + .opencode/ 目录下的 agents/skills 定义。
+ * 不依赖 serve API，直接从文件系统读取，支持切换项目后获取该项目的配置。
+ */
+registerHandler("project.config", async (params) => {
+  const dir = params?.directory || getCurrentProject().directory
+  if (!dir || !existsSync(dir)) return { agents: [], skills: [], commands: {} }
+
+  const result: { agents: Record<string, unknown>; skills: Array<{ name: string; description?: string; location: string }>; commands: Record<string, unknown> } = {
+    agents: {},
+    skills: [],
+    commands: {},
+  }
+
+  // 1. 读取 opencode.json 的 agent / skills / command 字段
+  for (const name of ["opencode.json", "opencode.jsonc"]) {
+    const cfgPath = join(dir, name)
+    if (existsSync(cfgPath)) {
+      try {
+        const raw = readFileSync(cfgPath, "utf8")
+        const cleaned = raw.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")
+        const cfg = JSON.parse(cleaned)
+        if (cfg.agent && typeof cfg.agent === "object") result.agents = cfg.agent
+        if (cfg.command && typeof cfg.command === "object") result.commands = cfg.command
+      } catch { /* ignore parse errors */ }
+      break
+    }
+  }
+
+  // 2. 扫描 .opencode/skills/*/SKILL.md
+  const scanSkills = (baseDir: string) => {
+    const skillsDir = join(baseDir, ".opencode", "skills")
+    if (!existsSync(skillsDir)) return
+    try {
+      for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const skillMd = join(skillsDir, entry.name, "SKILL.md")
+        if (!existsSync(skillMd)) continue
+        try {
+          const content = readFileSync(skillMd, "utf8")
+          const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/)
+          let name = entry.name, description = ""
+          if (fmMatch) {
+            const fm = fmMatch[1]
+            const nameM = fm.match(/^name:\s*(.+)$/m)
+            const descM = fm.match(/^description:\s*["']?(.+?)["']?\s*$/m)
+            if (nameM) name = nameM[1].trim()
+            if (descM) description = descM[1].trim()
+          }
+          result.skills.push({ name, description, location: skillMd })
+        } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
+  scanSkills(dir)
+
+  // 3. 扫描 .opencode/agents/*.md
+  const agentsDir = join(dir, ".opencode", "agents")
+  if (existsSync(agentsDir)) {
+    try {
+      for (const entry of readdirSync(agentsDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith(".md")) continue
+        const agentPath = join(agentsDir, entry.name)
+        try {
+          const content = readFileSync(agentPath, "utf8")
+          const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/)
+          let name = entry.name.replace(/\.md$/, ""), description = ""
+          if (fmMatch) {
+            const fm = fmMatch[1]
+            const nameM = fm.match(/^name:\s*(.+)$/m)
+            const descM = fm.match(/^description:\s*["']?(.+?)["']?\s*$/m)
+            if (nameM) name = nameM[1].trim()
+            if (descM) description = descM[1].trim()
+          }
+          result.agents[name] = { description, source: "file", location: agentPath }
+        } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
+
+  return result
 })
 
 // ===== 经由 @opencode-ai/sdk v2 的 OpenCode API 调用 =====
