@@ -50,6 +50,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   const listData = useMemo(() => buildChatListItems(messages), [messages])
 
   const maybeLoadMoreHistory = useCallback(() => {
+    console.log(`[DEBUG onEndReached] hasMore=${hasMoreHistory} loading=${historyLoading}`)
     if (hasMoreHistory && !historyLoading) onLoadMoreHistory()
   }, [hasMoreHistory, historyLoading, onLoadMoreHistory])
 
@@ -86,7 +87,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
         ref={flatListRef}
         data={listData}
         inverted
-        nestedScrollEnabled
+        // A/B 验证：临时移除 nestedScrollEnabled，排查 onEndReached 不触发问题
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={thinkingIndicator}

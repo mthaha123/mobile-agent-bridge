@@ -181,6 +181,7 @@ export const ChatScreen: React.FC = () => {
       if (!cancelled) {
         // bridge 契约保证升序（旧→新），无需 reverse
         applyLoadedMessages(list)
+        console.log(`[DEBUG init] cursor=${cursor} listLen=${list.length}`)
         setHistoryCursor(cursor)
         setHasMoreHistory(Boolean(cursor))
 
@@ -197,6 +198,7 @@ export const ChatScreen: React.FC = () => {
   // 上滑到顶：用 cursor 加载更早的消息，prepend 到列表前
   const handleLoadMoreHistory = async () => {
     const client = useAuthStore.getState().client
+    console.log(`[DEBUG loadMore] cursor=${historyCursor} loading=${historyLoading}`)
     if (!activeSessionId || !client || !historyCursor || historyLoading) return
     setHistoryLoading(true)
     try {
@@ -219,6 +221,7 @@ export const ChatScreen: React.FC = () => {
         newMsgs.push({ id: msgId || `m_${Date.now()}_${Math.random()}`, messageID: msgId, role: msg.role, content: text || msg.content || msg.text || '', text: text || msg.content || msg.text || '', parts: parts.length ? parts : undefined, rawContent: msg.rawContent, created, timestamp: created })
       })
       useChatStore.getState().prependMessages(newMsgs as any)
+      console.log(`[DEBUG loadMore done] newCursor=${cursor} newMsgs=${newMsgs.length}`)
       setHistoryCursor(cursor)
       setHasMoreHistory(Boolean(cursor))
     } catch {

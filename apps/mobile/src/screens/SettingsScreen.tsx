@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Alert, TextInput } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useConfigStore } from '../stores/configStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useToolStore } from '../stores/toolStore'
 import { useUiStore } from '../stores/uiStore'
+import { useServeStore, type ServeEntry } from '../stores/serveStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 import { ModelPickerModal } from '../components/ModelPickerModal'
@@ -19,11 +20,22 @@ export const SettingsScreen: React.FC = () => {
   const directory = useProjectStore((s) => s.directory)
   const logout = useAuthStore((s) => s.logout)
   const setScreen = useUiStore((s) => s.setScreen)
+  const serves = useServeStore((s) => s.serves)
+  const fetchServes = useServeStore((s) => s.fetchServes)
+  const addServe = useServeStore((s) => s.addServe)
+  const removeServe = useServeStore((s) => s.removeServe)
+  const startServe = useServeStore((s) => s.startServe)
+  const stopServe = useServeStore((s) => s.stopServe)
 
   const savedRules = useToolStore((s) => s.savedRules)
   const savedRulesLoading = useToolStore((s) => s.savedRulesLoading)
   const fetchSavedRules = useToolStore((s) => s.fetchSavedRules)
   const removeSavedRule = useToolStore((s) => s.removeSavedRule)
+
+  const [addModalVisible, setAddModalVisible] = useState(false)
+  const [newServeName, setNewServeName] = useState('')
+  const [newServeDir, setNewServeDir] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const defaultAgent = useSettingsStore((s) => s.defaultAgent)
   const defaultModel = useSettingsStore((s) => s.defaultModel)
@@ -120,6 +132,96 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.rowValue} numberOfLines={1}>{directory || '(none)'}</Text>
         </View>
       </View>
+
+      <View style={styles.section}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={styles.sectionLabel}>OpenCode Serves ({serves.length})</Text>
+          <TouchableOpacity onPress={() => setAddModalVisible(true)}>
+            <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
+        {serves.length === 0 ? (
+          <View style={styles.row}><Text style={styles.rowValue}>No serves configured</Text></View>
+        ) : (
+          serves.map((s) => (
+            <View key={s.id} style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{s.name}</Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{s.directory}</Text>
+                <Text style={{ color: s.status === 'running' ? colors.success : colors.textTertiary, fontSize: 11, marginTop: 2 }}>
+                  port {s.port} · {s.status}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={() => {
+                  if (client) {
+                    const cc = client.call.bind(client)
+                    s.status === 'running'
+                      ? stopServe(cc, s.id)
+                      : startServe(cc, s.id)
+                  }
+                }}>
+                  <Text style={{ color: s.status === 'running' ? colors.warning : colors.success, fontSize: 13 }}>
+                    {s.status === 'running' ? 'Stop' : 'Start'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                  Alert.alert('Delete', `Remove "${s.name}"?`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => { if (client) removeServe(client.call.bind(client), s.id) } },
+                  ])
+                }}>
+                  <Text style={{ color: colors.destructive, fontSize: 13 }}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
+      <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAddModalVisible(false)}>
+          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Add OpenCode Serve</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Name</Text>
+            <TextInput
+              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 }}
+              placeholder="My Project"
+              placeholderTextColor={colors.textTertiary}
+              value={newServeName}
+              onChangeText={setNewServeName}
+            />
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Directory</Text>
+            <TextInput
+              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 14 }}
+              placeholder="D:\code\my-project"
+              placeholderTextColor={colors.textTertiary}
+              value={newServeDir}
+              onChangeText={setNewServeDir}
+            />
+            <TouchableOpacity
+              style={[styles.disconnectBtn, { backgroundColor: adding ? colors.textTertiary : colors.primary, marginTop: 0 }]}
+              disabled={adding || !newServeName.trim() || !newServeDir.trim()}
+              onPress={async () => {
+                if (!client) return
+                setAdding(true)
+                try {
+                  await addServe(client.call.bind(client), newServeName.trim(), newServeDir.trim())
+                  setNewServeName('')
+                  setNewServeDir('')
+                  setAddModalVisible(false)
+                } catch (e: any) {
+                  Alert.alert('Error', e?.message || 'Failed to add serve')
+                } finally {
+                  setAdding(false)
+                }
+              }}
+            >
+              <Text style={styles.disconnectBtnText}>{adding ? 'Adding...' : 'Add Serve'}</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Defaults</Text>
