@@ -16,6 +16,10 @@ export class OpenCodeBackend {
     this.baseUrl = baseUrl
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl
+  }
+
   /** 基于 http 模块的 fetch，避免 tsx/undici 下 req.timeout=false 导致 hang */
   private createNodeFetch(): typeof globalThis.fetch {
     const baseUrl = this.baseUrl

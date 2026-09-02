@@ -1,5 +1,6 @@
 import path from "path"
 import fs from "fs"
+import http from "http"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { broadcastToAll } from "../server/ws.js"
 
@@ -8,6 +9,31 @@ let currentProject: { name?: string } | null = null
 let sseAbort: AbortController | null = null
 let sseLoop: Promise<void> | null = null
 let isSwitching = false
+
+/** 调用 serve 的 instance.dispose API，强制重新加载项目的 agents/skills/config */
+function disposeInstance(directory: string, baseUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const url = new URL(baseUrl)
+      const body = JSON.stringify({ directory })
+      const req = http.request({
+        hostname: url.hostname,
+        port: parseInt(url.port || "80", 10),
+        path: "/instance/dispose",
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+        timeout: 2000,
+      }, (res) => {
+        let b = ""
+        res.on("data", (c) => { b += c })
+        res.on("end", () => { resolve(b.trim() === "true") })
+      })
+      req.on("error", () => resolve(false))
+      req.on("timeout", () => { req.destroy(); resolve(false) })
+      req.end(body)
+    } catch { resolve(false) }
+  })
+}
 
 async function startSSE(signal: AbortSignal): Promise<void> {
   const backend = getBackend()
@@ -81,7 +107,16 @@ export async function switchProject(directory: string): Promise<{ directory: str
     sseAbort = null
     sseLoop = null
 
+    // 切换前 dispose 项目实例，强制 serve 重新加载 agents/skills/config
+    // 静默失败：dispose 不可用时不影响切换流程
+    try {
+      const backend = getBackend()
+      const baseUrl = backend?.getBaseUrl?.()
+      if (baseUrl) await disposeInstance(resolvedDir, baseUrl)
+    } catch { /* dispose 非关键路径 */ }
+
     const backend = getBackend()
+
     backend.createClient(resolvedDir)
     activeDirectory = resolvedDir
 
