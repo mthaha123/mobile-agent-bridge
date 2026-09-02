@@ -6,6 +6,10 @@ import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { fileList, fileRead, fileSearch, getFileInfo } from "./fileHandler.js"
+import {
+  getProjects, addProject, removeProject,
+  startProject, stopProject, getServeUrl, getProjectByDir,
+} from "../state/serveManager.js"
 
 /** Bridge 包版本（package.json 读取，失败降级 unknown）。
  *  ESM 下 import.meta.url 在 ts-jest ESM preset(--experimental-vm-modules) 与 tsx 运行时均可用 */
@@ -116,6 +120,27 @@ registerHandler("project.list", async () => {
   } catch {
     return []
   }
+})
+
+// ===== Serve 实例管理（每个项目独立一个 serve） =====
+registerHandler("serve.list", async () => getProjects())
+registerHandler("serve.add", async (params) => {
+  if (!params.name) throw new Error("name is required")
+  if (!params.directory) throw new Error("directory is required")
+  return addProject(params.name, params.directory)
+})
+registerHandler("serve.remove", async (params) => {
+  if (!params.id) throw new Error("id is required")
+  return removeProject(params.id)
+})
+registerHandler("serve.start", async (params) => {
+  if (!params.id) throw new Error("id is required")
+  return startProject(params.id)
+})
+registerHandler("serve.stop", async (params) => {
+  if (!params.id) throw new Error("id is required")
+  stopProject(params.id)
+  return { ok: true }
 })
 
 /**

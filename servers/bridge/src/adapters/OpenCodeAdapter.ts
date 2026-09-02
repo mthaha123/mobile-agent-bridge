@@ -82,9 +82,9 @@ export class OpenCodeBackend {
     }
   }
 
-  /** 创建 SDK client（绑定 directory） */
-  createClient(directory: string): void {
-    const apiBaseUrl = `${this.baseUrl.replace(/\/+$/, "")}`
+  /** 创建 SDK client（绑定 directory，可选自定义 serve URL） */
+  createClient(directory: string, customBaseUrl?: string): void {
+    const apiBaseUrl = `${(customBaseUrl || this.baseUrl).replace(/\/+$/, "")}`
     const newSdk = createOpencodeClient({
       baseUrl: apiBaseUrl,
       fetch: this.createNodeFetch(),
@@ -93,6 +93,8 @@ export class OpenCodeBackend {
     // 新 client 就绪后才销毁旧的（防回滚丢失）
     this.sdk?.global.dispose().catch(() => {})
     this.sdk = newSdk
+    // 更新 baseUrl（供后续 API 调用使用）
+    if (customBaseUrl) this.baseUrl = customBaseUrl
   }
 
   /** 销毁当前 client */

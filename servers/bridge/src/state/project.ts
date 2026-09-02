@@ -3,6 +3,7 @@ import fs from "fs"
 import http from "http"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
 import { broadcastToAll } from "../server/ws.js"
+import { getProjectByDir, getServeUrl } from "./serveManager.js"
 
 let activeDirectory: string | null = null
 let currentProject: { name?: string } | null = null
@@ -10,7 +11,7 @@ let sseAbort: AbortController | null = null
 let sseLoop: Promise<void> | null = null
 let isSwitching = false
 
-/** 调用 serve 的 instance.dispose API，强制重新加载项目的 agents/skills/config */
+/** 调用 serve 的 instance.dispose API，尝试强制重新加载项目配置 */
 function disposeInstance(directory: string, baseUrl: string): Promise<boolean> {
   return new Promise((resolve) => {
     try {
@@ -107,17 +108,18 @@ export async function switchProject(directory: string): Promise<{ directory: str
     sseAbort = null
     sseLoop = null
 
-    // 切换前 dispose 项目实例，强制 serve 重新加载 agents/skills/config
-    // 静默失败：dispose 不可用时不影响切换流程
-    try {
+    // 检查该项目是否有注册的 serve 实例
+    const entry = getProjectByDir(resolvedDir)
+    if (entry) {
+      const serveUrl = getServeUrl(entry)
+      // 用项目专属 serve 的 URL 重建 SDK 连接
       const backend = getBackend()
-      const baseUrl = backend?.getBaseUrl?.()
-      if (baseUrl) await disposeInstance(resolvedDir, baseUrl)
-    } catch { /* dispose 非关键路径 */ }
-
-    const backend = getBackend()
-
-    backend.createClient(resolvedDir)
+      backend.createClient(resolvedDir, serveUrl)
+    } else {
+      // 没有注册的 serve，用默认 serve（原始行为）
+      const backend = getBackend()
+      backend.createClient(resolvedDir)
+    }
     activeDirectory = resolvedDir
 
     const abort = new AbortController()
