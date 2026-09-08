@@ -1,0 +1,21 @@
+appId: com.mobileagentbridge
+---
+- launchApp
+- tapOn: "Settings"
+- tapOn:
+    text: "+ Add"
+- tapOn:
+    text: "My Project"
+- inputText: "Test Project"
+- tapOn:
+    text: "D:\\code\\my-project"
+- inputText: "D:\\code\\mobile-agent-bridge"
+- tapOn: "Add Serve"
+- extendedWaitUntil:
+    visible: "Test Project"
+    timeout: 15000
+- assertVisible: "Test Project"
+- extendedWaitUntil:
+    visible: "running"
+    timeout: 15000
+- assertVisible: "running"

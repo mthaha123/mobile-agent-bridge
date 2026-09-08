@@ -1,0 +1,25 @@
+appId: com.mobileagentbridge
+---
+- tapOn:
+    text: "客户端HTML文件支持方案调研"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 10000
+- swipe:
+    start: 50%, 70%
+    end: 50%, 15%
+    duration: 500
+- swipe:
+    start: 50%, 70%
+    end: 50%, 15%
+    duration: 500
+- swipe:
+    start: 50%, 70%
+    end: 50%, 15%
+    duration: 500
+- swipe:
+    start: 50%, 70%
+    end: 50%, 15%
+    duration: 500
+- takeScreenshot: ab-scroll-top
