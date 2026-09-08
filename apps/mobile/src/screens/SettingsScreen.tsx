@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Alert, TextInput } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Alert, TextInput, Pressable } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useConfigStore } from '../stores/configStore'
@@ -36,6 +36,8 @@ export const SettingsScreen: React.FC = () => {
   const [newServeName, setNewServeName] = useState('')
   const [newServeDir, setNewServeDir] = useState('')
   const [adding, setAdding] = useState(false)
+  const nameRef = React.useRef('')
+  const dirRef = React.useRef('')
 
   const defaultAgent = useSettingsStore((s) => s.defaultAgent)
   const defaultModel = useSettingsStore((s) => s.defaultModel)
@@ -69,6 +71,27 @@ export const SettingsScreen: React.FC = () => {
       cancelled = true
     }
   }, [])
+
+  // Poll serve status every 3s
+  useEffect(() => {
+    if (!client) return
+    let cancelled = false
+
+    // Initial fetch
+    fetchServes(client.call.bind(client))
+
+    // Poll
+    const interval = setInterval(() => {
+      if (!cancelled) {
+        fetchServes(client.call.bind(client))
+      }
+    }, 3000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [client])
 
   const handleDisconnect = () => {
     logout()
@@ -108,6 +131,7 @@ export const SettingsScreen: React.FC = () => {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Settings</Text>
 
@@ -178,50 +202,6 @@ export const SettingsScreen: React.FC = () => {
           ))
         )}
       </View>
-
-      <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAddModalVisible(false)}>
-          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Add OpenCode Serve</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Name</Text>
-            <TextInput
-              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 }}
-              placeholder="My Project"
-              placeholderTextColor={colors.textTertiary}
-              value={newServeName}
-              onChangeText={setNewServeName}
-            />
-            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Directory</Text>
-            <TextInput
-              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 14 }}
-              placeholder="D:\code\my-project"
-              placeholderTextColor={colors.textTertiary}
-              value={newServeDir}
-              onChangeText={setNewServeDir}
-            />
-            <TouchableOpacity
-              style={[styles.disconnectBtn, { backgroundColor: adding ? colors.textTertiary : colors.primary, marginTop: 0 }]}
-              disabled={adding || !newServeName.trim() || !newServeDir.trim()}
-              onPress={async () => {
-                if (!client) return
-                setAdding(true)
-                try {
-                  await addServe(client.call.bind(client), newServeName.trim(), newServeDir.trim())
-                  setNewServeName('')
-                  setNewServeDir('')
-                  setAddModalVisible(false)
-                } catch (e: any) {
-                  Alert.alert('Error', e?.message || 'Failed to add serve')
-                } finally {
-                  setAdding(false)
-                }
-              }}
-            >
-              <Text style={styles.disconnectBtnText}>{adding ? 'Adding...' : 'Add Serve'}</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Defaults</Text>
@@ -359,6 +339,64 @@ export const SettingsScreen: React.FC = () => {
         currentModel={defaultModel}
       />
     </ScrollView>
+
+      {addModalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add OpenCode Serve</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Name</Text>
+            <TextInput
+              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 }}
+              placeholder="My Project"
+              placeholderTextColor={colors.textTertiary}
+              defaultValue=""
+              onChangeText={(t) => { nameRef.current = t; setNewServeName(t) }}
+            />
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Directory</Text>
+            <TextInput
+              style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 14 }}
+              placeholder="D:\code\my-project"
+              placeholderTextColor={colors.textTertiary}
+              defaultValue=""
+              onChangeText={(t) => { dirRef.current = t; setNewServeDir(t) }}
+            />
+            <TouchableOpacity
+              style={[styles.disconnectBtn, { backgroundColor: adding ? colors.textTertiary : colors.primary, marginTop: 0 }]}
+              disabled={adding}
+              onPress={async () => {
+                const name = (nameRef.current || '').toString().trim()
+                const dir = (dirRef.current || '').toString().trim()
+                console.log('[Settings] Add Serve pressed, client=', !!client, 'name=', name, 'dir=', dir)
+                if (!client) return
+                if (!name || !dir) {
+                  Alert.alert('Error', 'Please fill in both name and directory')
+                  return
+                }
+                setAdding(true)
+                try {
+                  console.log('[Settings] calling addServe...')
+                  await addServe(client.call.bind(client), name, dir)
+                  console.log('[Settings] addServe done, closing modal')
+                  nameRef.current = ''
+                  dirRef.current = ''
+                  setNewServeName('')
+                  setNewServeDir('')
+                  setAddModalVisible(false)
+                } catch (e: any) {
+                  console.error('[Settings] addServe error:', e?.message)
+                  Alert.alert('Error', e?.message || 'Failed to add serve')
+                } finally {
+                  setAdding(false)
+                }
+              }}
+            >
+              <Text style={styles.disconnectBtnText}>{adding ? 'Adding...' : 'Add Serve'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+    </View>
   )
 }
 
@@ -416,10 +454,15 @@ const makeStyles = (colors: ThemeColors) =>
     marginBottom: 4,
   },
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     padding: 32,
+    zIndex: 999,
   },
   modalContent: {
     backgroundColor: colors.surface,

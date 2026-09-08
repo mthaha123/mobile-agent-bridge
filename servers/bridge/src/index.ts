@@ -1,6 +1,7 @@
 import { createWSServer } from "./server/ws.js"
 import { initBackend } from "./adapters/OpenCodeAdapter.js"
 import { initManager } from "./state/serveManager.js"
+import { resolve } from "path"
 
 process.on("uncaughtException", (err) => {
   console.error("[Bridge] uncaughtException:", err)
@@ -20,6 +21,6 @@ console.log(`[Bridge] OpenCode URL: ${OPENCODE_URL}`)
 initBackend(OPENCODE_URL)
 
 // 初始化 serve 管理器
-initManager(import.meta.dirname || process.cwd())
+initManager(resolve(import.meta.dirname || process.cwd(), "..", "..", ".."))
 
 createWSServer(PORT)

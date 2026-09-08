@@ -173,7 +173,7 @@ function startBridge() {
     detached: true,
     stdio: "ignore",
     cwd: BRIDGE_CWD,
-    env: { ...process.env, BRIDGE_PORT: String(BRIDGE_PORT), BRIDGE_PASSWORD, OPENCODE_URL: `http://localhost:${SERVE_PORT}` },
+    env: { ...process.env, BRIDGE_PORT: String(BRIDGE_PORT), BRIDGE_PASSWORD, OPENCODE_URL: `http://localhost:${SERVE_PORT}`, OPENCODE_API_KEY: resolveOpenCodeAPIKey() },
   })
   writeFileSync(pidFile, String(child.pid))
   child.unref()

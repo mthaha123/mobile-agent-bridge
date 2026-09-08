@@ -37,6 +37,7 @@ export function createWSServer(port: number): WebSocketServer {
     ws.on("message", (data: Buffer) => {
       try {
         const frame = JSON.parse(data.toString())
+        console.log(`[WS] 收到 ${connID}: type=${frame.type} method=${frame.method || ""}`)
         const currentToken = connTokens.get(connID) || ""
 
         const currentPayload = verifyToken(currentToken) || null

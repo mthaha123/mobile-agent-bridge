@@ -85,7 +85,7 @@ function startServe(entry: ProjectEntry): Promise<boolean> {
 
     const apiKey = process.env.OPENCODE_API_KEY || ""
     const child = spawn(OPENCODE_EXE, ["serve", "--port", String(entry.port), "--print-logs"], {
-      detached: true,
+      detached: false,
       stdio: "ignore",
       cwd: entry.directory,
       env: {
@@ -100,6 +100,8 @@ function startServe(entry: ProjectEntry): Promise<boolean> {
     entry.status = "starting"
     processes.set(entry.id, child)
 
+    console.log(`[ServeManager] serve ${entry.name} 进程已启动 PID=${child.pid} port=${entry.port}`)
+
     child.on("error", (err) => {
       console.error(`[ServeManager] serve ${entry.name} 启动失败:`, err.message)
       entry.status = "stopped"
@@ -107,8 +109,8 @@ function startServe(entry: ProjectEntry): Promise<boolean> {
       saveRegistry()
     })
 
-    child.on("exit", (code) => {
-      console.log(`[ServeManager] serve ${entry.name} 退出 (code=${code})`)
+    child.on("exit", (code, signal) => {
+      console.log(`[ServeManager] serve ${entry.name} 退出 (code=${code} signal=${signal})`)
       entry.status = "stopped"
       entry.pid = undefined
       processes.delete(entry.id)
@@ -155,8 +157,8 @@ function stopServe(entry: ProjectEntry) {
 
 // ─── Public API ────────────────────────────────────────
 
-export function initManager(dir: string) {
-  dataDir = join(dir, "servers", "bridge", "data")
+export function initManager(projectRoot: string) {
+  dataDir = join(projectRoot, "servers", "bridge", "data")
   registryPath = join(dataDir, "projects.json")
   loadRegistry()
   console.log(`[ServeManager] 加载 ${projects.length} 个项目`)
@@ -193,8 +195,9 @@ export async function addProject(name: string, directory: string): Promise<Proje
   projects.push(entry)
   saveRegistry()
 
-  // 启动 serve
-  await startServe(entry)
+  // fire-and-forget: 后台启动 serve，不阻塞 RPC 返回
+  startServe(entry)
+
   return { ...entry }
 }
 

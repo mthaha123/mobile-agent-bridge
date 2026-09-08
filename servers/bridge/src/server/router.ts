@@ -39,6 +39,7 @@ export async function handleFrame(
   onTokenRefreshed?: (token: string) => void,
 ): Promise<void> {
   if (frame.type !== "req") {
+    console.log(`[Router] rejected frame type: ${frame.type}`)
     try { ws.send(JSON.stringify({ type: "res", id: frame.id || "0", ok: false, error: "invalid frame type" })) } catch {}
     return
   }
@@ -125,9 +126,12 @@ registerHandler("project.list", async () => {
 // ===== Serve 实例管理（每个项目独立一个 serve） =====
 registerHandler("serve.list", async () => getProjects())
 registerHandler("serve.add", async (params) => {
+  console.log(`[Router] serve.add called:`, JSON.stringify(params))
   if (!params.name) throw new Error("name is required")
   if (!params.directory) throw new Error("directory is required")
-  return addProject(params.name, params.directory)
+  const result = await addProject(params.name, params.directory)
+  console.log(`[Router] serve.add result:`, JSON.stringify(result))
+  return result
 })
 registerHandler("serve.remove", async (params) => {
   if (!params.id) throw new Error("id is required")
