@@ -167,7 +167,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
       }
     } catch (e: unknown) {
-      set({ loading: false, error: e instanceof Error ? e.message : '获取会话列表失败' })
+      set({ sessions: [], loading: false, error: e instanceof Error ? e.message : '获取会话列表失败' })
     }
   },
 

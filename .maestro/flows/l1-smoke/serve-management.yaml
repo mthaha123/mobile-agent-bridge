@@ -1,6 +1,6 @@
 appId: com.mobileagentbridge
 ---
-# 场景：添加 serve → 验证 running → 删除 → 验证已删除
+# 验证：添加 serve → 验证 Settings 页面显示模型
 - launchApp
 - extendedWaitUntil:
     visible: "Connect"
@@ -12,8 +12,6 @@ appId: com.mobileagentbridge
 - extendedWaitUntil:
     visible: "Settings"
     timeout: 30000
-
-# ── 添加 serve ──
 - tapOn:
     text: "Settings"
 - tapOn:
@@ -30,29 +28,20 @@ appId: com.mobileagentbridge
 - eraseText: 100
 - inputText: "D:\\code\\mobile-agent-bridge"
 - tapOn: "Add Serve"
-
-# ── 验证添加成功 ──
 - extendedWaitUntil:
     visible: "Test E2E"
     timeout: 30000
 - assertVisible: "Test E2E"
-
-# ── 验证 running 状态 ──
 - extendedWaitUntil:
     visible: ".*running"
     timeout: 60000
 - assertVisible:
     text: ".*running"
-
-# ── 删除 serve ──
 - tapOn:
     text: "Delete"
 - tapOn:
     text: "DELETE"
-
-# ── 验证已删除 ──
 - extendedWaitUntil:
     visible: "No serves configured"
     timeout: 10000
-- assertVisible: "No serves configured"
 - assertNotVisible: "Test E2E"

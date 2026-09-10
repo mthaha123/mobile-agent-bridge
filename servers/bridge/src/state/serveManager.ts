@@ -33,8 +33,8 @@ export interface ProjectEntry {
 
 // ─── Constants ─────────────────────────────────────────
 
-const PORT_RANGE_START = 4100
-const MAX_PROJECTS = 20
+const PORT_POOL = [4100, 4101, 4102, 4103, 4104]  // 固定 5 个端口
+const MAX_SERVES = PORT_POOL.length
 const STARTUP_TIMEOUT_MS = 30_000
 const KILL_TIMEOUT_MS = 10_000
 
@@ -49,7 +49,6 @@ let dataDir: string
 let registryPath: string
 let projects: ProjectEntry[] = []
 let processes: Map<string, ChildProcess> = new Map()
-let nextPort = PORT_RANGE_START
 
 // ─── Port / process utilities ──────────────────────────
 
@@ -112,7 +111,6 @@ function loadRegistry() {
   try {
     const raw = JSON.parse(readFileSync(registryPath, "utf8"))
     projects = (raw.projects || []).map((p: any) => ({ ...p, status: "stopped" as const }))
-    nextPort = raw.nextPort || PORT_RANGE_START
   } catch {
     projects = []
   }
@@ -121,7 +119,7 @@ function loadRegistry() {
 function saveRegistry() {
   try {
     mkdirSync(dataDir, { recursive: true })
-    writeFileSync(registryPath, JSON.stringify({ projects, nextPort }, null, 2))
+    writeFileSync(registryPath, JSON.stringify({ projects }, null, 2))
   } catch (err) {
     console.error("[ServeManager] 保存注册表失败:", err)
   }
@@ -283,12 +281,22 @@ export async function addProject(name: string, directory: string): Promise<Proje
   if (projects.some(p => resolve(p.directory) === resolved)) {
     throw new Error(`项目已存在: ${resolved}`)
   }
-  if (projects.length >= MAX_PROJECTS) throw new Error(`已达上限 (${MAX_PROJECTS})`)
 
-  // 检查端口冲突
-  const port = nextPort++
-  if (await isPortInUse(port)) {
-    throw new Error(`端口 ${port} 被占用，请重启 bridge 或手动释放`)
+  // 从端口池中找第一个空闲且未被占用的端口
+  const usedPorts = new Set(projects.map(p => p.port))
+  let port: number | undefined
+  for (const candidate of PORT_POOL) {
+    if (usedPorts.has(candidate)) continue
+    if (await isPortInUse(candidate)) {
+      // 端口被外部进程占用（非本项目 serve），跳过
+      console.warn(`[ServeManager] 端口 ${candidate} 被外部占用，跳过`)
+      continue
+    }
+    port = candidate
+    break
+  }
+  if (port === undefined) {
+    throw new Error(`已达上限 (${MAX_SERVES} 个 serve)，请先删除一个`)
   }
 
   const id = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
