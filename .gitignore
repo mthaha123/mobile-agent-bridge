@@ -44,3 +44,5 @@ scripts/tools/
 
 # Bridge 运行时数据（session 标题映射等）
 servers/bridge/.data/
+servers/bridge/data/
+servers/bridge/data/

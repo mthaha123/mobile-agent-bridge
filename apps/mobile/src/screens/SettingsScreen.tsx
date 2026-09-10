@@ -160,7 +160,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.section}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={styles.sectionLabel}>OpenCode Serves ({serves.length})</Text>
-          <TouchableOpacity onPress={() => setAddModalVisible(true)}>
+          <TouchableOpacity testID="btn-add-serve" onPress={() => setAddModalVisible(true)}>
             <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>+ Add</Text>
           </TouchableOpacity>
         </View>
@@ -346,6 +346,9 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.modalTitle}>Add OpenCode Serve</Text>
             <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Name</Text>
             <TextInput
+              testID="serve-name-input"
+              accessible={true}
+              accessibilityLabel="Project Name"
               style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 }}
               placeholder="My Project"
               placeholderTextColor={colors.textTertiary}
@@ -354,6 +357,9 @@ export const SettingsScreen: React.FC = () => {
             />
             <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>Project Directory</Text>
             <TextInput
+              testID="serve-dir-input"
+              accessible={true}
+              accessibilityLabel="Project Directory"
               style={{ backgroundColor: colors.background, color: colors.text, borderRadius: 8, padding: 10, marginBottom: 16, fontSize: 14 }}
               placeholder="D:\code\my-project"
               placeholderTextColor={colors.textTertiary}
@@ -366,7 +372,6 @@ export const SettingsScreen: React.FC = () => {
               onPress={async () => {
                 const name = (nameRef.current || '').toString().trim()
                 const dir = (dirRef.current || '').toString().trim()
-                console.log('[Settings] Add Serve pressed, client=', !!client, 'name=', name, 'dir=', dir)
                 if (!client) return
                 if (!name || !dir) {
                   Alert.alert('Error', 'Please fill in both name and directory')
@@ -374,9 +379,7 @@ export const SettingsScreen: React.FC = () => {
                 }
                 setAdding(true)
                 try {
-                  console.log('[Settings] calling addServe...')
                   await addServe(client.call.bind(client), name, dir)
-                  console.log('[Settings] addServe done, closing modal')
                   nameRef.current = ''
                   dirRef.current = ''
                   setNewServeName('')

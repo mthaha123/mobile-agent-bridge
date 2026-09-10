@@ -5,6 +5,8 @@ import { resolve } from "path"
 
 process.on("uncaughtException", (err) => {
   console.error("[Bridge] uncaughtException:", err)
+  // crash 模式：不杀 serve，直接退出
+  process.exit(1)
 })
 process.on("unhandledRejection", (err) => {
   console.error("[Bridge] unhandledRejection:", err)
@@ -17,10 +19,10 @@ console.log("[Bridge] 启动中...")
 console.log(`[Bridge] WS 端口: ${PORT}`)
 console.log(`[Bridge] OpenCode URL: ${OPENCODE_URL}`)
 
-// 初始化后端（但还不连接 — 等 project.switch）
+// 初始化后端
 initBackend(OPENCODE_URL)
 
-// 初始化 serve 管理器
-initManager(resolve(import.meta.dirname || process.cwd(), "..", "..", ".."))
+// 初始化 serve 管理器（清理孤儿 + 注册退出清理）
+await initManager(resolve(import.meta.dirname || process.cwd(), "..", "..", ".."))
 
 createWSServer(PORT)
