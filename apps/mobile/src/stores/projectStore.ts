@@ -78,6 +78,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         project: result.project ?? null,
         switching: false,
       })
+      // 切换后重新拉取 agent/命令/模型（serve 路由可能变化，模型列表随项目 .opencode 配置不同）
+      try {
+        const { useConfigStore } = await import('./configStore')
+        const call = client.call.bind(client)
+        await Promise.all([
+          useConfigStore.getState().fetchAgents(call),
+          useConfigStore.getState().fetchCommands(call),
+          useConfigStore.getState().fetchModels(call),
+        ])
+      } catch {
+        // 刷新失败不阻断切换成功
+      }
       return true
     } catch (e: unknown) {
       set({ switching: false })

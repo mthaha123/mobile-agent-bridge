@@ -181,6 +181,39 @@ describe('switchProject', () => {
     // The error is caught internally, switching should be false
     expect(useProjectStore.getState().switching).toBe(false)
   })
+
+  it('re-fetches agents/commands/models after successful switch', async () => {
+    const client = makeClient()
+    client.call.mockResolvedValue({
+      directory: '/data/project',
+      project: { name: 'proj' },
+    })
+    useAuthStore.setState({ client: client as any })
+
+    await useProjectStore.getState().switchProject('/data/project')
+
+    // 切换成功后应重新拉取全局配置（serve 路由可能变化）
+    expect(client.call).toHaveBeenCalledWith('config.agents')
+    expect(client.call).toHaveBeenCalledWith('command.list')
+    expect(client.call).toHaveBeenCalledWith('model.list')
+    // 状态仍为成功切换
+    expect(useProjectStore.getState().directory).toBe('/data/project')
+    expect(useProjectStore.getState().switching).toBe(false)
+  })
+
+  it('does not block switch success when config refresh fails', async () => {
+    const client = makeClient()
+    client.call.mockImplementation(async (method: string) => {
+      if (method === 'project.switch') return { directory: '/data/project', project: { name: 'proj' } }
+      throw new Error('config fetch failed')
+    })
+    useAuthStore.setState({ client: client as any })
+
+    const result = await useProjectStore.getState().switchProject('/data/project')
+
+    expect(result).toBe(true)
+    expect(useProjectStore.getState().directory).toBe('/data/project')
+  })
 })
 
 // ---------------------------------------------------------------------------

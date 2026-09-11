@@ -66,21 +66,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ client, token: result.token, loading: false, error: null })
 
       // ── 层2：建立 OpenCode 连接（project.switch，目录为空时自动探测）──
+      // 切换成功后内部会重新拉取 agent/命令/模型
       const { useProjectStore } = await import('./projectStore')
       const switched = await useProjectStore.getState().switchProject()
       if (!switched) {
         throw new Error('未指定项目目录，且无法探测 OpenCode 当前项目。请在连接页填写项目目录。')
       }
-
-      // ── 层2就绪后拉取聊天所需全局数据（agent/command/model）──
-      // config.get/providers 已随 stub 端点一并移除（2026-08 设置页重构）
-      const { useConfigStore } = await import('./configStore')
-      const call = client.call.bind(client)
-      await Promise.all([
-        useConfigStore.getState().fetchAgents(call),
-        useConfigStore.getState().fetchCommands(call),
-        useConfigStore.getState().fetchModels(call),
-      ])
 
       // ── 全部就绪后标记已认证，进入 SessionsScreen ──
       set({ authenticated: true, loading: false })
