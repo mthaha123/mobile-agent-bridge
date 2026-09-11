@@ -295,6 +295,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         useChatStore.getState().fetchSessionRunStatus(activeId, client.call.bind(client))
       }
+      // 首次连接或重连后重新拉取配置（agents/models/commands），
+      // 避免 app 重启或 WS 重连后 Settings 页面显示 "No models loaded"
+      const call = client.call.bind(client)
+      import('../stores/configStore').then(({ useConfigStore }) => {
+        useConfigStore.getState().fetchModels(call)
+        useConfigStore.getState().fetchAgents(call)
+        useConfigStore.getState().fetchCommands(call)
+      }).catch(() => {})
       void reconcilePermissions()
       void reconcileQuestions()
     })

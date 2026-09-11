@@ -10,6 +10,8 @@ import {
 } from 'react-native'
 import { useThemeColors } from '../theme/ThemeContext'
 import type { ThemeColors } from '../theme/colors'
+import { useAuthStore } from '../stores/authStore'
+import { useConfigStore } from '../stores/configStore'
 
 interface ModelEntry {
   id?: string
@@ -40,10 +42,19 @@ export function ModelPickerModal({ visible, onClose, onSelect, models, currentMo
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   const [query, setQuery] = useState('')
+  const client = useAuthStore((s) => s.client)
+  const fetchModels = useConfigStore((s) => s.fetchModels)
 
   // 每次打开清空上次搜索词
   useEffect(() => {
     if (visible) setQuery('')
+  }, [visible])
+
+  // 每次打开选择器时，从服务器拉取最新模型列表
+  useEffect(() => {
+    if (visible && client) {
+      fetchModels(client.call.bind(client))
+    }
   }, [visible])
 
   const items = useMemo(() => (Array.isArray(models) ? models : []).map(normalize), [models])
