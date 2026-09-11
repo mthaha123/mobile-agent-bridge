@@ -41,6 +41,7 @@ function resetStores() {
   useProjectStore.setState({
     directory: '',
     project: null,
+    currentServe: null,
     switching: false,
   })
 }
@@ -96,6 +97,23 @@ describe('setProject', () => {
     })
     expect(useProjectStore.getState().project).toBeNull()
   })
+
+  it('stores currentServe from payload', () => {
+    const serve = { id: 's1', name: 'my-serve', port: 4100, status: 'running' as const }
+    useProjectStore.getState().setProject({
+      directory: '/data/project',
+      project: { name: 'proj' },
+      currentServe: serve,
+    })
+    expect(useProjectStore.getState().currentServe).toEqual(serve)
+  })
+
+  it('sets currentServe to null when payload lacks currentServe', () => {
+    useProjectStore.getState().setProject({
+      directory: '/data/project',
+    })
+    expect(useProjectStore.getState().currentServe).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -108,6 +126,7 @@ describe('switchProject', () => {
     client.call.mockResolvedValue({
       directory: '/data/project',
       project: { name: 'proj' },
+      currentServe: { id: 's1', name: 'test-serve', port: 4100, status: 'running' },
     })
     useAuthStore.setState({ client: client as any })
 
@@ -118,6 +137,7 @@ describe('switchProject', () => {
     })
     expect(useProjectStore.getState().directory).toBe('/data/project')
     expect(useProjectStore.getState().project).toEqual({ name: 'proj' })
+    expect(useProjectStore.getState().currentServe).toEqual({ id: 's1', name: 'test-serve', port: 4100, status: 'running' })
     expect(useProjectStore.getState().switching).toBe(false)
   })
 
@@ -226,6 +246,7 @@ describe('fetchCurrentProject', () => {
     client.call.mockResolvedValue({
       directory: '/current/dir',
       project: { name: 'current-proj' },
+      currentServe: { id: 's2', name: 'proj-serve', port: 4101, status: 'running' },
     })
     useAuthStore.setState({ client: client as any })
 
@@ -234,6 +255,7 @@ describe('fetchCurrentProject', () => {
     expect(client.call).toHaveBeenCalledWith('project.current', {})
     expect(useProjectStore.getState().directory).toBe('/current/dir')
     expect(useProjectStore.getState().project).toEqual({ name: 'current-proj' })
+    expect(useProjectStore.getState().currentServe).toEqual({ id: 's2', name: 'proj-serve', port: 4101, status: 'running' })
   })
 
   it('does not update state when response has no directory', async () => {
@@ -246,6 +268,19 @@ describe('fetchCurrentProject', () => {
 
     // directory should remain unchanged
     expect(useProjectStore.getState().directory).toBe('/existing')
+  })
+
+  it('sets currentServe to null when response lacks it', async () => {
+    const client = makeClient()
+    client.call.mockResolvedValue({
+      directory: '/no-serve',
+      project: { name: 'proj' },
+    })
+    useAuthStore.setState({ client: client as any })
+
+    await useProjectStore.getState().fetchCurrentProject()
+
+    expect(useProjectStore.getState().currentServe).toBeNull()
   })
 
   it('does nothing when client is null', async () => {

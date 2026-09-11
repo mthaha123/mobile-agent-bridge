@@ -131,15 +131,21 @@ export async function switchProject(directory: string): Promise<{ directory: str
 
     isSwitching = false
 
+    // 附带当前项目所属的 serve 实例信息
+    const serveEntry = getProjectByDir(resolvedDir)
+    const currentServe = serveEntry
+      ? { id: serveEntry.id, name: serveEntry.name, port: serveEntry.port, status: serveEntry.status }
+      : null
+
     setTimeout(() => {
       broadcastToAll({
         type: "notify",
         method: "project.changed",
-        payload: { directory: activeDirectory, project: currentProject },
+        payload: { directory: activeDirectory, project: currentProject, currentServe },
       })
     }, 0)
 
-    return { directory: activeDirectory, project: currentProject }
+    return { directory: activeDirectory, project: currentProject, currentServe }
   } catch (err: any) {
     isSwitching = false
     throw err

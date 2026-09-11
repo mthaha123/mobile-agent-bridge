@@ -179,6 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         useProjectStore.getState().setProject({
           directory: p.directory || '',
           project: p.project,
+          currentServe: p.currentServe ?? undefined,
         })
       }
     })

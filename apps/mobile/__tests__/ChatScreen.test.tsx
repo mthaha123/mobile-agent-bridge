@@ -22,7 +22,7 @@ beforeEach(() => {
     client: null, bridgeUrl: '', token: null, authenticated: false,
     loading: false, error: null,
   })
-  useProjectStore.setState({ directory: '', project: null, switching: false })
+  useProjectStore.setState({ directory: '', project: null, currentServe: null, switching: false })
   useUiStore.setState({ screen: 'main', activeTab: 'chat', chatSubScreen: 'sessions' })
   jest.clearAllMocks()
 })

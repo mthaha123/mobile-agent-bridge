@@ -21,7 +21,7 @@ beforeEach(() => {
     loading: false, error: null,
   })
   useChatStore.setState({ activeSessionId: null, messages: [], inputText: '', waiting: false, sessionRunStatus: {} })
-  useProjectStore.setState({ directory: '', project: null, switching: false })
+  useProjectStore.setState({ directory: '', project: null, currentServe: null, switching: false })
   useUiStore.setState({ screen: 'main', activeTab: 'chat', chatSubScreen: 'sessions' })
   jest.clearAllMocks()
 })
@@ -164,6 +164,40 @@ describe('SessionsScreen', () => {
       <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
     )
     expect(textOf(tree)).toContain('(none)')
+  })
+
+  it('displays serve info when currentServe is set', () => {
+    useProjectStore.setState({
+      directory: '/home/user/project',
+      currentServe: { id: 's1', name: 'my-serve', port: 4100, status: 'running' },
+    })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(textOf(tree)).toContain('my-serve')
+    expect(textOf(tree)).toContain(':4100')
+  })
+
+  it('does not display serve info when currentServe is null', () => {
+    useProjectStore.setState({
+      directory: '/home/user/project',
+      currentServe: null,
+    })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(textOf(tree)).not.toContain('my-serve')
+  })
+
+  it('shows serve status when not running', () => {
+    useProjectStore.setState({
+      directory: '/home/user/project',
+      currentServe: { id: 's1', name: 'my-serve', port: 4100, status: 'stopped' },
+    })
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    expect(textOf(tree)).toContain('stopped')
   })
 
   it('Switch button is disabled when switching', () => {

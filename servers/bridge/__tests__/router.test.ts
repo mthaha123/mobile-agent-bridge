@@ -953,6 +953,8 @@ describe("RPC Router", () => {
     expect(messages[0].ok).toBe(true)
     expect(messages[0].payload.directory).toBe("D:\\code\\mobile-agent-bridge")
     expect(messages[0].payload.project).toEqual({ name: "mobile-agent-bridge" })
+    // currentServe: no registered serve for this directory → null
+    expect(messages[0].payload.currentServe).toBeNull()
   })
 
   it("should return current project on project.list (via v2.location)", async () => {
@@ -1014,6 +1016,8 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toHaveProperty("project")
     expect(messages[0].payload.project).toHaveProperty("name")
     expect(messages[0].payload.directory).toBe(process.cwd())
+    // currentServe: no registered serve for this directory → null
+    expect(messages[0].payload.currentServe).toBeNull()
   })
 
   it("should reflect new directory in project.current after switch", async () => {
@@ -1427,6 +1431,7 @@ describe("RPC Router", () => {
     expect(messages[0].payload).toEqual({
       directory: "D:\\repo\\probe",
       project: { name: "probe" },
+      currentServe: null,
     })
   })
 

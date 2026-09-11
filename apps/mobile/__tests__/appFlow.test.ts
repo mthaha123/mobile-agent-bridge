@@ -57,7 +57,7 @@ beforeEach(() => {
   useQuestionStore.setState({ pending: [], visible: false })
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
-  useProjectStore.setState({ directory: '', project: null, switching: false })
+  useProjectStore.setState({ directory: '', project: null, currentServe: null, switching: false })
 })
 
 // ─── 1. 认证 + 会话 流程 ────────────────────────────────

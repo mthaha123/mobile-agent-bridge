@@ -47,7 +47,7 @@ function setup(overrides?: { activeTab?: string; chatSubScreen?: string }) {
       lastAppliedId: -1,
     })
     useSessionStore.setState({ sessions: [], loading: false, error: null })
-    useProjectStore.setState({ directory: '/test', project: null, switching: false })
+    useProjectStore.setState({ directory: '/test', project: null, currentServe: null, switching: false })
   })
 }
 

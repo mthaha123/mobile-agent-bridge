@@ -74,6 +74,22 @@ describe('project.changed handler', () => {
     expect(state.project).toEqual({ name: 'new-project' })
   })
 
+  it('passes currentServe from project.changed notification to project store', () => {
+    const { notifyHandler } = mockClientAndRender()
+
+    TestRenderer.act(() => {
+      notifyHandler!('project.changed', {
+        directory: '/new/project',
+        project: { name: 'new-project' },
+        currentServe: { id: 's1', name: 'test-serve', port: 4100, status: 'running' },
+      })
+    })
+
+    const state = useProjectStore.getState()
+    expect(state.directory).toBe('/new/project')
+    expect(state.currentServe).toEqual({ id: 's1', name: 'test-serve', port: 4100, status: 'running' })
+  })
+
   it('feeds text delta into chat store on session.next.text.delta', () => {
     const { notifyHandler } = mockClientAndRender()
 

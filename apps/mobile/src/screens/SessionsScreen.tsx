@@ -63,6 +63,7 @@ export const SessionsScreen: React.FC = () => {
   const pendingQuestions = useQuestionStore((s) => s.pending)
   const directory = useProjectStore((s) => s.directory)
   const switching = useProjectStore((s) => s.switching)
+  const currentServe = useProjectStore((s) => s.currentServe)
   const projects = useProjectStore((s) => s.projects)
   const switchProject = useProjectStore((s) => s.switchProject)
   const listProjects = useProjectStore((s) => s.listProjects)
@@ -217,6 +218,12 @@ export const SessionsScreen: React.FC = () => {
           <Text style={styles.projectDir} numberOfLines={1}>
             {directory || '(none)'}
           </Text>
+          {currentServe ? (
+            <Text style={styles.projectServe} numberOfLines={1}>
+              ⚡ {currentServe.name} · :{currentServe.port}
+              {currentServe.status === 'running' ? '' : ` · ${currentServe.status}`}
+            </Text>
+          ) : null}
         </View>
         <TouchableOpacity
           style={[styles.switchBtn, switching && styles.switchBtnDisabled]}
@@ -431,6 +438,11 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.text,
     fontSize: 14,
     fontWeight: '500',
+  },
+  projectServe: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
   },
   switchBtn: {
     paddingHorizontal: 14,

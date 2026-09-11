@@ -91,7 +91,7 @@ export function resetAllStores() {
   useDiffStore.setState({ diffs: {} })
   useTodoStore.setState({ todos: {} })
   useQuestionStore.setState({ pending: [], visible: false, visibleSessionId: null })
-  useProjectStore.setState({ directory: '', project: null, switching: false })
+  useProjectStore.setState({ directory: '', project: null, currentServe: null, switching: false })
   useUiStore.setState({
     screen: 'connect',
     activeTab: 'chat',

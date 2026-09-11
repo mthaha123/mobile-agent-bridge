@@ -111,7 +111,14 @@ registerHandler("project.switch", async (params) => switchProject(params.directo
 registerHandler("project.current", async () => {
   // 用 ensureClient 探测 OpenCode 当前项目（未 project.switch 时也可查询 location）
   const loc = await sdkCall(() => getBackend().ensureClient().v2.location.get({}))
-  return { directory: loc?.directory ?? getCurrentProject().directory, project: loc?.project ?? getCurrentProject().project }
+  const dir = loc?.directory ?? getCurrentProject().directory
+  const proj = loc?.project ?? getCurrentProject().project
+  // 附带当前项目所属的 serve 实例信息（若已注册）
+  const serveEntry = dir ? getProjectByDir(dir) : undefined
+  const currentServe = serveEntry
+    ? { id: serveEntry.id, name: serveEntry.name, port: serveEntry.port, status: serveEntry.status }
+    : null
+  return { directory: dir, project: proj, currentServe }
 })
 // opencode server 1.18.x 为单项目模型，无 /project 列表端点（返回当前项目，避免挂起）
 registerHandler("project.list", async () => {

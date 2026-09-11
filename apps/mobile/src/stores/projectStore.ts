@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import { useAuthStore } from './authStore'
 
+export interface CurrentServeInfo {
+  id: string
+  name: string
+  port: number
+  status: 'running' | 'stopped' | 'starting'
+}
+
 export interface ProjectInfo {
   name?: string
 }
@@ -13,11 +20,12 @@ export interface ProjectEntry {
 export interface ProjectState {
   directory: string
   project: ProjectInfo | null
+  currentServe: CurrentServeInfo | null
   switching: boolean
   projects: ProjectEntry[]
 
   setDirectory: (dir: string) => void
-  setProject: (info: { directory: string; project?: { name?: string } }) => void
+  setProject: (info: { directory: string; project?: { name?: string }; currentServe?: CurrentServeInfo | null }) => void
   switchProject: (dir?: string) => Promise<boolean>
   fetchCurrentProject: () => Promise<void>
   listProjects: (clientCall: (method: string, params?: unknown) => Promise<unknown>) => Promise<void>
@@ -26,6 +34,7 @@ export interface ProjectState {
 export const useProjectStore = create<ProjectState>((set, get) => ({
   directory: '',
   project: null,
+  currentServe: null,
   switching: false,
   projects: [],
 
@@ -37,6 +46,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({
       directory: info.directory,
       project: info.project ?? null,
+      currentServe: info.currentServe ?? null,
     })
   },
 
@@ -52,10 +62,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const cur = (await client.call('project.current', {})) as {
           directory?: string
           project?: { name?: string }
+          currentServe?: CurrentServeInfo | null
         }
         if (cur?.directory) {
           targetDir = cur.directory
-          set({ directory: cur.directory, project: cur.project ?? null })
+          set({ directory: cur.directory, project: cur.project ?? null, currentServe: cur.currentServe ?? null })
         }
       } catch {
         // 探测失败，视为无项目，返回 false（不抛错）
@@ -72,10 +83,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const result = (await client.call('project.switch', { directory: targetDir })) as {
         directory: string
         project?: { name?: string }
+        currentServe?: CurrentServeInfo | null
       }
       set({
         directory: result.directory,
         project: result.project ?? null,
+        currentServe: result.currentServe ?? null,
         switching: false,
       })
       // 切换后重新拉取 agent/命令/模型（serve 路由可能变化，模型列表随项目 .opencode 配置不同）
@@ -105,11 +118,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const result = (await client.call('project.current', {})) as {
         directory: string
         project?: { name?: string }
+        currentServe?: CurrentServeInfo | null
       }
       if (result?.directory) {
         set({
           directory: result.directory,
           project: result.project ?? null,
+          currentServe: result.currentServe ?? null,
         })
       }
     } catch {
