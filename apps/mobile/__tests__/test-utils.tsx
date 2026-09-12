@@ -16,6 +16,7 @@ import { useQuestionStore } from '../src/stores/questionStore'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useFileStore } from '../src/stores/fileStore'
+import { useConfigStore } from '../src/stores/configStore'
 
 // ─── Mock Client Factory ──────────────────────────────────
 
@@ -99,6 +100,15 @@ export function resetAllStores() {
     filesSubScreen: 'browser',
   })
   useFileStore.getState().reset()
+  useConfigStore.setState({
+    agents: [],
+    commands: [],
+    models: [],
+    loading: false,
+    error: null,
+    lastRefreshedAt: 0,
+    refreshing: false,
+  })
 }
 
 // ─── TestRenderer Tree Helpers ────────────────────────────
