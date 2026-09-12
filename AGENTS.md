@@ -65,7 +65,7 @@ opencode 的工具执行有超时强制 kill（`timeout` 参数 + 180s cap 均�
 ⚠️ **不要把 `start-all.mjs` 直接在 bash 里同步运行**——它 spawn 出三个长驻进程，即使 `detached + stdio:"ignore"`，bash 工具仍判进程树未收敛 → 永不返回（实测 >3min 无响应）。必须用 `Start-Process` 让脚本本身脱离进程树，再配合 `--status` 短查询轮询。这符合"工具结算缺陷"一节：长驻进程从根上不进入命令进程树。
 
 关键参数（脚本内硬编码，与部署一致）：
-- serve：spawn `opencode.exe` 绝对路径，`cwd=D:\code`，注入 `OPENCODE_SERVER_PASSWORD=""` + `OPENCODE_API_KEY`（env→注册表→auth.json 三级解析）
+- serve：spawn `opencode.exe` 绝对路径，`cwd=D:\code`，注入 `OPENCODE_SERVER_PASSWORD=""` + `OPENCODE_API_KEY`（注册表→auth.json→env 三级解析）
 - bridge：`BRIDGE_PORT=8080 BRIDGE_PASSWORD=test123 OPENCODE_URL=http://localhost:4096`
 - 隧道：`cloudflared tunnel --url http://localhost:8080`
 
@@ -198,24 +198,89 @@ npm run e2e:all          # 全部测试（2 个流程）
 - **禁止在 tsx 环境下使用 SDK 的 `fetch` 通道**（`req.timeout = false` 在 tsx 下会导致 hang）。所有 OpenCode API 调用必须走 `opencodeFetch()`（基于 Node.js `http` 模块）。
 - 如果引入新的后端 HTTP 调用，必须使用 `http`/`https` 模块，禁止使用 `fetch`。
 
-## opencode-go 模型 key 注入（serve 模式）
+## opencode-go 模型 key 注入（serve 模式）【key 问题速查】
 
-- **`opencode serve` 模式不读 `auth.json` 的 provider 条目，只认环境变量**。`opencode-go`/`opencode` provider 在 models.dev 定义 `env: ["OPENCODE_API_KEY"]`。
-- 不注入 `OPENCODE_API_KEY` 时，serve 模式会用该模型建 session 时解析失败：`Model unavailable: opencode-go/deepseek-v4-flash` 或 `HTTP 401: Missing API key`，表现为"卡住"（消息已受理但无任何响应事件）。
-- **CLI `opencode run` 才读 auth.json**，直接运行测试时正常，容易误以为 key 没问题。
-- **推荐做法：把 key 持久化为 Windows 用户级环境变量**（一次性配置，serve/脚本自动继承）：
-  ```powershell
-  $key = (Get-Content "$env:USERPROFILE\.local\share\opencode\auth.json" -Raw | ConvertFrom-Json).'opencode-go'.key
-  setx OPENCODE_API_KEY $key
-  ```
-  ⚠️ `setx` 只对**新启动**的进程生效（当前已运行的 opencode 需重启）。
-- 启动 serve 必须显式注入（脚本兜底，env → 注册表 → auth.json 三级解析）：
-  ```js
-  const OPENCODE_API_KEY = resolveOpenCodeAPIKey() // env → reg(HKCU\Environment) → auth.json
-  spawn("opencode.exe", ["serve", ...], { env: { ...process.env, OPENCODE_API_KEY } })
-  ```
-  ⚠️ 必须直接 spawn `opencode.exe`（绝对路径），**不要用 `opencode.cmd` + `shell:true`**——.cmd 包装层会丢失传入的 env，导致 key 失效（实测 `shell:false` 直接 spawn exe 才可靠）。
-- 参考实现：`scripts/e2e/test-project-analysis.mjs` 的 `resolveOpenCodeAPIKey()`。
+> 遇到"模型调用 429/401、serve 没反应、测试跑不通"时，**先跑一键诊断**：
+> ```powershell
+> node scripts/diag-api-key.mjs
+> ```
+> 它会把三个来源的值逐个实测并给出修复建议。多数情况直接照提示重启服务即可。
+
+### 1. 核心事实（不对称）
+
+| 运行方式 | 读哪个 key |
+|---------|-----------|
+| `opencode serve`（本项目 serve/bridge 用） | **只认环境变量** `OPENCODE_API_KEY`（不读 auth.json） |
+| `opencode run`（CLI，agent 本体用它） | 读 `auth.json`（`opencode auth login` 写） |
+
+`opencode-go`/`opencode` provider 在 models.dev 定义 `env: ["OPENCODE_API_KEY"]`。
+不注入该 env 时，serve 建 session 会 `Model unavailable` 或 `HTTP 401 Missing API key`，
+表现为"卡住"（消息已受理但无任何响应事件）。
+
+### 2. 症状 → 根因对照
+
+| 症状 | 根因 |
+|------|------|
+| 模型调用 `429 GoUsageLimitError`（月份额度用尽） | serve 拿到了**错误的 key**（见下方 env 污染） |
+| `401 Missing API key` / `Model unavailable` | serve 完全没拿到 key |
+| agent（`opencode run`）正常，但 serve 报错 | 两者读 key 通道不同（agent 读 auth.json，serve 读 env） |
+
+### 3. 根因：长驻父进程的 env 污染（最常见）
+
+长驻进程（agent harness / 旧终端）会在启动瞬间把 `OPENCODE_API_KEY` **快照**进自己的运行时 env。
+若该值过期或**已超额**，它会被**所有子进程继承**（`Start-Process` 起的 start-all → serve/bridge）。
+`setx` 只改注册表、改不了已运行进程的 env，所以"注册表已改好"但服务仍报错。
+
+### 4. 统一解析顺序（所有脚本一致）
+
+```
+注册表 HKCU\Environment (setx 持久化)  →  auth.json (opencode 权威凭据库)  →  process.env
+     ↑ 显式配置意图                          ↑ 与 CLI 同源、最可靠              ↑ 放最后，避免坏 env 抢占
+```
+
+三级读取均在 `try/catch` 内：**任一级缺失/不可读都自动降级，不会崩**。
+env 与注册表不一致时打警告（便于发现污染）。
+
+**代码落点（改动 key 逻辑时四处要同步）：**
+- `scripts/start-all.mjs` — `resolveProviderKey()` / `resolveOpenCodeAPIKey()`
+- `servers/bridge/src/state/serveManager.ts` — `resolveProviderKey()`（**新增 serve 时也走这里**，`startServe()` 用它取 key）
+- `scripts/e2e/*.mjs`（`test-project-analysis` / `test-interface-coverage` / `run-layer4` / `diag-history-roundtrip`）各自的 `resolveOpenCodeAPIKey()`
+- `scripts/diag-api-key.mjs` — 诊断工具（不改 key，只读+实测）
+
+### 5. 修复步骤（标准流程）
+
+```powershell
+# ① 诊断：看三个来源哪个可用
+node scripts/diag-api-key.mjs
+
+# ② 若注册表缺失/坏 → 用可用 key 持久化（一次性）
+$key = (Get-Content "$env:USERPROFILE\.local\share\opencode\auth.json" -Raw | ConvertFrom-Json).'opencode-go'.key
+setx OPENCODE_API_KEY $key
+
+# ③ 重启服务让新 key 生效（关键！运行中的服务不会自动换 key）
+node scripts/start-all.mjs --stop
+Start-Process -WindowStyle Hidden -FilePath node -ArgumentList 'D:\code\mobile-agent-bridge\scripts\start-all.mjs' -WorkingDirectory 'D:\code\mobile-agent-bridge'
+node scripts/start-all.mjs --status
+```
+
+⚠️ **`setx` 只对之后新启动的进程生效**——当前 agent/终端进程的 env 改不了；
+这正是解析顺序把 env 放最后的原因（坏 env 不再影响 serve）。若想让 agent 自身也干净，从**新终端**重启 agent。
+
+### 6. 验证 key 是否真的生效（端到端）
+
+改完 key 必须重启服务，然后用 mimo2.5 跑一次（`diag-api-key.mjs` 只验证 key 本身，不验证 serve 是否已加载新 key）：
+```powershell
+# 通过 bridge WS：auth.login → project.switch → session.create(model=opencode-go/mimo-v2.5) → message.send
+# 断言 assistant 回复包含 "test ok"。注意 message.send 现在【立即返回】（异步准入），
+# 需轮询 session.messages 直到 assistant 文本出现（约 1-3s）。
+```
+
+### 7. 常见坑
+
+- **必须直接 spawn `opencode.exe`（绝对路径）**，不要用 `opencode.cmd` + `shell:true`——.cmd 包装层会丢失传入的 env。
+- **新增 serve 的 key 由 `serveManager.startServe()` 解析**（`resolveProviderKey`）；只改 start-all 不改 serveManager，会导致"已有的 serve 正常、新加的 serve 报 429"。
+- **孤儿 serve 状态错乱**：`node scripts/start-all.mjs --stop` 只杀 pid 文件里的进程（bridge + 默认 serve 4097 + cf），**不杀项目 serve（4100+）**。项目 serve 的父进程死后会成孤儿，`cleanOrphans` 偶尔没清掉 → `serve.list` 报 `stopped` 但端口仍在监听。彻底干净：停服务后按端口杀 4100-4104。
+- **重启后项目 serve 是 `stopped`**（`cleanOrphans` 杀掉不自动重启）：切到已注册项目会 `ECONNREFUSED`，需在 Settings 里点 Start（或调用 `serve.start`）。
 
 ---
 

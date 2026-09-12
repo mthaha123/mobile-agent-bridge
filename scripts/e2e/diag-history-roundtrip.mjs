@@ -21,12 +21,14 @@ const PROJECT_DIR = ROOT
 const MODEL = process.env.BRIDGE_DEFAULT_MODEL || "opencode/deepseek-v4-flash-free"
 
 function resolveOpenCodeAPIKey() {
-  if (process.env.OPENCODE_API_KEY) return process.env.OPENCODE_API_KEY
+  // 注册表(setx 持久化)优先于继承的 env：长驻父进程可能携带过期/超额 key
+  const envKey = process.env.OPENCODE_API_KEY
   try {
     const reg = execSync('reg query "HKCU\\Environment" /v OPENCODE_API_KEY', { stdio: ["ignore", "pipe", "ignore"], timeout: 5000, encoding: "utf8" }).toString()
     const m = reg.match(/OPENCODE_API_KEY\s+REG_\w+\s+(\S+)/)
     if (m && m[1]) return m[1]
   } catch (_) {}
+  // auth.json（opencode 权威凭据库）优先于易被污染的环境变量
   try {
     const authPath = resolve(process.env.USERPROFILE || "C:\\Users\\MT", ".local", "share", "opencode", "auth.json")
     const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"))
@@ -34,6 +36,7 @@ function resolveOpenCodeAPIKey() {
       if (auth[p] && auth[p].key) return auth[p].key
     }
   } catch (_) {}
+  if (envKey) return envKey
   return undefined
 }
 const OPENCODE_API_KEY = resolveOpenCodeAPIKey()

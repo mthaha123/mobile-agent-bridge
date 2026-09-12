@@ -16,6 +16,7 @@
 import { spawn, execSync, type ChildProcess } from "child_process"
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs"
 import { join, resolve } from "path"
+import { homedir } from "os"
 import http from "http"
 import net from "net"
 
@@ -42,6 +43,50 @@ const OPENCODE_EXE = join(
   process.env.APPDATA || "",
   "npm", "node_modules", "opencode-ai", "bin", "opencode.exe",
 )
+
+function maskKey(k: string): string {
+  return k ? `${k.slice(0, 12)}…${k.slice(-4)}` : "(empty)"
+}
+
+/**
+ * 解析 provider API key：注册表(HKCU) → auth.json → env（三级，逐级兜底）。
+ *
+ * 优先级理由：注册表是 `setx` 持久化的显式意图；auth.json 是 opencode 自己的
+ * 权威凭据库（与 `opencode run` 同源，最可靠）；env **放最后**——bridge 的启动
+ * 父进程可能携带过期或已超额的同名 env，env-first 会把坏 key 注入新启动的
+ * opencode serve，触发 429（月份额度用尽）却难以定位。
+ * 三级读取均在 try/catch 内，任一缺失自动降级。
+ * 与 `scripts/start-all.mjs` 的 resolveProviderKey 保持一致。
+ */
+function resolveProviderKey(envVar: string, providerIds: string[]): string {
+  const envKey = process.env[envVar] || ""
+  let regKey = ""
+  try {
+    const reg = execSync(`reg query "HKCU\\Environment" /v ${envVar}`, { encoding: "utf8", timeout: 5000, windowsHide: true })
+    const m = reg.match(new RegExp(`${envVar}\\s+REG_\\w+\\s+(\\S+)`))
+    if (m && m[1]) regKey = m[1]
+  } catch {}
+  if (regKey) {
+    if (envKey && envKey !== regKey) {
+      console.warn(`[ServeManager] ${envVar}: env(${maskKey(envKey)}) != 注册表(${maskKey(regKey)})，采用注册表 key`)
+    }
+    return regKey
+  }
+  // auth.json：opencode 权威凭据库（优先于易被污染的环境变量）
+  try {
+    const authPath = join(homedir(), ".local", "share", "opencode", "auth.json")
+    if (existsSync(authPath)) {
+      const auth = JSON.parse(readFileSync(authPath, "utf8"))
+      for (const pid of providerIds) {
+        const k = auth[pid]?.key
+        if (typeof k === "string" && k) return k
+      }
+    }
+  } catch {}
+  // env 兜底：仅当前两级都不可用时才用（避免坏 env 抢占）
+  if (envKey) return envKey
+  return ""
+}
 
 // ─── State ─────────────────────────────────────────────
 
@@ -154,7 +199,8 @@ function startServe(entry: ProjectEntry): Promise<boolean> {
       return
     }
 
-    const apiKey = process.env.OPENCODE_API_KEY || ""
+    // 注册表优先解析（避免继承自父进程的过期/超额 env 被注入新 serve）
+    const apiKey = resolveProviderKey("OPENCODE_API_KEY", ["opencode-go", "opencode"])
     const child = spawn(OPENCODE_EXE, ["serve", "--port", String(entry.port), "--print-logs"], {
       detached: true,    // 独立于 bridge 进程组
       stdio: "ignore",
@@ -163,6 +209,7 @@ function startServe(entry: ProjectEntry): Promise<boolean> {
         ...process.env,
         OPENCODE_SERVER_PASSWORD: "",
         OPENCODE_API_KEY: apiKey,
+        DEEPSEEK_API_KEY: resolveProviderKey("DEEPSEEK_API_KEY", ["deepseek"]),
       },
     })
 

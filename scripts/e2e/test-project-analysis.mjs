@@ -41,8 +41,8 @@ const QUESTION = process.env.ANALYSIS_QUESTION ||
 // serve 模式不读 auth.json 的 opencode-go 条目，必须显式注入该 env，否则模型解析失败
 // （Model unavailable / HTTP 401 Missing API key）。CLI `opencode run` 才读 auth.json。
 function resolveOpenCodeAPIKey() {
-  if (process.env.OPENCODE_API_KEY) return process.env.OPENCODE_API_KEY
-  // 从 Windows 注册表 User 级环境变量读取（setx 持久化的值，opencode 进程可能未继承）
+  // 注册表(setx 持久化)优先于继承的 env：长驻父进程可能携带过期/超额 key
+  const envKey = process.env.OPENCODE_API_KEY
   try {
     const reg = require("child_process").execSync(
       'reg query "HKCU\\Environment" /v OPENCODE_API_KEY',
@@ -51,6 +51,7 @@ function resolveOpenCodeAPIKey() {
     const m = reg.match(/OPENCODE_API_KEY\s+REG_\w+\s+(\S+)/)
     if (m && m[1]) return m[1]
   } catch (_) {}
+  // auth.json（opencode 权威凭据库）优先于易被污染的环境变量
   try {
     const authPath = resolve(process.env.USERPROFILE || "C:\\Users\\MT", ".local", "share", "opencode", "auth.json")
     const auth = JSON.parse(require("fs").readFileSync(authPath, "utf-8"))
@@ -58,6 +59,7 @@ function resolveOpenCodeAPIKey() {
       if (auth[provider] && typeof auth[provider].key === "string" && auth[provider].key) return auth[provider].key
     }
   } catch (_) {}
+  if (envKey) return envKey
   return undefined
 }
 const OPENCODE_API_KEY = resolveOpenCodeAPIKey()

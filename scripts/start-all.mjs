@@ -45,14 +45,39 @@ function yellow(t) { return `\x1b[33m${t}\x1b[0m` }
 function red(t) { return `\x1b[31m${t}\x1b[0m` }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 解析指定 provider 的 API key：env → 注册表(User) → auth.json */
+function maskKey(k) {
+  return k ? `${k.slice(0, 12)}…${k.slice(-4)}` : "(empty)"
+}
+
+/**
+ * 解析指定 provider 的 API key：注册表(User) → auth.json → env（三级，逐级兜底）
+ *
+ * 优先级理由：
+ *   1) 注册表(HKCU\Environment)：`setx` 持久化的用户级变量，是显式配置的意图；
+ *   2) auth.json：opencode 自己的权威凭据库（`opencode auth login` 维护），
+ *      与 `opencode run` CLI 用的是同一个 key，最可靠；
+ *   3) env（process.env）：**放最后**——长驻父进程（agent harness / 旧终端）
+ *      常携带过期或已超额的同名 env，env-first 会把坏 key 注入 serve/bridge，
+ *      触发 429（月份额度用尽）却极难定位。
+ *
+ * 三级各自的读取都在 try/catch 内：任一级缺失/不可读都自动降级，不会崩。
+ * env 与注册表不一致时打警告，便于发现环境泄漏。
+ */
 function resolveProviderKey(envVar, providerId) {
-  if (process.env[envVar]) return process.env[envVar]
+  const envKey = process.env[envVar] || ""
+  let regKey = ""
   try {
     const reg = execSync(`reg query "HKCU\\Environment" /v ${envVar}`, { encoding: "utf8", timeout: 5000 })
     const m = reg.match(new RegExp(`${envVar}\\s+REG_\\w+\\s+(\\S+)`))
-    if (m && m[1]) return m[1]
+    if (m && m[1]) regKey = m[1]
   } catch {}
+  if (regKey) {
+    if (envKey && envKey !== regKey) {
+      console.warn(yellow(`[key] ${envVar}: 继承 env (${maskKey(envKey)}) 与注册表 (${maskKey(regKey)}) 不一致，采用注册表 key`))
+    }
+    return regKey
+  }
+  // auth.json：opencode 权威凭据库（优先于易被污染的环境变量）
   try {
     const authPath = path.join(os.homedir(), ".local", "share", "opencode", "auth.json")
     if (existsSync(authPath)) {
@@ -62,17 +87,19 @@ function resolveProviderKey(envVar, providerId) {
       }
     }
   } catch {}
+  // env 兜底：仅当前两级都不可用时才用（避免坏 env 抢占）
+  if (envKey) return envKey
   return ""
 }
 
-/** 解析 OPENCODE_API_KEY：env → 注册表(User) → auth.json（opencode-go/opencode 任一） */
+/** 解析 OPENCODE_API_KEY：注册表(User) → auth.json → env（opencode-go/opencode 任一） */
 function resolveOpenCodeAPIKey() {
   const goKey = resolveProviderKey("OPENCODE_API_KEY", "opencode-go")
   if (goKey) return goKey
   return resolveProviderKey("OPENCODE_API_KEY", "opencode")
 }
 
-/** 解析 DEEPSEEK_API_KEY：env → 注册表(User) → auth.json */
+/** 解析 DEEPSEEK_API_KEY：注册表(User) → auth.json → env */
 function resolveDeepSeekAPIKey() {
   return resolveProviderKey("DEEPSEEK_API_KEY", "deepseek")
 }
