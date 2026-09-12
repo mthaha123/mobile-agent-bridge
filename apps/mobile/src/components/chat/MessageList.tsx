@@ -87,7 +87,10 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
         ref={flatListRef}
         data={listData}
         inverted
-        // A/B 验证：临时移除 nestedScrollEnabled，排查 onEndReached 不触发问题
+        // 父级必须参与嵌套滚动，否则 cell 内横向 ScrollView（代码块/表格/diff）
+        // 的横向拖拽会被本列表吞掉（Android 要求父子都启用 nested scrolling）。
+        // 历史加载 onEndReached 的触发问题另行修复，不靠移除本属性规避。
+        nestedScrollEnabled
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={thinkingIndicator}

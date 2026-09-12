@@ -116,6 +116,14 @@ describe('MessageList', () => {
     expect(flatListNode(tree).props.inverted).toBe(true)
   })
 
+  it('has nestedScrollEnabled so horizontal children can scroll', () => {
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
+    })
+    expect(flatListNode(tree).props.nestedScrollEnabled).toBe(true)
+  })
+
   it('thinkingIndicator goes to ListHeaderComponent, historyHint to ListFooterComponent', () => {
     const shimmer = <Text>shimmer</Text>
     const hint = <Text>hint</Text>
