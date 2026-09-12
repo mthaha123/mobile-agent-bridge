@@ -231,6 +231,43 @@ function startTunnel() {
   return true
 }
 
+/**
+ * 只重启 cloudflared 隧道（不触碰 serve/bridge）。
+ * trycloudflare 快速隧道每次启动都会分配新的随机地址，用于「更换内网穿透地址」。
+ * 重启后等待并打印新地址。
+ */
+async function restartTunnel() {
+  console.log("── 重启 cloudflared 隧道（更换地址）──")
+  const pidFile = LOG_PREFIX("cf-tunnel.pid")
+  const logFile = LOG_PREFIX("cf-tunnel.log")
+  // 日志会跨重启追加：先记录旧地址，之后只认「不在旧集合里」的新地址，避免误判
+  const oldUrls = existsSync(logFile)
+    ? (readFileSync(logFile, "utf8").match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/g) || [])
+    : []
+  const pid = readPid(pidFile)
+  if (pid) { killPid(pid); console.log("  旧隧道: killed PID " + pid) }
+  try { rmSync(pidFile, { force: true }) } catch {}
+  await new Promise((r) => setTimeout(r, 1500)) // 等旧进程释放日志文件句柄
+  try { rmSync(logFile, { force: true }) } catch {}
+  startTunnel()
+
+  const deadline = Date.now() + 40000
+  let newUrl = ""
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1000))
+    if (!existsSync(logFile)) continue
+    const urls = readFileSync(logFile, "utf8").match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/g) || []
+    const fresh = urls.find((u) => !oldUrls.includes(u))
+    if (fresh) { newUrl = fresh; break }
+  }
+  if (newUrl) {
+    console.log(green("  新地址:      " + newUrl))
+    console.log(green("  App WS 地址: " + newUrl.replace(/^https/, "wss") + "/ws"))
+  } else {
+    console.log(red("  未能获取新地址，请稍后运行: node scripts/start-all.mjs --status"))
+  }
+}
+
 // ─── 就绪等待（带进度输出，不静默） ─────────────────────────
 
 async function waitServe(timeoutMs = 25000) {
@@ -286,8 +323,9 @@ function status() {
   }
   const c = LOG_PREFIX("cf-tunnel.log")
   if (existsSync(c)) {
-    const m = readFileSync(c, "utf8").match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/)
-    if (m) console.log(`  Tunnel URL: ${m[0]}`)
+    // 日志会跨重启追加：取【最后一条】URL（最新隧道），否则会显示已失效的旧地址
+    const all = readFileSync(c, "utf8").match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/g)
+    if (all && all.length) console.log(`  Tunnel URL: ${all[all.length - 1]}`)
   }
 }
 
@@ -312,11 +350,13 @@ function stop() {
  *     不要在 bash 里同步等待本脚本，长驻进程会拖住 bash 工具（工具层判进程树未收敛）。
  *   - --wait：显式等待就绪，每轮打印进度（供人工/脚本确认，勿在 bash 工具里同步跑）。
  *   - --status / --stop：短查询 / 精确停止。
+ *   - --restart-tunnel：只重启 cloudflared 隧道（更换 trycloudflare 随机地址，不动 serve/bridge）。
  */
 async function main() {
   const arg = process.argv[2]
   if (arg === "--status") { status(); return }
   if (arg === "--stop") { stop(); return }
+  if (arg === "--restart-tunnel") { await restartTunnel(); return }
   const doWait = arg === "--wait"
 
   if (!existsSync(OPENCODE_EXE)) { console.log(red("[FATAL] opencode.exe not found: " + OPENCODE_EXE)); process.exit(1) }
