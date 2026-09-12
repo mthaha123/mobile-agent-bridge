@@ -5,11 +5,15 @@ import type { ViewStyle } from 'react-native'
 interface HorizontalScrollBoxProps {
   children: React.ReactNode
   /**
-   * 是否允许显示横向滚动指示条。
-   * - true（默认）：内部按实测内容宽度自动判断，仅溢出时显示
-   * - false：完全不显示（调用方自行管理，如代码块的 Copy 覆盖层）
+   * 横向滚动指示条显示策略。
+   * - 省略（默认）：内部按实测内容宽度自动判断，仅溢出时显示
+   * - 传 true / false：以调用方计算值为准（调用方自行做溢出检测，如代码块、
+   *   MarkdownTable 既有的列宽/内容宽度逻辑），内部不再覆盖
+   * - false：完全不显示（如 shell/diff 的极简样式）
    */
   showsIndicator?: boolean
+  /** 视口样式（如限高 maxHeight），作用于 ScrollView 本身 */
+  style?: ViewStyle
   contentContainerStyle?: ViewStyle
   testID?: string
   /** 供调用方获取容器宽度 / 溢出状态（可选） */
@@ -30,7 +34,8 @@ interface HorizontalScrollBoxProps {
  */
 export const HorizontalScrollBox: React.FC<HorizontalScrollBoxProps> = ({
   children,
-  showsIndicator = true,
+  showsIndicator,
+  style,
   contentContainerStyle,
   testID,
   onLayoutWidth,
@@ -39,7 +44,9 @@ export const HorizontalScrollBox: React.FC<HorizontalScrollBoxProps> = ({
   const [containerWidth, setContainerWidth] = useState(0)
   const [contentWidth, setContentWidth] = useState(0)
 
-  const overflow = containerWidth > 0 && contentWidth > containerWidth + 1
+  const autoOverflow = containerWidth > 0 && contentWidth > containerWidth + 1
+  // 调用方显式传入时以其为准（其可能基于列宽等自身逻辑判断溢出）
+  const finalShowsIndicator = showsIndicator === undefined ? autoOverflow : showsIndicator
 
   const handleLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number } } }) => {
@@ -67,7 +74,8 @@ export const HorizontalScrollBox: React.FC<HorizontalScrollBoxProps> = ({
       horizontal
       nestedScrollEnabled
       directionalLockEnabled
-      showsHorizontalScrollIndicator={showsIndicator && overflow}
+      showsHorizontalScrollIndicator={finalShowsIndicator}
+      style={style}
       contentContainerStyle={contentContainerStyle}
       onLayout={handleLayout}
       onContentSizeChange={handleContentSizeChange}

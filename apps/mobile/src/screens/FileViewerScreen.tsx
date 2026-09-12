@@ -21,6 +21,7 @@ import { useFileStore } from '../stores/fileStore'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { MarkdownRenderer } from '../components/chat/MarkdownRenderer'
+import { HorizontalScrollBox } from '../components/common/HorizontalScrollBox'
 import ReactNativeBlobUtil from 'react-native-blob-util'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
@@ -161,7 +162,7 @@ export const FileViewerScreen: React.FC = () => {
     const maxLineWidth = lines.reduce((m, l) => Math.max(m, l.length), 0)
     return (
       <ScrollView style={styles.codeScroll} contentContainerStyle={{ paddingBottom: 8 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator style={styles.noWrapScroll}>
+        <HorizontalScrollBox style={styles.noWrapScroll}>
           <View>
             {lines.map((line, i) => (
               <View key={i} style={styles.noWrapLine}>
@@ -181,7 +182,7 @@ export const FileViewerScreen: React.FC = () => {
               </View>
             ))}
           </View>
-        </ScrollView>
+        </HorizontalScrollBox>
       </ScrollView>
     )
   }

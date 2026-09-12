@@ -2,12 +2,12 @@ import React, { useCallback, useMemo, useState } from 'react'
 import {
   Dimensions,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
+import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 import type { ThemeColors } from '../../theme/colors'
 
@@ -270,14 +270,12 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
   return (
     <View>
       <View style={styles.embedWrap} onLayout={onLayout} testID="md-table">
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={overflow}
+        <HorizontalScrollBox
+          showsIndicator={overflow}
           testID="md-table-scroll"
         >
           <TableBody header={header} rows={rows} widths={fittedWidths} colors={colors} />
-        </ScrollView>
+        </HorizontalScrollBox>
 
         {/* 保底入口：不依赖嵌套手势协商，任何情况下都能看全 */}
         <TouchableOpacity
@@ -313,15 +311,14 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
             </TouchableOpacity>
           </View>
           {/* 横向滚动：无需外层垂直 ScrollView（单表无纵向内容），避免手势竞争 */}
-          <ScrollView
-            horizontal
+          <HorizontalScrollBox
             style={styles.viewerBody}
-            onLayout={onModalLayout}
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={modalOverflow}
+            showsIndicator={modalOverflow}
           >
-            <TableBody header={header} rows={rows} widths={modalWidths} colors={colors} />
-          </ScrollView>
+            <View onLayout={onModalLayout}>
+              <TableBody header={header} rows={rows} widths={modalWidths} colors={colors} />
+            </View>
+          </HorizontalScrollBox>
         </View>
       </Modal>
     </View>

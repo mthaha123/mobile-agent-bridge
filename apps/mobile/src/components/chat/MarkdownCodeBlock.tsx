@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react'
-import { Clipboard, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import React from 'react'
+import { Clipboard, Text, TouchableOpacity, View } from 'react-native'
 import type { TextStyle, ViewStyle } from 'react-native'
+import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 
 interface MarkdownCodeBlockProps {
@@ -30,25 +31,10 @@ export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
   textStyle,
 }) => {
   const colors = useThemeColors()
-  const [containerWidth, setContainerWidth] = useState(0)
-  const [contentWidth, setContentWidth] = useState(0)
-  const onLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
-    const w = e.nativeEvent.layout.width
-    if (w > 0) setContainerWidth(w)
-  }, [])
-  const onContentSizeChange = useCallback((w: number) => {
-    if (w > 0) setContentWidth(w)
-  }, [])
-  const overflow = containerWidth > 0 && contentWidth > containerWidth + 1
 
   return (
     <View>
-      <ScrollView
-        horizontal
-        nestedScrollEnabled
-        showsHorizontalScrollIndicator={overflow}
-        onLayout={onLayout}
-        onContentSizeChange={onContentSizeChange}
+      <HorizontalScrollBox
         contentContainerStyle={containerStyle}
         testID="md-code-block"
       >
@@ -59,7 +45,7 @@ export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
             {text}
           </Text>
         </View>
-      </ScrollView>
+      </HorizontalScrollBox>
       <TouchableOpacity
         style={[styles.copyBtn, { backgroundColor: colors.surfaceVariant }]}
         onPress={() => { Clipboard.setString(text) }}

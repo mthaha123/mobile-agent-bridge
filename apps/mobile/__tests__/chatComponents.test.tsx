@@ -367,6 +367,18 @@ describe('ShellOutput', () => {
     expect(t).toContain('$ ls')
     expect(t).not.toContain('lines')
   })
+
+  it('uses a horizontal scroller with nested scrolling enabled (Android 横向滑动前提)', () => {
+    const { ScrollView } = require('react-native')
+    const tree = TestRenderer.create(
+      <ShellOutput result={'very long line ' + 'x'.repeat(200)} input={{ command: 'ls' }} />,
+    )
+    const horizontal = tree.root
+      .findAllByType(ScrollView)
+      .find((n: any) => n.props.horizontal)
+    expect(horizontal).toBeTruthy()
+    expect(horizontal!.props.nestedScrollEnabled).toBe(true)
+  })
 })
 
 // ─── DiffDisplay ──────────────────────────────────────────
@@ -409,6 +421,18 @@ describe('DiffDisplay', () => {
     expect(t).toContain('-old2')
     expect(t).toContain('+new2')
     expect(t).toContain('keep3')
+  })
+
+  it('uses a horizontal scroller with nested scrolling enabled (Android 横向滑动前提)', () => {
+    const { ScrollView } = require('react-native')
+    const tree = TestRenderer.create(
+      <DiffDisplay oldString={'a'} newString={'b' + 'y'.repeat(200)} />,
+    )
+    const horizontal = tree.root
+      .findAllByType(ScrollView)
+      .find((n: any) => n.props.horizontal)
+    expect(horizontal).toBeTruthy()
+    expect(horizontal!.props.nestedScrollEnabled).toBe(true)
   })
 })
 

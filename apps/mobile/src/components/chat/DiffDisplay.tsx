@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
-import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
 
@@ -18,7 +19,7 @@ export const DiffDisplay: React.FC<DiffDisplayProps> = ({ oldString, newString, 
   return (
     <View style={styles.diffContainer}>
       {filePath ? <Text style={styles.filePath}>{filePath}</Text> : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <HorizontalScrollBox showsIndicator={false}>
         <View>
           {hunks.map((hunk, i) => (
             <View key={i}>
@@ -37,7 +38,7 @@ export const DiffDisplay: React.FC<DiffDisplayProps> = ({ oldString, newString, 
             </View>
           ))}
         </View>
-      </ScrollView>
+      </HorizontalScrollBox>
     </View>
   )
 }

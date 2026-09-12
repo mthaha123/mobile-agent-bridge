@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
 
@@ -25,7 +26,7 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({ result, input }) => {
       ) : null}
       {output ? (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollX}>
+          <HorizontalScrollBox showsIndicator={false} style={styles.scrollX}>
             <View>
               {displayLines.map((line, i) => (
                 <View key={i} style={styles.line}>
@@ -38,7 +39,7 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({ result, input }) => {
                 </View>
               ))}
             </View>
-          </ScrollView>
+          </HorizontalScrollBox>
           {lines.length > maxLines ? (
             <TouchableOpacity onPress={() => setShowAll(v => !v)} style={styles.showMoreBtn}>
               <Text style={styles.showMoreText}>

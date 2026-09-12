@@ -1,5 +1,5 @@
 import React from 'react'
-import { Text } from 'react-native'
+import { ScrollView, Text } from 'react-native'
 import TestRenderer, { act } from 'react-test-renderer'
 import { MarkdownTable, fitColumnWidths } from '../src/components/chat/MarkdownTable'
 
@@ -12,6 +12,13 @@ function findByTestId(json: any, testID: string): any {
     if (hit) return hit
   }
   return null
+}
+
+/** 找到横向滚动原语内部的 ScrollView（testID 由原语透传） */
+function horizontalScroll(tree: TestRenderer.ReactTestRenderer, testID: string) {
+  return tree.root
+    .findAllByType(ScrollView)
+    .find((n) => n.props.testID === testID)
 }
 
 /** 收集树中所有指定类型的节点 */
@@ -118,8 +125,8 @@ describe('MarkdownTable 组件', () => {
     act(() => {
       wrap.props.onLayout({ nativeEvent: { layout: { width: 400 } } })
     })
-    const scroll = tree.root.findByProps({ testID: 'md-table-scroll' })
-    expect(scroll.props.showsHorizontalScrollIndicator).toBe(false)
+    const scroll = horizontalScroll(tree, 'md-table-scroll')
+    expect(scroll!.props.showsHorizontalScrollIndicator).toBe(false)
     tree.unmount()
   })
 
@@ -135,10 +142,10 @@ describe('MarkdownTable 组件', () => {
     act(() => {
       wrap.props.onLayout({ nativeEvent: { layout: { width: 200 } } })
     })
-    const scroll = tree.root.findByProps({ testID: 'md-table-scroll' })
-    expect(scroll.props.horizontal).toBe(true)
-    expect(scroll.props.nestedScrollEnabled).toBe(true)
-    expect(scroll.props.showsHorizontalScrollIndicator).toBe(true)
+    const scroll = horizontalScroll(tree, 'md-table-scroll')
+    expect(scroll!.props.horizontal).toBe(true)
+    expect(scroll!.props.nestedScrollEnabled).toBe(true)
+    expect(scroll!.props.showsHorizontalScrollIndicator).toBe(true)
 
     const json = tree.toJSON()
     expect(findByTestId(json, 'md-table-expand')).toBeTruthy()

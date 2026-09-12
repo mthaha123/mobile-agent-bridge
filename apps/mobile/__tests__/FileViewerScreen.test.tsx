@@ -95,6 +95,8 @@ describe('FileViewerScreen — text', () => {
       (n: any) => n.props?.horizontal === true,
     )
     expect(horizScroll.length).toBeGreaterThan(0)
+    // 嵌套在纵向阅读容器内 → 必须启用嵌套滚动，否则 Android 横向拖动被吞
+    expect(horizScroll[0].props.nestedScrollEnabled).toBe(true)
     const text = textOf(tree)
     expect(text).toContain('line1')
     expect(text).toContain('line2')
