@@ -8,7 +8,7 @@
 2. `AppProvider` 的 WS `connected`（首连/重连）事件；
 3. `ModelPickerModal` 每次打开时。
 
-除此之外配置会长时间停留在客户端缓存中。用户在 opencode 侧新增/修改 agent、命令、模型后，App 若不重连、不切项目，就一直显示旧列表。
+除此之外配置会长时间停留在客户端缓存中。需要明确一个关键事实：**opencode serve 对 agent / command 等配置是启动时一次性加载、之后不再重载**；因此所谓"最新配置"的权威来源就是 serve 当前加载的那份（它只在 serve 重启、或切到另一个 serve 实例时才变化）。本方案只负责让客户端与 serve 当前值对齐，不涉及磁盘热重载。
 
 本次目标是：**App 前台运行时，每约 5 分钟自动向 opencode serve 重新拉取一次配置**，让列表保鲜。不追求"每次交互即时刷新"。
 
@@ -19,7 +19,7 @@
 | 触发方式 | 客户端低频定时刷新（**绝对到期时间**，非固定周期盲跑） |
 | 刷新内容 | `config.agents` + `command.list` + `model.list` |
 | 取数路径 | 客户端 → Bridge（透传）→ **opencode serve**（现有 handler） |
-| 是否 dispose 实例 | **否**（方案 A）。接受"可能拿到 serve 实例缓存值，而非磁盘瞬时最新" |
+| 是否 dispose 实例 | **否**（方案 A）。serve 的 agent/command 本就是启动时加载、之后不重载，向 serve 取值即权威，无需 dispose / 读磁盘 |
 | Bridge 改动 | 无（复用现有 `config.agents` / `command.list` / `model.list`） |
 | 即时触发点 | 不做（切换 agent、打开 cmd 面板不特殊刷新） |
 
@@ -196,6 +196,6 @@ function armConfigRefresh(client: BridgeClient) {
 ## 决策记录
 
 1. **取数路径确认**：refresh 最终打到 opencode serve（经 Bridge 现有 handler 透传），不是本地数据。
-2. **不做 dispose（方案 A）**：接受 serve 实例级缓存，即"向 serve 取值 ✔，磁盘瞬时最新 ✘"。
+2. **不做 dispose（方案 A）**：opencode serve 仅在**启动时**加载 agent / command（之后不再重载），所以 serve 当前值就是权威值；客户端定时对齐 serve 即可，**无需 dispose 实例、也无需读磁盘**。serve 重启或切换 serve 实例后，下一轮刷新会自动拿到新配置。
 3. **绝对到期而非固定周期**：以 `lastRefreshedAt + TTL` 为到期点，回前台做绝对判断，保证后台冻结后回来"超期即刷"。
 4. **不新增任何 WS 接口**：因此不触发 AGENTS.md 的接口对齐额外要求。
