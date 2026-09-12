@@ -9,6 +9,7 @@ import { useDiffStore } from '../stores/diffStore'
 import { useTodoStore } from '../stores/todoStore'
 import { useQuestionStore, type QuestionItem } from '../stores/questionStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useConfigStore, CONFIG_REFRESH_TTL_MS } from '../stores/configStore'
 import { BridgeClient } from '../services/BridgeClient'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
@@ -26,12 +27,17 @@ function createReplyCall(client: BridgeClient): (id: string, reply: 'once' | 'al
   }
 }
 
+/** 离线时到期轮的短重试间隔，避免 0-delay 自旋 */
+const CONFIG_OFFLINE_RETRY_MS = 30 * 1000
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const clientRef = useRef<BridgeClient | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const appStateSubRef = useRef<{ remove: () => void } | null>(null)
+  const configRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const configRefreshSubRef = useRef<(() => void) | null>(null)
 
   // 启动时一次性恢复本地偏好（默认 agent/model），失败静默
   useEffect(() => {
@@ -61,6 +67,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       useAuthStore.getState().refreshToken()
     }, 25 * 60 * 1000)
 
+    // ── 配置绝对到期刷新 ──
+    // lastRefreshedAt 是唯一事实来源：任意刷新路径成功都会触发订阅重排，
+    // 定时器永远瞄准 lastRefreshedAt + TTL 这个绝对时间点。
+    armConfigRefresh(client)
+    configRefreshSubRef.current?.()
+    configRefreshSubRef.current = useConfigStore.subscribe((s, prev) => {
+      if (s.lastRefreshedAt !== prev.lastRefreshedAt) armConfigRefresh(client)
+    })
+
     // ── 回前台秒连：AppState 事件驱动，不等退避定时器/保活验尸 ──
     //
     // 后台期间 Android/iOS 会冻结 JS 定时器并回收网络，socket 大概率已死：
@@ -81,6 +96,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         // connected（无重连→无对账），所以回前台无论是否重连都直接对账一次
         void reconcilePermissions()
         void reconcileQuestions()
+        // 绝对到期判断：后台冻结期间跨过到期点 → 回前台立即补刷
+        const cfg = useConfigStore.getState()
+        if (c.connected && Date.now() - cfg.lastRefreshedAt >= CONFIG_REFRESH_TTL_MS) {
+          cfg.refreshAll(c.call.bind(c)).catch(() => {})
+        }
       }
     })
 
@@ -320,11 +340,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     })
   }
 
+  /**
+   * 配置绝对到期调度：瞄准 lastRefreshedAt + TTL 这个绝对时间点（而非固定周期）。
+   * lastRefreshedAt 变化由订阅触发重排，保证任意刷新路径都能续期。
+   */
+  function armConfigRefresh(client: BridgeClient) {
+    if (configRefreshTimerRef.current) clearTimeout(configRefreshTimerRef.current)
+
+    const { lastRefreshedAt } = useConfigStore.getState()
+    // 从未刷新过 → 交给 connected 首刷，不空转
+    const due = lastRefreshedAt > 0
+      ? lastRefreshedAt + CONFIG_REFRESH_TTL_MS
+      : Date.now() + CONFIG_REFRESH_TTL_MS
+    const delay = Math.max(0, due - Date.now())
+
+    configRefreshTimerRef.current = setTimeout(async () => {
+      if (!client.connected) {
+        configRefreshTimerRef.current =
+          setTimeout(() => armConfigRefresh(client), CONFIG_OFFLINE_RETRY_MS)
+        return
+      }
+      const s = useConfigStore.getState()
+      if (!s.refreshing && Date.now() - s.lastRefreshedAt >= CONFIG_REFRESH_TTL_MS) {
+        await s.refreshAll(client.call.bind(client)).catch(() => {})
+      }
+      armConfigRefresh(client) // 按新的 lastRefreshedAt 续期
+    }, delay)
+  }
+
   function teardownClient() {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
     refreshTimerRef.current = null
     appStateSubRef.current?.remove()
     appStateSubRef.current = null
+    if (configRefreshTimerRef.current) clearTimeout(configRefreshTimerRef.current)
+    configRefreshTimerRef.current = null
+    configRefreshSubRef.current?.()
+    configRefreshSubRef.current = null
     useChatStore.getState().stopStatusPolling() // 连接销毁：条件轮询一并撤销
     setQuestionRejectCall(null)
     clientRef.current?.destroy()

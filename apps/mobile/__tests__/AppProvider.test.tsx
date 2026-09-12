@@ -14,6 +14,7 @@ import { useDiffStore } from '../src/stores/diffStore'
 import { useTodoStore } from '../src/stores/todoStore'
 import { useQuestionStore } from '../src/stores/questionStore'
 import { useSessionStore } from '../src/stores/sessionStore'
+import { useConfigStore, CONFIG_REFRESH_TTL_MS } from '../src/stores/configStore'
 import { mockClient, resetAllStores } from './test-utils'
 
 function mockClientAndRender(opts?: {
@@ -1271,5 +1272,90 @@ describe('重连后待回答问题对账', () => {
     await flush()
 
     expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['keep'])
+  })
+})
+
+// ─── 配置绝对到期自动刷新 ─────────────────────────────────
+
+describe('配置绝对到期自动刷新', () => {
+  it('到达绝对到期点后自动重拉配置', async () => {
+    jest.useFakeTimers()
+    try {
+      const { client } = mockClientAndRender({ connected: true })
+
+      // 把 lastRefreshedAt 拨到过期（订阅回调据此重排到即刻到期）
+      TestRenderer.act(() => {
+        useConfigStore.setState({ lastRefreshedAt: Date.now() - CONFIG_REFRESH_TTL_MS - 1 })
+      })
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(0) })
+
+      expect(client.call).toHaveBeenCalledWith('config.agents')
+      expect(client.call).toHaveBeenCalledWith('command.list')
+      expect(client.call).toHaveBeenCalledWith('model.list')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('未到绝对到期点不刷新', async () => {
+    jest.useFakeTimers()
+    try {
+      const { client } = mockClientAndRender({ connected: true })
+
+      TestRenderer.act(() => { useConfigStore.setState({ lastRefreshedAt: Date.now() }) })
+      await TestRenderer.act(async () => {
+        await jest.advanceTimersByTimeAsync(CONFIG_REFRESH_TTL_MS - 1000)
+      })
+
+      expect(client.call).not.toHaveBeenCalledWith('config.agents')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('回前台且已超期：立即刷新', async () => {
+    const { client } = mockClientAndRender({ connected: true })
+
+    TestRenderer.act(() => {
+      useConfigStore.setState({ lastRefreshedAt: Date.now() - CONFIG_REFRESH_TTL_MS - 1 })
+    })
+    await TestRenderer.act(async () => {
+      ;(AppState as any).__emit('active')
+      await Promise.resolve()
+    })
+
+    expect(client.call).toHaveBeenCalledWith('config.agents')
+  })
+
+  it('离线到期不刷新（短重试，不空转）', async () => {
+    jest.useFakeTimers()
+    try {
+      const { client } = mockClientAndRender({ connected: false })
+
+      TestRenderer.act(() => {
+        useConfigStore.setState({ lastRefreshedAt: Date.now() - CONFIG_REFRESH_TTL_MS - 1 })
+      })
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(0) })
+
+      expect(client.call).not.toHaveBeenCalledWith('config.agents')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('client 销毁后定时器与订阅被清理', async () => {
+    jest.useFakeTimers()
+    try {
+      const { client } = mockClientAndRender({ connected: true })
+
+      TestRenderer.act(() => { useAuthStore.setState({ client: null }) })
+      await TestRenderer.act(async () => {
+        await jest.advanceTimersByTimeAsync(CONFIG_REFRESH_TTL_MS + 1000)
+      })
+
+      expect(client.call).not.toHaveBeenCalledWith('config.agents')
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })
