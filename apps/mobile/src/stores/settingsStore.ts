@@ -20,6 +20,8 @@ interface SettingsFile {
   defaultAgent: string | null
   defaultModel: DefaultModel | null
   chatDisplayMode: ChatDisplayMode
+  /** 是否允许 ConnectScreen 挂载时自动连接默认地址（用户显式 Disconnect 后置 false） */
+  autoConnect?: boolean
 }
 
 export interface SettingsState {
@@ -29,6 +31,12 @@ export interface SettingsState {
   defaultModel: DefaultModel | null
   /** 聊天消息显示模式：flat = 平铺（逐个 PartBlock），grouped = 聚合（ToolGroupCard 合并 reasoning+tool） */
   chatDisplayMode: ChatDisplayMode
+  /**
+   * ConnectScreen 是否自动连接默认地址。
+   * 默认 true（开发便利）；用户显式 Disconnect 后置 false，
+   * 避免"刚断开又自动连回"以及 E2E 无法停留在连接页。
+   */
+  autoConnect: boolean
   /** 磁盘恢复是否已完成（无论成败） */
   loaded: boolean
 
@@ -36,6 +44,7 @@ export interface SettingsState {
   setDefaultAgent: (agent: string | null) => Promise<void>
   setDefaultModel: (model: DefaultModel | null) => Promise<void>
   setChatDisplayMode: (mode: ChatDisplayMode) => Promise<void>
+  setAutoConnect: (auto: boolean) => Promise<void>
 }
 
 const SETTINGS_PATH =
@@ -49,6 +58,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultAgent: null,
   defaultModel: null,
   chatDisplayMode: 'flat',
+  autoConnect: true,
   loaded: false,
 
   load: async () => {
@@ -64,6 +74,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         defaultAgent: parsed.defaultAgent ?? null,
         defaultModel: parsed.defaultModel ?? null,
         chatDisplayMode: parsed.chatDisplayMode ?? 'flat',
+        autoConnect: parsed.autoConnect ?? true,
         loaded: true,
       })
     } catch {
@@ -78,6 +89,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       defaultAgent: get().defaultAgent,
       defaultModel: get().defaultModel,
       chatDisplayMode: get().chatDisplayMode,
+      autoConnect: get().autoConnect,
     }).catch(() => {})
   },
 
@@ -87,6 +99,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       defaultAgent: get().defaultAgent,
       defaultModel: get().defaultModel,
       chatDisplayMode: get().chatDisplayMode,
+      autoConnect: get().autoConnect,
     }).catch(() => {})
   },
 
@@ -96,6 +109,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       defaultAgent: get().defaultAgent,
       defaultModel: get().defaultModel,
       chatDisplayMode: get().chatDisplayMode,
+      autoConnect: get().autoConnect,
+    }).catch(() => {})
+  },
+
+  setAutoConnect: async (auto) => {
+    set({ autoConnect: auto })
+    await persist({
+      defaultAgent: get().defaultAgent,
+      defaultModel: get().defaultModel,
+      chatDisplayMode: get().chatDisplayMode,
+      autoConnect: get().autoConnect,
     }).catch(() => {})
   },
 }))

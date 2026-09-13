@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer'
 import { ConnectScreen } from '../src/screens/ConnectScreen'
 import { useAuthStore } from '../src/stores/authStore'
 import { useProjectStore } from '../src/stores/projectStore'
+import { useSettingsStore } from '../src/stores/settingsStore'
 import { getThemeColors } from '../src/theme/colors'
 import * as ThemeContext from '../src/theme/ThemeContext'
 import { resetAllStores, findAllInputs, findAllPressable, textOf } from './test-utils'
@@ -291,5 +292,84 @@ describe('ConnectScreen — interactions', () => {
   it('login sets error when bridgeUrl is empty', () => {
     useAuthStore.getState().login()
     expect(useAuthStore.getState().error).toContain('地址')
+  })
+})
+
+// ─── 自动连接开关（尊重用户显式 Disconnect / 便于 E2E 连 Mock）─────────
+
+describe('ConnectScreen — autoConnect', () => {
+  it('autoConnect=true 时挂载后自动连接默认地址', async () => {
+    jest.useFakeTimers()
+    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
+    try {
+      useSettingsStore.setState({ loaded: true, autoConnect: true })
+      await act(async () => {
+        TestRenderer.create(<ConnectScreen />)
+        await jest.advanceTimersByTimeAsync(600)
+      })
+      expect(useAuthStore.getState().bridgeUrl).toBe('ws://10.0.2.2:8080/ws')
+      expect(loginSpy).toHaveBeenCalled()
+    } finally {
+      loginSpy.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it('autoConnect=false 时不自动连接（停留在连接页）', async () => {
+    jest.useFakeTimers()
+    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
+    try {
+      useSettingsStore.setState({ loaded: true, autoConnect: false })
+      let tree!: TestRenderer.ReactTestRenderer
+      await act(async () => {
+        tree = TestRenderer.create(<ConnectScreen />)
+        await jest.advanceTimersByTimeAsync(600)
+      })
+      expect(loginSpy).not.toHaveBeenCalled()
+      // 仍停留在连接页
+      expect(textOf(tree)).toContain('Connect to your OpenCode agent')
+    } finally {
+      loginSpy.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it('settings 尚未从磁盘恢复（loaded=false）时不自动连接', async () => {
+    jest.useFakeTimers()
+    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
+    try {
+      useSettingsStore.setState({ loaded: false, autoConnect: true })
+      await act(async () => {
+        TestRenderer.create(<ConnectScreen />)
+        await jest.advanceTimersByTimeAsync(600)
+      })
+      expect(loginSpy).not.toHaveBeenCalled()
+    } finally {
+      loginSpy.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it('autoConnect=false 时手动点 Connect 仍会发起登录', async () => {
+    useSettingsStore.setState({ loaded: true, autoConnect: false })
+    const tree = TestRenderer.create(<ConnectScreen />)
+
+    const setByPlaceholder = (prefix: string, value: string) => {
+      const input = findAllInputs(tree).find((i: any) =>
+        (i.props.placeholder || '').startsWith(prefix),
+      )
+      expect(input).toBeDefined()
+      act(() => { input!.props.onChangeText(value) })
+    }
+    setByPlaceholder('ws://', 'ws://localhost:8081/ws')
+
+    const connectBtn = findAllPressable(tree).find((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t.includes('Connect')
+    })
+    expect(connectBtn).toBeDefined()
+    await act(async () => { connectBtn!.props.onPress() })
+
+    expect(useAuthStore.getState().bridgeUrl).toBe('ws://localhost:8081/ws')
   })
 })

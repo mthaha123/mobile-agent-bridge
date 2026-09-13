@@ -17,6 +17,7 @@ import { useProjectStore } from '../src/stores/projectStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { useFileStore } from '../src/stores/fileStore'
 import { useConfigStore } from '../src/stores/configStore'
+import { useSettingsStore } from '../src/stores/settingsStore'
 
 // ─── Mock Client Factory ──────────────────────────────────
 
@@ -108,6 +109,13 @@ export function resetAllStores() {
     error: null,
     lastRefreshedAt: 0,
     refreshing: false,
+  })
+  useSettingsStore.setState({
+    defaultAgent: null,
+    defaultModel: null,
+    chatDisplayMode: 'flat',
+    autoConnect: true,
+    loaded: false,
   })
 }
 

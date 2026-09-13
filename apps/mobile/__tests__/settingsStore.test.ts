@@ -21,7 +21,7 @@ const SETTINGS_PATH = '/mock/documents/mobile-agent-bridge-settings.json'
 describe('settingsStore', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, chatDisplayMode: 'flat', loaded: false })
+    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, chatDisplayMode: 'flat', autoConnect: true, loaded: false })
   })
 
   it('load 从 DocumentDir 恢复持久化设置', async () => {
@@ -113,6 +113,33 @@ describe('settingsStore', () => {
     expect(fs.writeFile).toHaveBeenCalledWith(
       SETTINGS_PATH,
       expect.stringContaining('"chatDisplayMode":"grouped"'),
+      'utf8',
+    )
+  })
+
+  it('load 恢复 autoConnect=false（用户曾显式断开）', async () => {
+    fs.exists.mockResolvedValue(true)
+    fs.readFile.mockResolvedValue(JSON.stringify({ autoConnect: false }))
+    await useSettingsStore.getState().load()
+
+    expect(useSettingsStore.getState().autoConnect).toBe(false)
+  })
+
+  it('load 容忍旧格式（无 autoConnect 字段）默认 true', async () => {
+    fs.exists.mockResolvedValue(true)
+    fs.readFile.mockResolvedValue(JSON.stringify({ defaultAgent: 'plan' }))
+    await useSettingsStore.getState().load()
+
+    expect(useSettingsStore.getState().autoConnect).toBe(true)
+  })
+
+  it('setAutoConnect 更新状态并持久化', async () => {
+    await useSettingsStore.getState().setAutoConnect(false)
+
+    expect(useSettingsStore.getState().autoConnect).toBe(false)
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      SETTINGS_PATH,
+      expect.stringContaining('"autoConnect":false'),
       'utf8',
     )
   })

@@ -17,6 +17,7 @@ import {
 } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
@@ -35,10 +36,17 @@ export const ConnectScreen: React.FC = () => {
 
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
+  const settingsLoaded = useSettingsStore((s) => s.loaded)
+  const autoConnect = useSettingsStore((s) => s.autoConnect)
 
-  // Auto-connect with defaults on first mount (for dev/testing convenience)
+  // Auto-connect with defaults on first mount (for dev/testing convenience).
+  // 尊重用户显式 Disconnect：设置 autoConnect=false 后不再自动连回，
+  // 从而停留在连接页（也便于 E2E 连接 Mock Bridge 而不被生产地址抢占）。
+  // 必须等 settingsStore 从磁盘恢复完成，否则会读到默认 true 而误连。
   useEffect(() => {
     if (autoConnectDone.current) return
+    if (!settingsLoaded) return
+    if (!autoConnect) return
     autoConnectDone.current = true
     const timer = setTimeout(async () => {
       useAuthStore.getState().setBridgeUrl(DEFAULT_URL)
@@ -50,7 +58,7 @@ export const ConnectScreen: React.FC = () => {
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [])
+  }, [settingsLoaded, autoConnect])
 
   const handleConnect = () => {
     useAuthStore.getState().setBridgeUrl(urlInput)
