@@ -1,16 +1,15 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  LayoutAnimation,
   useWindowDimensions,
 } from 'react-native'
 import { getToolInfo } from '../../types/message'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { ToolPart } from './BasicTool'
+import { ClampBox } from './ClampBox'
+import { ToolDetailSheet } from './ToolDetailSheet'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
 import type { Part } from '../../types/message'
@@ -20,13 +19,11 @@ interface ToolGroupCardProps {
   parts: Part[]
 }
 
-/** 展开级别：0 折叠 / 1 限高（框内滚动，只露最新工具）/ 2 全开（不限高） */
-type ExpandLevel = 0 | 1 | 2
+/** 展开级别：0 折叠 / 1 限高裁剪（只露最新工具，完整内容走详情 Modal） */
+type ExpandLevel = 0 | 1
 
 /** 一级展开的框高 ≈ 屏高的 1/3 */
 const BOX_HEIGHT_RATIO = 1 / 3
-/** 距底多少以内算"贴着底部"（决定流式时是否自动跟随最新内容） */
-const AT_BOTTOM_THRESHOLD = 24
 
 function getToolData(p: Part): ToolPartData {
   return p.data as unknown as ToolPartData
@@ -44,41 +41,39 @@ function isRunningTool(p: Part): boolean {
 /**
  * 操作块聚合卡片（reasoning + tool 混合）。
  *
- * 三级展开，解决"长思考 + 多工具顶满屏幕"：
+ * 两级展示，解决"长思考 + 多工具顶满屏幕"，且 cell 内不产生纵向滚动：
  *   0 折叠：只有标题栏（进行中保持折叠，标题实时反映进度）
- *   1 限高：内容装在 ≈屏高 1/3 的框内（可滚动），工具只露最新一个，
- *           展开即滚到最新；流式输出时仅在用户贴着底部才自动跟随
- *   2 全开：不限高，思考全文 + 全部工具详情依次铺开
+ *   1 限高裁剪：内容装在 ≈屏高 1/3 的框内（ClampBox，裁剪不滚动），工具只露最新一个
+ *   详情：点底部入口打开 ToolDetailSheet（Modal，唯一纵向滚动所有者），
+ *         思考全文 + 全部工具详情依次铺开
  *
- * 状态迁移：0 ──点标题──> 1 ──点底部入口──> 2；1/2 ──点标题──> 0。
+ * 状态迁移：0 ──点标题──> 1 ──点标题──> 0；1 ──点底部入口──> Modal 详情。
+ *
+ * 为何不内嵌纵向滚动：inverted FlatList 内嵌 ScrollView 过滚动时父列表方向反转
+ * （RN #29776），且与列表争夺纵向手势。见
+ * docs/plans/2026-09-12-chat-scroll-ownership-design.md。
  */
 export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
   const [level, setLevel] = useState<ExpandLevel>(0)
+  const [detailVisible, setDetailVisible] = useState(false)
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   const { height: windowHeight } = useWindowDimensions()
   const boxHeight = Math.round(windowHeight * BOX_HEIGHT_RATIO)
 
-  const scrollRef = useRef<ScrollView | null>(null)
-  /** 用户是否贴着底部：是才自动跟随最新内容，避免打断他往上翻看历史 */
-  const atBottomRef = useRef(true)
-  const [contentFits, setContentFits] = useState(false)
-
-  const { toolParts, reasoningParts, count, statusIcon, runningTool } = useMemo(() => {
+  const { toolParts, reasoningParts, count, statusIcon, featuredTool } = useMemo(() => {
     const tools: Part[] = []
     const reasoning: Part[] = []
     for (const p of parts) {
       if (p.type === 'tool') tools.push(p)
       else if (p.type === 'reasoning') reasoning.push(p)
     }
-    let success = 0
     let failed = 0
     let running = 0
     for (const p of tools) {
       const d = getToolData(p)
-      if (d.status === 'success') success++
-      else if (d.status === 'failed') failed++
-      else running++
+      if (d.status === 'failed') failed++
+      else if (d.status !== 'success') running++
     }
     let icon = '✓'
     if (failed > 0) icon = '✗'
@@ -88,33 +83,18 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
     const featured = runningOnes.length > 0
       ? runningOnes[runningOnes.length - 1]
       : (tools.length > 0 ? tools[tools.length - 1] : null)
-    return { toolParts: tools, reasoningParts: reasoning, count: tools.length, statusIcon: icon, runningTool: featured }
+    return { toolParts: tools, reasoningParts: reasoning, count: tools.length, statusIcon: icon, featuredTool: featured }
   }, [parts])
 
   const hasReasoning = reasoningParts.length > 0
   const hasTools = toolParts.length > 0
 
-  // 展开时滚到最新内容（不做动画：动画会让人看着往下滚半天）
-  const scrollToLatest = useCallback(() => {
-    scrollRef.current?.scrollToEnd({ animated: false })
-  }, [])
-
-  // 展开 0→1 / 内容变化（流式）时跟随：仅当用户贴着底部
-  useEffect(() => {
-    if (level !== 1) return
-    if (!atBottomRef.current) return
-    scrollToLatest()
-  }, [level, scrollToLatest, reasoningParts.length, toolParts.length, runningTool?.id, runningTool?.data])
-
   const handleHeaderPress = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    // level 2 点标题直接收起（不回退到 1）；level 0 → 1
     setLevel((v) => (v === 0 ? 1 : 0))
   }
 
-  const handleExpandAll = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    setLevel(2)
+  const handleOpenDetail = () => {
+    setDetailVisible(true)
   }
 
   // 标题文本
@@ -130,25 +110,12 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
   // 图标
   const headerIcon = hasReasoning && hasTools ? '🧠🔧' : hasTools ? '🔧' : '🧠'
 
-  const handleScroll = (e: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent
-    const distanceToBottom = contentSize.height - layoutMeasurement.height - contentOffset.y
-    atBottomRef.current = distanceToBottom <= AT_BOTTOM_THRESHOLD
-  }
-
-  const handleContentSizeChange = (_w: number, h: number) => {
-    // 内容没超过框高 → 取消限高，按自然高度显示（省掉没必要的滚动框）
-    const fits = h <= boxHeight
-    if (fits !== contentFits) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-      setContentFits(fits)
-    }
-  }
-
-  const featuredInfo = runningTool ? getToolInfo(getToolData(runningTool).tool, getToolData(runningTool).input ?? {}) : null
-  const featuredStatus = runningTool
-    ? (getToolData(runningTool).status === 'success' ? '✓'
-      : getToolData(runningTool).status === 'failed' ? '✗' : '⏳')
+  const featuredInfo = featuredTool
+    ? getToolInfo(getToolData(featuredTool).tool, getToolData(featuredTool).input ?? {})
+    : null
+  const featuredStatus = featuredTool
+    ? (getToolData(featuredTool).status === 'success' ? '✓'
+      : getToolData(featuredTool).status === 'failed' ? '✗' : '⏳')
     : ''
 
   return (
@@ -168,15 +135,8 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
 
       {level === 1 ? (
         <>
-          <ScrollView
-            ref={scrollRef}
-            style={[styles.scrollBox, contentFits ? styles.scrollBoxNatural : { maxHeight: boxHeight }]}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={100}
-            onContentSizeChange={handleContentSizeChange}
-          >
+          {/* 限高裁剪（不滚动）：思考 + 最新工具一行 */}
+          <ClampBox maxHeight={boxHeight} style={styles.clampBox}>
             {reasoningParts.map((p, i) => {
               const content = getReasoningContent(p)
               return content ? (
@@ -187,7 +147,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
               ) : null
             })}
 
-            {runningTool && featuredInfo ? (
+            {featuredTool && featuredInfo ? (
               <View style={styles.glanceRow}>
                 <Text style={styles.glanceIcon}>{featuredInfo.icon}</Text>
                 <Text style={styles.glanceTitle} numberOfLines={1}>{featuredInfo.title}</Text>
@@ -197,12 +157,12 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
                 <Text style={styles.glanceStatus}>{featuredStatus}</Text>
               </View>
             ) : null}
-          </ScrollView>
+          </ClampBox>
 
           {hasTools ? (
             <TouchableOpacity
               style={styles.expandAllRow}
-              onPress={handleExpandAll}
+              onPress={handleOpenDetail}
               activeOpacity={0.7}
               accessibilityLabel="展开全部工具"
             >
@@ -215,29 +175,13 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
         </>
       ) : null}
 
-      {level === 2 ? (
-        <View style={styles.body}>
-          {/* 思考部分：全文 */}
-          {reasoningParts.map((p, i) => {
-            const content = getReasoningContent(p)
-            return content ? (
-              <View key={p.id || `r-${i}`} style={styles.reasoningBlock}>
-                <Text style={styles.reasoningLabel}>💭 思考</Text>
-                <MarkdownRenderer content={content} />
-              </View>
-            ) : null
-          })}
-          {/* 工具部分：全部按顺序铺开，详情默认展开（可单独收起） */}
-          {toolParts.map((p, i) => (
-            <View key={p.id || `t-${i}`} style={styles.fullToolRow}>
-              <ToolPart
-                data={getToolData(p) as unknown as Record<string, unknown>}
-                messageRole="assistant"
-                defaultExpanded
-              />
-            </View>
-          ))}
-        </View>
+      {/* 详情 Modal：唯一纵向滚动所有者（仅在打开时挂载，避免隐藏时预渲染内容） */}
+      {detailVisible ? (
+        <ToolDetailSheet
+          visible
+          parts={parts}
+          onClose={() => setDetailVisible(false)}
+        />
       ) : null}
     </View>
   )
@@ -264,13 +208,10 @@ const makeStyles = (colors: ThemeColors) =>
       marginRight: 6,
     },
     chevron: { color: colors.textTertiary, fontSize: 12 },
-    // 一级展开：内容装进固定高度的框（内容较矮时退回自然高度）
-    scrollBox: {
+    // 一级展开：限高裁剪框（不滚动）
+    clampBox: {
       borderTopWidth: 1,
       borderTopColor: colors.surfaceVariant,
-    },
-    scrollBoxNatural: {
-      maxHeight: undefined,
     },
     reasoningBlock: {
       paddingHorizontal: 12,
@@ -293,7 +234,7 @@ const makeStyles = (colors: ThemeColors) =>
     glanceTitle: { color: colors.text, fontSize: 12, fontWeight: '500', marginRight: 6 },
     glanceSubtitle: { color: colors.textTertiary, fontSize: 11, flex: 1 },
     glanceStatus: { color: colors.textTertiary, fontSize: 11, marginLeft: 4 },
-    // 底部入口：一级 → 二级
+    // 底部入口：一级 → 详情 Modal
     expandAllRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -311,15 +252,5 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.link,
       fontSize: 12,
       marginLeft: 4,
-    },
-    // 二级展开
-    body: {
-      borderTopWidth: 1,
-      borderTopColor: colors.surfaceVariant,
-      paddingVertical: 4,
-    },
-    fullToolRow: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
     },
   })

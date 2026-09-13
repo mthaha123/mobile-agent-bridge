@@ -1,14 +1,18 @@
 /**
- * ToolGroupCard 分级展开测试
+ * ToolGroupCard 分层展开测试
  *
- * 覆盖「长思考 + 多工具不顶满屏幕」的三级展开：
- *   0 折叠 → 1 限高（框内滚动，只露最新工具）→ 2 全开（不限高，全部工具详情）
- * 重点：最新工具的挑选规则、入口文案、状态迁移、ToolPart 默认展开。
+ * 覆盖「长思考 + 多工具不顶满屏幕」的两级展开：
+ *   0 折叠 → 1 限高裁剪（ClampBox，不滚动，只露最新工具）→ 详情 Modal（ToolDetailSheet）
+ *
+ * 约定（docs/plans/2026-09-12-chat-scroll-ownership-design.md）：
+ *   cell 内不得出现纵向 ScrollView —— 一级展开只裁剪，纵向滚动归 ToolDetailSheet。
  */
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
-import { ScrollView, TouchableOpacity, Text } from 'react-native'
+import { ScrollView, TouchableOpacity } from 'react-native'
 import { ToolGroupCard } from '../src/components/chat/ToolGroupCard'
+import { ToolDetailSheet } from '../src/components/chat/ToolDetailSheet'
+import { ClampBox } from '../src/components/chat/ClampBox'
 import { ToolPart } from '../src/components/chat/BasicTool'
 import { textOf } from './test-utils'
 
@@ -31,69 +35,66 @@ function pressHeader(tree: TestRenderer.ReactTestRenderer) {
   act(() => { header.props.onPress() })
 }
 
-/** 点底部入口（含 accessibilityLabel 的那个） */
+/** 点详情入口（含 accessibilityLabel 的那个） */
 function pressExpandAll(tree: TestRenderer.ReactTestRenderer) {
   const btn = tree.root.find((n) => n.props?.accessibilityLabel === '展开全部工具')
   act(() => { btn.props.onPress() })
 }
 
-describe('ToolGroupCard — 分级展开', () => {
+describe('ToolGroupCard — 分层展开', () => {
   it('level 0：只渲染标题栏', () => {
     const tree = render([reasoning('r1', '思考内容'), tool('t1', 'read', 'success')])
     expect(textOf(tree)).toContain('操作（思考 + 1 个工具）')
-    // 没有滚动框、没有工具详情
     expect(tree.root.findAllByType(ScrollView)).toHaveLength(0)
+    expect(tree.root.findAllByType(ClampBox)).toHaveLength(0)
     expect(tree.root.findAllByType(ToolPart)).toHaveLength(0)
   })
 
-  it('点标题 → level 1：出现限高滚动框 + 只露一个工具', () => {
+  it('点标题 → level 1：出现 ClampBox 裁剪，且无纵向 ScrollView', () => {
     const tree = render([
       reasoning('r1', '思考内容一'),
       tool('t1', 'read', 'success'),
       tool('t2', 'write', 'success'),
     ])
     pressHeader(tree)
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(1)
-    // 思考全文在框内
+    expect(tree.root.findAllByType(ClampBox)).toHaveLength(1)
+    // cell 内不得有纵向滚动容器
+    const verticals = tree.root.findAllByType(ScrollView).filter((s) => !s.props.horizontal)
+    expect(verticals).toHaveLength(0)
+    // 思考全文在裁剪框内
     expect(textOf(tree)).toContain('思考内容一')
-    // 二级详情还没渲染
-    expect(tree.root.findAllByType(ToolPart)).toHaveLength(0)
   })
 
-  it('level 1 只露「正在运行」的工具（运行中的优先于已完成的）', () => {
+  it('level 1 只露「正在运行」的工具（运行中的优先）', () => {
     const tree = render([
       tool('t1', 'read', 'success'),
-      tool('t2', 'bash', 'progress'), // 正在跑
-      tool('t3', 'write', 'called'),  // 也在跑 → 取最后一个在跑的
+      tool('t2', 'bash', 'progress'),
+      tool('t3', 'write', 'called'),
     ])
     pressHeader(tree)
-    const t = textOf(tree)
-    // t3（最后一个运行中的）应出现
-    expect(t).toContain('⏳')
-    // t1（已完成）的一行不该出现在 level 1
+    expect(textOf(tree)).toContain('⏳')
     expect(tree.root.findAllByType(ToolPart)).toHaveLength(0)
   })
 
-  it('没有运行中的工具时，露最后一个', () => {
+  it('没有运行中的工具时，露最后一个（标题状态取失败 → ✗）', () => {
     const tree = render([
       tool('t1', 'read', 'success'),
       tool('t2', 'write', 'failed'),
     ])
     pressHeader(tree)
-    // 标题状态图标取"有失败 → ✗"
     expect(textOf(tree)).toContain('✗')
   })
 
   it('level 1 时点标题 → 回到 level 0', () => {
     const tree = render([reasoning('r1', 'x'), tool('t1', 'read', 'success')])
     pressHeader(tree)
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(1)
+    expect(tree.root.findAllByType(ClampBox)).toHaveLength(1)
     pressHeader(tree)
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(0)
+    expect(tree.root.findAllByType(ClampBox)).toHaveLength(0)
   })
 })
 
-describe('ToolGroupCard — 底部入口', () => {
+describe('ToolGroupCard — 详情入口', () => {
   it('多个工具：文案「展开全部 (N)」', () => {
     const tree = render([
       tool('t1', 'read', 'success'),
@@ -104,7 +105,7 @@ describe('ToolGroupCard — 底部入口', () => {
     expect(textOf(tree)).toContain('展开全部 (3)')
   })
 
-  it('只有一个工具：文案「查看详情」（工具行不可点，必须留入口）', () => {
+  it('只有一个工具：文案「查看详情」', () => {
     const tree = render([tool('t1', 'read', 'success')])
     pressHeader(tree)
     expect(textOf(tree)).toContain('查看详情')
@@ -123,8 +124,14 @@ describe('ToolGroupCard — 底部入口', () => {
   })
 })
 
-describe('ToolGroupCard — level 2 全开', () => {
-  it('点入口 → 不限高，全部工具详情铺开且默认展开', () => {
+describe('ToolGroupCard — 详情 Modal（ToolDetailSheet）', () => {
+  it('默认不挂载详情 Modal', () => {
+    const tree = render([reasoning('r1', 'x'), tool('t1', 'read', 'success')])
+    pressHeader(tree)
+    expect(tree.root.findAllByType(ToolDetailSheet)).toHaveLength(0)
+  })
+
+  it('点入口 → 打开 ToolDetailSheet，全部工具以 defaultExpanded 呈现', () => {
     const tree = render([
       reasoning('r1', '完整思考'),
       tool('t1', 'read', 'success'),
@@ -134,32 +141,37 @@ describe('ToolGroupCard — level 2 全开', () => {
     pressHeader(tree)
     pressExpandAll(tree)
 
-    // 二级展开后不再有限高滚动框
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(0)
-    // 3 个工具全部渲染，且详情默认展开
+    const sheet = tree.root.findAllByType(ToolDetailSheet)[0]
+    expect(sheet.props.visible).toBe(true)
+    expect(sheet.props.parts).toHaveLength(4)
+
     const parts = tree.root.findAllByType(ToolPart)
     expect(parts).toHaveLength(3)
     parts.forEach((p) => expect(p.props.defaultExpanded).toBe(true))
-    // 入口消失
-    expect(() => tree.root.find((n) => n.props?.accessibilityLabel === '展开全部工具')).toThrow()
-    // 思考全文仍在最上面
     expect(textOf(tree)).toContain('完整思考')
   })
 
-  it('level 2 点标题 → 直接收起到 level 0（不退回 level 1）', () => {
+  it('详情 Modal 传入的是本卡片的 parts（思考 + 工具）', () => {
+    const tree = render([reasoning('r1', 'r'), tool('t1', 'read', 'success')])
+    pressHeader(tree)
+    pressExpandAll(tree)
+    const sheet = tree.root.findAllByType(ToolDetailSheet)[0]
+    const types = (sheet.props.parts as Array<{ type: string }>).map((p) => p.type)
+    expect(types).toEqual(['reasoning', 'tool'])
+  })
+
+  it('关闭详情 Modal 后回到折叠态', () => {
     const tree = render([tool('t1', 'read', 'success'), tool('t2', 'write', 'success')])
     pressHeader(tree)
     pressExpandAll(tree)
-    expect(tree.root.findAllByType(ToolPart)).toHaveLength(2)
+    expect(tree.root.findAllByType(ToolDetailSheet)).toHaveLength(1)
 
-    pressHeader(tree)
-    expect(tree.root.findAllByType(ToolPart)).toHaveLength(0)
-    expect(tree.root.findAllByType(ScrollView)).toHaveLength(0)
+    act(() => { tree.root.findAllByType(ToolDetailSheet)[0].props.onClose() })
+    expect(tree.root.findAllByType(ToolDetailSheet)).toHaveLength(0)
   })
 })
 
 describe('ToolPart — defaultExpanded', () => {
-  // ToolPart 的详情取自 data.result（不是 output）
   const data = { tool: 'read', input: { path: 'a.ts' }, result: '文件内容', status: 'success' }
 
   it('默认折叠（未传 defaultExpanded）', () => {
