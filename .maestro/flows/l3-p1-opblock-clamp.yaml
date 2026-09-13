@@ -1,0 +1,118 @@
+appId: com.mobileagentbridge
+---
+# P1 验证：ToolGroupCard 一级裁剪（无内嵌纵向滚动）+ 详情 Modal
+# 前置：node scripts/e2e/mock-bridge.mjs 已启动（WS 8081 / push 18081，测试端口）
+#
+# 验证目标（问题三：内框过滚动导致外层列表方向反转）：
+#   一级展开改为 ClampBox 裁剪（不含 ScrollView）→ 不存在内嵌纵向滚动，
+#   从框内起手的纵向手势直接归外层列表，方向正常。
+- launchApp
+
+# 起点自适应：主界面 → Settings → Disconnect（持久化 autoConnect=false）
+- runFlow:
+    when:
+      visible: "Settings"
+    commands:
+      - tapOn: "Settings"
+      - scrollUntilVisible:
+          element:
+            text: "Disconnect"
+          direction: DOWN
+          timeout: 15000
+      - tapOn: "Disconnect"
+
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 20000
+
+# ── 连接 Mock Bridge（测试端口 8081）──
+- tapOn:
+    text: "ws://.*"
+    index: 0
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn:
+    text: "password (optional)"
+    index: 0
+- eraseText: 30
+- inputText: "test123"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# ── 切到 Grouped 聚合模式（ToolGroupCard 仅在 grouped 下使用）──
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Message Display"
+    direction: DOWN
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "Flat（平铺）"
+    commands:
+      - tapOn: "Message Display"
+- assertVisible: "Grouped（聚合）"
+# Settings 可能已滚到下方，先回到顶部再点 Tab
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 80%"
+# 底部 Chat Tab（用坐标避免误匹配 Settings 的 "CHAT" 分区标题）
+- tapOn:
+    point: "17%, 94%"
+
+# 回到会话列表（若停在 ChatScreen 则先返回）
+- runFlow:
+    when:
+      visible: "< Sessions"
+    commands:
+      - tapOn: "< Sessions"
+
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 15000
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Open commands"
+    timeout: 15000
+- tapOn: "Type a message..."
+- eraseText: 50
+- inputText: "__opblock__"
+- tapOn: "Send message"
+
+# 操作块标题渲染（思考 + 5 个工具）
+- extendedWaitUntil:
+    visible: "操作（思考 + 5 个工具）"
+    timeout: 10000
+
+# ── 一级展开：出现裁剪预览 + 详情入口 ──
+- tapOn: "操作（思考 + 5 个工具）"
+- extendedWaitUntil:
+    visible: "展开全部 (5)"
+    timeout: 5000
+# 思考标签在裁剪框内可见（形如 "💭 思考"）
+- assertVisible: ".*思考.*"
+# 一级只露最新一个工具（5 个工具均成功 → 展示最后一个 read src/file-5.ts）
+- assertVisible: "src/file-5.ts"
+
+# ── 从裁剪框内起手纵向滑动：外层列表应正常滚动（无方向反转）──
+# 向上滑（内容上移）→ 露出更早的用户消息 "run an operation block"
+- swipe:
+    start: "50%, 55%"
+    end: "50%, 30%"
+- extendedWaitUntil:
+    visible: "run an operation block"
+    timeout: 5000
+
+# ── 详情 Modal：唯一纵向滚动所有者 ──
+- tapOn: "展开全部 (5)"
+- extendedWaitUntil:
+    visible: "工具详情"
+    timeout: 5000
+# 思考全文在 Modal 内
+- assertVisible: ".*思考.*"
+- tapOn: "关闭工具详情"
+- extendedWaitUntil:
+    notVisible: "工具详情"
+    timeout: 5000

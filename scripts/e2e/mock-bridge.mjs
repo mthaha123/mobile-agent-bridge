@@ -349,6 +349,47 @@ wss.on("connection", (ws) => {
       payload = { ok: true }
     }
 
+    // 特殊处理: __opblock__ → 注入一个"操作块"（reasoning + 多个 tool）
+    // 供 P1 验证 ToolGroupCard 一级裁剪 + 详情 Modal（无内嵌纵向滚动）。
+    if (method === "message.send" && frame.params?.message === "__opblock__") {
+      const sid = frame.params?.sessionId || "mock_s1"
+      const msgId = "msg_opblock"
+      const notify = (m, p) => {
+        const f = JSON.stringify({ type: "notify", method: m, payload: p })
+        for (const c of clients) if (c.readyState === 1) c.send(f)
+      }
+      const longReasoning = Array.from({ length: 12 }, (_, i) =>
+        `第 ${i + 1} 步思考：检查模块与依赖，确认入口与构建配置是否正确（用于制造超出一级裁剪框高度的长内容）。`,
+      ).join("\n")
+
+      notify("session.next.prompt.admitted", { sessionID: sid, messageID: "msg_user_op", prompt: "run an operation block" })
+      notify("session.next.reasoning.started", { sessionID: sid, assistantMessageID: msgId })
+      notify("session.next.reasoning.delta", { sessionID: sid, assistantMessageID: msgId, delta: longReasoning })
+      notify("session.next.reasoning.ended", { sessionID: sid, assistantMessageID: msgId })
+
+      // 5 个工具：最后一个 success（一级只露最新一个）
+      for (let i = 1; i <= 5; i++) {
+        const callID = `call-${i}`
+        notify("session.next.tool.called", {
+          sessionID: sid,
+          assistantMessageID: msgId,
+          callID,
+          tool: i % 2 === 0 ? "bash" : "read",
+          input: i % 2 === 0 ? { command: `echo step-${i}` } : { path: `src/file-${i}.ts` },
+        })
+        notify("session.next.tool.success", {
+          sessionID: sid,
+          callID,
+          content: `tool-${i}-done`,
+        })
+      }
+
+      notify("session.next.step.ended", { sessionID: sid })
+      notify("session.idle", { sessionID: sid })
+      console.log(`[MOCK-PUSH] op block injected for ${sid}`)
+      payload = { ok: true }
+    }
+
     console.log(`[MOCK] REQ ${method} id=${id}`)
     if (!method.startsWith("_test.")) {
       console.log(`[MOCK] RES ${method} id=${id} ok=true`)
