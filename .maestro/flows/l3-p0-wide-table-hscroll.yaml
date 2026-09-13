@@ -2,24 +2,36 @@ appId: com.mobileagentbridge
 ---
 # P0 横向滚动验证（Mock Bridge 打桩 @ 8081）
 # 前置：node scripts/e2e/mock-bridge.mjs 已启动（WS 8081 / push 18081，测试端口）
-# 关键：ConnectScreen 会在挂载 500ms 后自动连生产 8080；
-#       这里 Settings → Disconnect 后【立刻】改写 URL 为 Mock 并 Connect。
+# 思路：连 Mock → 新建会话 → 发 "__widetable__" 注入超宽 Markdown 表格 →
+#       断言横滑前右侧锚点不可见 → 横滑后可见（证明嵌套横向滚动生效）
+#
+# 起点自适应：
+#   先等主界面（auto-connect 到生产 8080 成功即到 Sessions）→ Settings → Disconnect
+#   （Disconnect 会持久化 autoConnect=false，之后连接页不再被自动连接抢占）
+#   若已在连接页（+ New 一直不出现），则跳过断开直接改写 URL。
 - launchApp
 
-# ── 回到 Connect 页：Settings → Disconnect ──
-- extendedWaitUntil:
-    visible: "Settings"
-    timeout: 20000
-- tapOn: "Settings"
-- scrollUntilVisible:
-    element:
-      text: "Disconnect"
-    direction: DOWN
-    timeout: 15000
-- tapOn: "Disconnect"
+- runFlow:
+    when:
+      notVisible: "Mobile Agent Bridge"
+    commands:
+      - extendedWaitUntil:
+          visible: "+ New"
+          timeout: 20000
+      - tapOn: "Settings"
+      - scrollUntilVisible:
+          element:
+            text: "Disconnect"
+          direction: DOWN
+          timeout: 15000
+      - tapOn: "Disconnect"
 
-# ── 立刻改写 URL 为 Mock（抢占 500ms 自动连接）──
-# 不做任何等待：Disconnect 后 ConnectScreen 立即挂载，必须在自动连接前改写
+# 连接页就绪
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 20000
+
+# ── 连接 Mock Bridge（测试端口 8081）──
 - tapOn:
     text: "ws://.*"
     index: 0
