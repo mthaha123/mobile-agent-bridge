@@ -1,9 +1,10 @@
 #!/bin/bash
 # Mobile Agent Bridge - E2E 验证脚本
 # 前提：OpenCode serve 运行在 OPENCODE_URL（默认 localhost:4096）
-# 用法：BRIDGE_PORT=8080 PASSWORD=test123 bash scripts/e2e.sh
+# 用法：BRIDGE_PORT=19985 PASSWORD=test123 bash scripts/e2e.sh
+# 默认连【测试桥 19985】，避免误连生产 8080
 
-BRIDGE_PORT=${BRIDGE_PORT:-8080}
+BRIDGE_PORT=${BRIDGE_PORT:-19985}
 PASSWORD=${PASSWORD:-"test123"}
 BASE="ws://localhost:$BRIDGE_PORT/ws"
 

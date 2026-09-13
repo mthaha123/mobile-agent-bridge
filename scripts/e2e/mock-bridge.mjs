@@ -35,6 +35,7 @@ import { createRequire } from "node:module"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import http from "node:http"
+import { assertTestPort } from "./ports.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(__dirname, "..", "..")
@@ -43,6 +44,15 @@ const { WebSocketServer } = require(resolve(projectRoot, "servers/bridge/node_mo
 
 const PORT = parseInt(process.env.MOCK_BRIDGE_PORT || "8081", 10)
 const PUSH_PORT = parseInt(process.env.MOCK_PUSH_PORT || "18081", 10)
+
+// 生产隔离守卫：mock 绝不绑定生产端口（8080/4097/4100-4104）
+try {
+  assertTestPort(PORT, "MOCK_BRIDGE_PORT")
+  assertTestPort(PUSH_PORT, "MOCK_PUSH_PORT")
+} catch (err) {
+  console.error(`[MockBridge][FATAL] ${err.message}`)
+  process.exit(2)
+}
 
 // 所有已连 WS 客户端列表，用于广播 push 通知
 const clients = new Set()

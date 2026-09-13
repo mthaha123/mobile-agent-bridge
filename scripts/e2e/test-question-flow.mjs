@@ -23,7 +23,7 @@ async function main() {
 
   let ocCleanup
   if (!process.env.OPENCODE_URL) {
-    const oc = spawn("opencode.cmd", ["serve","--port","4103","--print-logs"], { cwd: DIR, shell: true, env: { ...process.env, OPENCODE_SERVER_PASSWORD: "" } })
+    const oc = spawn("opencode.cmd", ["serve","--port","4403","--print-logs"], { cwd: DIR, shell: true, env: { ...process.env, OPENCODE_SERVER_PASSWORD: "" } }) // 非生产池端口
     let ocOut = ""
     oc.stdout.on("data", d => { ocOut += d.toString() })
     await new Promise((ok, no) => {
@@ -35,7 +35,7 @@ async function main() {
       poll()
     })
     ok("OpenCode ready (self-spawned)")
-    process.env.OPENCODE_URL = "http://localhost:4103"
+    process.env.OPENCODE_URL = "http://localhost:4403"
     ocCleanup = () => { oc.kill("SIGKILL") }
   } else {
     ok("OpenCode ready (existing: " + process.env.OPENCODE_URL + ")")

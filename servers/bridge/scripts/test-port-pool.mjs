@@ -2,7 +2,13 @@ import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const WebSocket = require("ws")
 
-const ws = new WebSocket("ws://localhost:8080/ws")
+// 默认连【测试桥 19985】，避免误连生产 8080（本脚本会删除/新增 serve 项目，属破坏性操作）
+const BRIDGE_URL = process.env.BRIDGE_URL || "ws://localhost:19985/ws"
+if (BRIDGE_URL.includes(":8080")) {
+  console.error("[守卫] 禁止对生产 8080 执行破坏性的端口池测试；请指向测试桥 19985")
+  process.exit(2)
+}
+const ws = new WebSocket(BRIDGE_URL)
 function send(method, params = {}) {
   return new Promise((r) => {
     const id = "t" + Math.random()

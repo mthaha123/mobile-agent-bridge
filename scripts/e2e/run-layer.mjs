@@ -18,6 +18,14 @@ import { spawn, execSync } from "node:child_process"
 import { resolve, dirname, basename, relative, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { readdirSync, existsSync } from "node:fs"
+import {
+  PROD_PORTS,
+  TEST_BRIDGE_PORT,
+  DEFAULT_MOCK_BRIDGE_PORT,
+  DEFAULT_MOCK_PUSH_PORT,
+  isProdPort,
+  assertTestPort,
+} from "./ports.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = resolve(__dirname, "..", "..")
@@ -27,11 +35,14 @@ const flowsDir = resolve(rootDir, ".maestro", "flows")
 const USE_MOCK = process.argv.includes("--mock")
 const RUN_ALL = process.argv.includes("--all")
 
-// 需要真实 Bridge（serve）的 flow：mock 模式下无法提供真实历史会话数据，跳过
+// 需要真实 Bridge（测试桥 TEST_BRIDGE_PORT）的 flow：
+// 这些 flow 依赖真实会话数据，mock 无法提供；且必须连测试桥而非生产 8080。
 const REAL_BRIDGE_ONLY = new Set([
   "l2-bridge-history-messages",
   "l2-bridge-history-pagination",
   "l2-bridge-session-list-nomsg",
+  "l2-md-table-chat",
+  "l2-md-table-file-viewer",
 ])
 
 function parseLayers() {
@@ -52,7 +63,7 @@ const layers = RUN_ALL ? ["l1", "l2", "l3"] : parseLayers()
 // Layer 3 需要 Mock Bridge (HTTP push API)
 const NEEDS_MOCK = USE_MOCK || layers.includes("l3") || RUN_ALL
 
-const MOCK_PORT = process.env.MOCK_BRIDGE_PORT || "8081"
+const MOCK_PORT = process.env.MOCK_BRIDGE_PORT || String(DEFAULT_MOCK_BRIDGE_PORT)
 const FLOW_TIMEOUT = parseInt(process.env.MAESTRO_TIMEOUT || "120", 10) * 1000
 
 let mockProcess = null
@@ -115,7 +126,7 @@ async function startMockBridge() {
     resolve(rootDir, "scripts/e2e/mock-bridge.mjs"),
   ], {
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, MOCK_BRIDGE_PORT: MOCK_PORT },
+    env: { ...process.env, MOCK_BRIDGE_PORT: MOCK_PORT, MOCK_PUSH_PORT: String(DEFAULT_MOCK_PUSH_PORT) },
   })
 
   child.stdout.on("data", d => {
@@ -187,10 +198,32 @@ async function runFlow(flowPath) {
   })
 }
 
+/** 同步检测端口是否在监听 */
+function portListening(port) {
+  try {
+    const out = execSync(`netstat -ano | findstr :${port}`, { stdio: "pipe", timeout: 3000 }).toString()
+    return out.split("\n").some(l => l.includes("LISTENING"))
+  } catch { return false }
+}
+
 async function main() {
-  // 1. Kill old bridge processes
-  console.log(yellow("[Setup] 清理旧进程..."))
-  const oldPorts = ["8080", "8081", "8082", "18081"]
+  // 0. 生产隔离守卫：绝不使用/清理生产端口
+  try {
+    assertTestPort(Number(MOCK_PORT), "MOCK_BRIDGE_PORT")
+    assertTestPort(TEST_BRIDGE_PORT, "TEST_BRIDGE_PORT")
+  } catch (err) {
+    console.error(red(`[FATAL] ${err.message}`))
+    console.error(red(`        生产端口受保护: ${PROD_PORTS.join(", ")}`))
+    process.exit(2)
+  }
+  if (portListening(8080)) {
+    console.log(yellow(`[Guard] 检测到 8080 上有服务（可能是生产 bridge）——本次测试不会触碰它。`))
+  }
+
+  // 1. Kill old TEST bridge processes（仅测试端口；生产端口绝不清理）
+  console.log(yellow("[Setup] 清理旧测试进程..."))
+  const oldPorts = [MOCK_PORT, String(DEFAULT_MOCK_PUSH_PORT), "8082", "18080"]
+    .filter((p) => !isProdPort(p))
   for (const port of oldPorts) {
     try {
       const out = execSync(`netstat -ano | findstr :${port}`, { stdio: "pipe", timeout: 3000 }).toString()
@@ -235,8 +268,9 @@ async function main() {
     console.log(`\n${green(`[Layer ${layer}] ${flows.length} 个 flow`)}`)
     for (const flow of flows) {
       const flowName = flow.split(/[/\\]/).pop().replace(/\.yaml$/, "")
-      if (USE_MOCK && REAL_BRIDGE_ONLY.has(flowName)) {
-        console.log(yellow(`  ╰ SKIP ${flowName} (需真实 Bridge，mock 模式跳过)`))
+      // 真实链路 flow：只在测试桥就绪时运行；绝不回退到生产 8080
+      if (REAL_BRIDGE_ONLY.has(flowName) && !portListening(TEST_BRIDGE_PORT)) {
+        console.log(yellow(`  ╰ SKIP ${flowName} (需真实测试桥 ${TEST_BRIDGE_PORT} 未监听；不使用生产 8080)`))
         continue
       }
       await runFlow(resolve(flowsDir, flow))

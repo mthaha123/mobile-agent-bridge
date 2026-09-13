@@ -2,7 +2,8 @@ import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const WebSocket = require("ws")
 
-const ws = new WebSocket("ws://localhost:8080/ws")
+// 默认连【测试桥 19985】，避免误连生产 8080
+const ws = new WebSocket(process.env.BRIDGE_URL || "ws://localhost:19985/ws")
 function send(method, params = {}) {
   return new Promise((r) => {
     const id = "t" + Math.random()

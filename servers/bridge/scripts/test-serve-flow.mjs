@@ -5,7 +5,8 @@
  */
 import WebSocket from "ws"
 
-const BRIDGE_URL = "ws://localhost:8080/ws"
+// 默认连【测试桥 19985】，避免误连生产 8080
+const BRIDGE_URL = process.env.BRIDGE_URL || "ws://localhost:19985/ws"
 const BRIDGE_PASSWORD = "test123"
 
 let ws

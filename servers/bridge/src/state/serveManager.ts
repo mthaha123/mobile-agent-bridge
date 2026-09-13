@@ -19,6 +19,7 @@ import { join, resolve } from "path"
 import { homedir } from "os"
 import http from "http"
 import net from "net"
+import { parseServePortPool, DEFAULT_SERVE_PORT_POOL } from "../config.js"
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -34,8 +35,9 @@ export interface ProjectEntry {
 
 // ─── Constants ─────────────────────────────────────────
 
-const PORT_POOL = [4100, 4101, 4102, 4103, 4104]  // 固定 5 个端口
-const MAX_SERVES = PORT_POOL.length
+// 端口池可由 BRIDGE_SERVE_PORT_POOL 覆盖（生产/测试隔离），默认保持历史 4100-4104
+let portPool: number[] = [...DEFAULT_SERVE_PORT_POOL]
+let maxServes = portPool.length
 const STARTUP_TIMEOUT_MS = 30_000
 const KILL_TIMEOUT_MS = 10_000
 
@@ -177,6 +179,15 @@ function saveRegistry() {
  */
 async function cleanOrphans() {
   for (const p of projects) {
+    // 安全护栏：只清理【本实例端口池内】的注册项。
+    // 若注册表里的端口不在当前端口池（例如数据目录被跨环境共用/端口池改过），
+    // 绝不按端口去杀——否则会串段误杀生产/其他环境的 serve。
+    if (!portPool.includes(p.port)) {
+      console.warn(`[ServeManager] 跳过非本端口池的注册项（不杀）: ${p.name} port=${p.port} pool=[${portPool.join(",")}]`)
+      p.status = "stopped"
+      p.pid = undefined
+      continue
+    }
     const inUse = await isPortInUse(p.port)
     if (inUse) {
       console.log(`[ServeManager] 清理孤儿 serve: ${p.name} port=${p.port}`)
@@ -283,9 +294,23 @@ async function stopServe(entry: ProjectEntry): Promise<void> {
 
 // ─── Public API ────────────────────────────────────────
 
-export async function initManager(projectRoot: string) {
-  dataDir = join(projectRoot, "servers", "bridge", "data")
+export async function initManager(projectRoot: string, dataDirOverride?: string) {
+  // 数据目录：优先显式传入 / BRIDGE_DATA_DIR，默认 <projectRoot>/servers/bridge/data
+  dataDir = dataDirOverride && dataDirOverride.trim()
+    ? resolve(dataDirOverride)
+    : join(projectRoot, "servers", "bridge", "data")
   registryPath = join(dataDir, "projects.json")
+
+  // 端口池：可由 BRIDGE_SERVE_PORT_POOL 覆盖，避免生产/测试争抢同一批端口
+  portPool = parseServePortPool(process.env.BRIDGE_SERVE_PORT_POOL)
+  maxServes = portPool.length
+
+  // 配置护栏：端口池不得包含 bridge 自身端口（否则会自我冲突/顺位串段）
+  const bridgePort = parseInt(process.env.BRIDGE_PORT || "", 10)
+  if (Number.isInteger(bridgePort) && portPool.includes(bridgePort)) {
+    throw new Error(`[ServeManager] 端口池 [${portPool.join(",")}] 含 bridge 端口 ${bridgePort}，配置冲突，拒绝启动`)
+  }
+
   loadRegistry()
 
   // 清理 crash 残留的孤儿进程
@@ -313,6 +338,11 @@ export function getProjects(): ProjectEntry[] {
   return projects.map(p => ({ ...p }))
 }
 
+/** 当前生效的 serve 端口池（供 /health 诊断生产隔离配置） */
+export function getServePortPool(): number[] {
+  return [...portPool]
+}
+
 export function getProject(id: string): ProjectEntry | undefined {
   return projects.find(p => p.id === id)
 }
@@ -332,7 +362,7 @@ export async function addProject(name: string, directory: string): Promise<Proje
   // 从端口池中找第一个空闲且未被占用的端口
   const usedPorts = new Set(projects.map(p => p.port))
   let port: number | undefined
-  for (const candidate of PORT_POOL) {
+  for (const candidate of portPool) {
     if (usedPorts.has(candidate)) continue
     if (await isPortInUse(candidate)) {
       // 端口被外部进程占用（非本项目 serve），跳过
@@ -343,7 +373,7 @@ export async function addProject(name: string, directory: string): Promise<Proje
     break
   }
   if (port === undefined) {
-    throw new Error(`已达上限 (${MAX_SERVES} 个 serve)，请先删除一个`)
+    throw new Error(`已达上限 (${maxServes} 个 serve)，请先删除一个`)
   }
 
   const id = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`

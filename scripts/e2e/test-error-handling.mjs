@@ -10,7 +10,7 @@ const ROOT = resolve(__dirname, "..", "..")
 const require = createRequire(import.meta.url)
 const { WebSocket } = require(resolve(ROOT, "servers/bridge/node_modules/ws"))
 
-const OC_PORT = 4106, BR_PORT = 20006
+const OC_PORT = 4406, BR_PORT = 20006 // 44xx: 生产段之外
 const DIR = process.env.OPENCODE_DIR || ROOT
 let pass = 0, fail = 0
 function ok(m) { pass++; console.log("  \u2713 " + m) }

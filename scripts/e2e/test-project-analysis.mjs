@@ -30,7 +30,7 @@ const ROOT = resolve(__dirname, "..", "..")
 const require = createRequire(import.meta.url)
 const { WebSocket } = require(resolve(ROOT, "servers/bridge/node_modules/ws"))
 
-const OC_PORT = parseInt(process.env.OPENCODE_PORT || "4106", 10)
+const OC_PORT = parseInt(process.env.OPENCODE_PORT || "4406", 10) // 44xx: 生产段之外
 const BR_PORT = parseInt(process.env.BRIDGE_PORT || "20006", 10)
 const PARENT_DIR = process.env.PARENT_DIR || "D:\\code"
 const MODEL = process.env.OPENCODE_MODEL || "opencode-go/deepseek-v4-flash"

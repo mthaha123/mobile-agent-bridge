@@ -254,7 +254,7 @@ export class OpenCodeBackend {
    * 升级 SDK 修复后可换回 sdk().v2.session.update。
    */
   async renameSession(sessionID: string, title: string): Promise<Record<string, unknown>> {
-    const result: any = await this.ensureClient().v2.client.patch({
+    const result: any = await (this.ensureClient().v2 as any).client.patch({
       url: `/session/${encodeURIComponent(sessionID)}`,
       body: { title },
     })
@@ -495,7 +495,7 @@ export function sortMessagesAsc(messages: unknown[]): unknown[] {
 
 /** 选边：新鲜度(max created)优先 → 数量多者优先 → v1（原始表为权威源兜底） */
 export function pickChannel(v1Msgs: unknown[], v2Msgs: unknown[]): "v1" | "v2" {
-  const maxCreated = (arr: unknown[]) => arr.reduce((acc, m) => Math.max(acc, createdOf(m as RawMessage)), 0)
+  const maxCreated = (arr: unknown[]) => arr.reduce<number>((acc, m) => Math.max(acc, createdOf(m as RawMessage)), 0)
   const v1Max = maxCreated(v1Msgs)
   const v2Max = maxCreated(v2Msgs)
   if (v1Max !== v2Max) return v1Max > v2Max ? "v1" : "v2"

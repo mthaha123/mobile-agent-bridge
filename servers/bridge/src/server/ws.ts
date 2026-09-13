@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws"
-import { IncomingMessage } from "http"
+import { createServer, IncomingMessage } from "http"
 import { verifyToken } from "./auth.js"
 import { handleFrame } from "./router.js"
 
@@ -17,8 +17,40 @@ export function broadcastToAll(frame: unknown): void {
   }
 }
 
-export function createWSServer(port: number): WebSocketServer {
-  const wss = new WebSocketServer({ port })
+/** 健康检查响应体 */
+export interface HealthInfo {
+  ok: boolean
+  service: string
+  port: number
+  uptime: number
+  dataDir?: string
+  servePortPool?: number[]
+}
+
+/**
+ * @param healthExtra 可选：附加健康信息（如数据目录 / serve 端口池），用于确认生效的生产配置
+ */
+export function createWSServer(port: number, healthExtra?: () => Record<string, unknown>): WebSocketServer {
+  // 显式 HTTP server：/health 探活 + 承载 WS upgrade（生产服务守护/负载均衡探活依赖它）
+  const httpServer = createServer((req, res) => {
+    const pathname = (req.url || "/").split("?")[0]
+    if (pathname === "/health" || pathname === "/healthz") {
+      const body: HealthInfo = {
+        ok: true,
+        service: "mobile-agent-bridge",
+        port,
+        uptime: Math.round(process.uptime()),
+        ...(healthExtra ? healthExtra() : {}),
+      }
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" })
+      res.end(JSON.stringify(body))
+      return
+    }
+    res.writeHead(404, { "content-type": "application/json; charset=utf-8" })
+    res.end(JSON.stringify({ ok: false, error: "not found" }))
+  })
+
+  const wss = new WebSocketServer({ server: httpServer })
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`)
@@ -77,6 +109,12 @@ export function createWSServer(port: number): WebSocketServer {
     })
   })
 
-  console.log(`[WS] 服务器启动于端口 ${port}`)
+  // wss 关闭时同步释放底层 HTTP server（否则端口不释放）
+  wss.on("close", () => httpServer.close())
+
+  httpServer.listen(port, () => {
+    console.log(`[WS] 服务器启动于端口 ${port}（/health 就绪）`)
+  })
+
   return wss
 }

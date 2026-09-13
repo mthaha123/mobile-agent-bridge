@@ -2,6 +2,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 .env
+scripts/prod.env
+scripts/dev.env
+.dev-data/
 .turbo/
 apps/mobile/android/app/build/
 apps/mobile/android/build/

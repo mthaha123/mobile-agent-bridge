@@ -9,10 +9,19 @@ const WebSocket = require("ws")
 const net = require("net")
 const http = require("http")
 
-const BRIDGE_URL = "ws://localhost:8080/ws"
+// 默认连【测试桥 19985】，避免误连生产 8080
+const BRIDGE_URL = process.env.BRIDGE_URL || "ws://localhost:19985/ws"
 const PASS = "test123"
 const DIR_A = "D:\\code\\mobile-agent-bridge"
 const DIR_B = "D:\\code"
+
+// 生产隔离守卫：本脚本会 kill bridge，绝不能跑在生产端口上
+const PROD_PORTS = [8080, 4097, 4100, 4101, 4102, 4103, 4104]
+const BRIDGE_PORT = new URL(BRIDGE_URL).port || (BRIDGE_URL.startsWith("wss") ? "443" : "80")
+if (PROD_PORTS.includes(Number(BRIDGE_PORT))) {
+  console.error(`[守卫] 拒绝在疑似生产端口 ${BRIDGE_PORT} 上运行（本脚本会 kill bridge）。请使用测试桥 19985。`)
+  process.exit(2)
+}
 
 let ws, mid = 0, passed = 0, failed = 0
 
@@ -39,17 +48,25 @@ function waitForPort(port, ms = 30000) {
     const fb = setTimeout(() => { clearInterval(iv); r(false) }, ms)
   })
 }
-function killAll() { try { execSync("taskkill /T /F /IM opencode.exe", { stdio: "ignore", timeout: 5000 }) } catch {} }
+/** 只清理【本测试桥】已注册的 serve（绝不无差别杀进程 / 不碰其他 bridge 的 serve） */
+async function resetTestBridgeServes() {
+  const list = await send("serve.list")
+  for (const s of list) {
+    try { await send("serve.remove", { id: s.id }) } catch {}
+  }
+}
 
 async function main() {
   console.log("=== serve 全场景验证 ===\n")
-  killAll()
 
   // 连接
   ws = new WebSocket(BRIDGE_URL)
   await new Promise(r => ws.on("open", r))
   await send("auth.login", { password: PASS })
   console.log("✅ 连接+认证\n")
+
+  // 连接后清理【测试桥自身】的 serve（取代原先无差别 taskkill /IM opencode.exe）
+  await resetTestBridgeServes()
 
   // 场景1: 基本 CRUD
   console.log("场景 1: 基本 CRUD")
@@ -118,12 +135,12 @@ async function main() {
   ok(r === false, "返回 false")
   console.log("")
 
-  // 场景9: 正常退出杀 serve
+  // 场景9: 正常退出杀 serve（会 kill 【测试桥】自身；生产桥已被守卫拦下）
   console.log("场景 9: 正常退出杀 serve")
   ok(await portUsed(b.port), `serve B port ${b.port} 运行中`)
-  // 找 bridge PID
+  // 按 BRIDGE_URL 的端口找测试桥 PID
   try {
-    const out = execSync("netstat -ano | findstr :8080 | findstr LISTENING", { encoding: "utf8" })
+    const out = execSync(`netstat -ano | findstr :${BRIDGE_PORT} | findstr LISTENING`, { encoding: "utf8" })
     const bpid = parseInt(out.trim().split(/\s+/).pop())
     ok(bpid > 0, `bridge PID=${bpid}`)
     process.kill(bpid, "SIGTERM")

@@ -122,6 +122,40 @@ python -c "..."  2>&1     # timeout ≤ 15s，不加 sleep
 - 测试脚本**必须有全局超时兜底**（`setTimeout(() => process.exit(1), 120000)`），不依赖 bash timeout 做安全网。
 - bash 的 timeout 设足够大（约 180s），仅作为极端情况兜底。
 
+## 生产/测试端口隔离（重要）
+
+本机同时跑生产与开发/测试时，**测试绝不能使用或清理生产端口**。生产端口：
+
+| 端口 | 用途 |
+|---|---|
+| 8080 | 生产 bridge（隧道入口） |
+| 4097 | 生产默认 opencode serve |
+| 4100-4104 | 生产项目 serve 端口池 |
+
+开发/测试段（离生产 >1.5 万端口，杜绝"顺位使用"串段）：
+
+| 端口 | 用途 |
+|---|---|
+| 19985 | 开发 bridge（= 真实链路测试桥 `TEST_BRIDGE_PORT`） |
+| 19986 | 开发默认 opencode serve |
+| 19990-19999 | 开发项目 serve 端口池 |
+| 8081 / 18081 | Mock Bridge / Mock push |
+| 44xx / 2000x / 19876 | E2E 脚本的 opencode / bridge |
+
+端口段定义与守卫的唯一事实来源：`scripts/ports.mjs`（`PROD_PORTS` / `DEV_PORTS` / `checkPortGroup` / `assertTestPort`）；`scripts/e2e/ports.mjs` 仅再导出以兼容旧导入路径。
+
+规则与护栏：
+
+- **强制分段**：一个进程配置的所有端口必须全部落在同一段；混用生产段与开发段时 `start-all.mjs` 的 `validatePortSegments()` 直接 `exit 1` 拒绝启动（防顺位串段）。
+- `serveManager`：端口池不得包含 bridge 端口（启动即报错）；`cleanOrphans()` **只清理本端口池内的注册项**，池外端口一律不杀（防数据目录被跨环境共用时误杀）。
+- `assertTestPort()`：`run-layer.mjs`、`mock-bridge.mjs` 命中生产端口即 `exit 2` 拒绝执行。
+- `run-layer.mjs` 只清理**测试端口**（绝不清理 8080）；真实链路 flow 仅当测试桥 19985 就绪时运行，**绝不回退到生产 8080**（未就绪则 SKIP）。
+- `l2-md-table-*`、`l2-bridge-history-*` 等真实链路 flow 已指向 `ws://10.0.2.2:19985/ws`。
+- 开发联调：`node scripts/start-all.mjs --env-file scripts/dev.env`（模板 `scripts/dev.env.example`）。
+- 生产部署：先 `cd servers/bridge && npm run build`，再 `node scripts/start-all.mjs --env-file scripts/prod.env`（生产跑 `dist/index.js`，不跑 tsx；模板 `scripts/prod.env.example`）。
+- 健康检查：`GET http://localhost:<BRIDGE_PORT>/health`；隔离冒烟：`node scripts/verify-prod-env.mjs`。
+- 新增测试脚本/flow 时，**禁止硬编码 8080/4097/4100-4104**；一律走 `scripts/ports.mjs`。
+
 ## 接口对齐约束
 
 **每次新增或修改 WS 协议接口时，必须同时对齐客户端和服务端两侧：**

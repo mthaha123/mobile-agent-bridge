@@ -62,10 +62,11 @@ pnpm install
 pnpm dev          # 启动 WS 服务器 (默认 :8080)
 ```
 
-环境变量：
+环境变量（完整表见下方「部署与环境隔离」）：
 - `BRIDGE_PORT` — WS 端口（默认 `8080`）
 - `BRIDGE_PASSWORD` — 连接密码（为空则不校验）
 - `OPENCODE_URL` — OpenCode 服务端地址（默认 `http://localhost:4096`）
+- `SERVE_PORT` / `BRIDGE_SERVE_PORT_POOL` / `BRIDGE_DATA_DIR` / `BRIDGE_ENTRY` — 端口分段与生产部署，详见「部署与环境隔离」
 
 ### 2. 手机客户端
 
@@ -97,6 +98,64 @@ cd apps/mobile/android
 ```bash
 npm run e2e:test-rpcs     # 验证 5 个核心 RPC (9 断言)
 ```
+
+---
+
+## 部署与环境隔离
+
+生产与开发/测试**端口严格分段**，互不冲突。两套可加载的配置文本（本机文件，已 gitignore；模板为 `*.env.example`）：
+
+| 文件 | bridge | 默认 serve | 项目 serve 池 | 数据目录 |
+|---|---|---|---|---|
+| `scripts/prod.env` | 8080 | 4097 | 4100-4104 | `servers/bridge/data` |
+| `scripts/dev.env` | 19985 | 19986 | 19990-19999 | `.dev-data` |
+
+两段最小间隔 >1.5 万端口，"顺位分配"绝不可能跨段；混段配置会被拒绝启动。
+
+### 生产
+
+```powershell
+# 1) 构建（生产运行编译产物，不跑 tsx）
+cd servers/bridge; npm run build
+
+# 2) 启动 serve + bridge + 隧道（fire-and-forget，立即返回）
+node scripts/start-all.mjs --env-file scripts/prod.env
+
+# 3) 状态 / 停止（按 PID 精确停止）
+node scripts/start-all.mjs --env-file scripts/prod.env --status
+node scripts/start-all.mjs --env-file scripts/prod.env --stop
+```
+
+> 不带 `--env-file` 时 `start-all` 默认即生产端口（8080/4097/4100-4104）。
+
+### 开发 / 联调
+
+```powershell
+node scripts/start-all.mjs --env-file scripts/dev.env
+```
+
+### 健康检查
+
+`GET http://localhost:<BRIDGE_PORT>/health` → `{ ok, service, port, uptime, dataDir, servePortPool }`
+
+### 环境变量（`start-all` / bridge 通用）
+
+| 变量 | 说明 | 默认 |
+|---|---|---|
+| `BRIDGE_PORT` | bridge WS 端口 | 8080 |
+| `SERVE_PORT` | 默认 opencode serve 端口 | 4097 |
+| `BRIDGE_SERVE_PORT_POOL` | 项目 serve 端口池（逗号分隔） | 4100-4104 |
+| `BRIDGE_DATA_DIR` | 数据目录（注册表 projects.json） | `<root>/servers/bridge/data` |
+| `BRIDGE_ENTRY` | 编译产物入口（生产用 `dist/index.js`） | 空（走 tsx/src） |
+| `BRIDGE_LOG_DIR` / `BRIDGE_RUN_DIR` | 日志 / PID 目录 | `logs/build` |
+| `BRIDGE_PASSWORD` | 连接密码 | test123 |
+
+### 隔离守卫（强制，见 `scripts/ports.mjs`）
+
+- `start-all.mjs` 混用生产段与开发段 → `exit 1` 拒绝启动（逐条标出端口段别）。
+- `run-layer.mjs` / `mock-bridge.mjs` 命中生产端口 → `exit 2`。
+- `serveManager`：端口池含 bridge 端口 → 启动报错；孤儿清理**只作用于本端口池**。
+- 冒烟验证：`node scripts/verify-prod-env.mjs`。
 
 ---
 

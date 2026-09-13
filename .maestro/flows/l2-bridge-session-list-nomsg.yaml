@@ -6,7 +6,7 @@ appId: com.mobileagentbridge
 # 连接真实 Bridge（8080）
 - tapOn: "ws://192.168.1.100:8080/ws"
 - eraseText: 50
-- inputText: "ws://10.0.2.2:8080/ws"
+- inputText: "ws://10.0.2.2:19985/ws"
 - tapOn: "password (optional)"
 - inputText: "test123"
 - tapOn: "Connect"

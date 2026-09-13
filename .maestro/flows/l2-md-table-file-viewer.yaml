@@ -1,7 +1,7 @@
 appId: com.mobileagentbridge
 ---
 # MarkdownTable 组件验证（文件查看器路径）
-# 前置: bridge 已启动(8080)、APK 已安装、模拟器已运行
+# 前置: 测试桥已启动(19985，禁用生产 8080)、APK 已安装、模拟器已运行
 
 - launchApp
 - extendedWaitUntil:
@@ -11,7 +11,7 @@ appId: com.mobileagentbridge
 # ── 连接真实 bridge ──
 - tapOn: "ws://.*"
 - eraseText: 50
-- inputText: "ws://10.0.2.2:8080/ws"
+- inputText: "ws://10.0.2.2:19985/ws"
 - tapOn: "password (optional)"
 - inputText: "test123"
 - tapOn: "project directory (e.g. /home/user/project)"

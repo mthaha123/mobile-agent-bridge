@@ -4,10 +4,10 @@ appId: com.mobileagentbridge
 # 连接真实 bridge → 选一个有消息的历史 session → 验证消息文本渲染
 - launchApp
 
-# 连接真实 Bridge（8080）
-- tapOn: "ws://192.168.1.100:8080/ws"
+# 连接真实【测试桥】（19985，禁止使用生产 8080）
+- tapOn: "ws://.*"
 - eraseText: 50
-- inputText: "ws://10.0.2.2:8080/ws"
+- inputText: "ws://10.0.2.2:19985/ws"
 - tapOn: "password (optional)"
 - inputText: "test123"
 - tapOn: "Connect"
