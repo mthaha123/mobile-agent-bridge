@@ -323,6 +323,32 @@ wss.on("connection", (ws) => {
       payload = { ok: true }
     }
 
+    // 特殊处理: __widetable__ → 注入一条含"超宽 Markdown 表格"的 assistant 文本流
+    // 供 P0 横向滚动验证使用（表格必然溢出，最右列含唯一锚点）。
+    if (method === "message.send" && frame.params?.message === "__widetable__") {
+      const sid = frame.params?.sessionId || "mock_s1"
+      const msgId = "msg_wide_table"
+      const table = [
+        "| Module | Core-File-Path | Owner | Status-Detail |",
+        "| --- | --- | --- | --- |",
+        "| Bridge-Gateway-Service | servers/bridge/src/router/handlers/index.ts | Alice | RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll |",
+        "| Mobile-Client | apps/mobile/src/components/chat/MarkdownTable.tsx | Bob | adaptive-column-width-plus-horizontal-scroll |",
+        "| Shared-Primitive | apps/mobile/src/components/common/HorizontalScrollBox.tsx | Carol | RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll |",
+      ].join("\n")
+      const notify = (m, p) => {
+        const f = JSON.stringify({ type: "notify", method: m, payload: p })
+        for (const c of clients) if (c.readyState === 1) c.send(f)
+      }
+      notify("session.next.prompt.admitted", { sessionID: sid, messageID: "msg_user_wide", prompt: "render a wide markdown table" })
+      notify("session.next.text.started", { sessionID: sid, assistantMessageID: msgId })
+      notify("session.next.text.delta", { sessionID: sid, assistantMessageID: msgId, delta: table })
+      notify("session.next.text.ended", { sessionID: sid, assistantMessageID: msgId, text: table })
+      notify("session.next.step.ended", { sessionID: sid })
+      notify("session.idle", { sessionID: sid })
+      console.log(`[MOCK-PUSH] wide table injected for ${sid}`)
+      payload = { ok: true }
+    }
+
     console.log(`[MOCK] REQ ${method} id=${id}`)
     if (!method.startsWith("_test.")) {
       console.log(`[MOCK] RES ${method} id=${id} ok=true`)

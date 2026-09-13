@@ -1,0 +1,80 @@
+appId: com.mobileagentbridge
+---
+# P0 横向滚动验证（Mock Bridge 打桩 @ 8081）
+# 前置：node scripts/e2e/mock-bridge.mjs 已启动（WS 8081 / push 18081，测试端口）
+# 关键：ConnectScreen 会在挂载 500ms 后自动连生产 8080；
+#       这里 Settings → Disconnect 后【立刻】改写 URL 为 Mock 并 Connect。
+- launchApp
+
+# ── 回到 Connect 页：Settings → Disconnect ──
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 20000
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Disconnect"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Disconnect"
+
+# ── 立刻改写 URL 为 Mock（抢占 500ms 自动连接）──
+# 不做任何等待：Disconnect 后 ConnectScreen 立即挂载，必须在自动连接前改写
+- tapOn:
+    text: "ws://.*"
+    index: 0
+- eraseText: 60
+- inputText: "ws://10.0.2.2:8081/ws"
+- tapOn:
+    text: "password (optional)"
+    index: 0
+- eraseText: 30
+- inputText: "test123"
+- tapOn: "Connect"
+
+# 连上后进入主界面
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# ── 新建会话进入 ChatScreen ──
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "Open commands"
+    timeout: 15000
+
+# ── 注入超宽表格（mock-bridge 内建 magic message）──
+- tapOn: "Type a message..."
+- eraseText: 50
+- inputText: "__widetable__"
+- tapOn: "Send message"
+
+# 表格渲染：左侧列可见
+- extendedWaitUntil:
+    visible: "Module"
+    timeout: 10000
+
+# 把表格滚到视口中间，确保横向 swipe 落在表格区域内
+- scrollUntilVisible:
+    element:
+      text: "Shared-Primitive"
+    direction: DOWN
+    timeout: 10000
+
+# 横向滚动前，最右列锚点应不可见（被裁剪在视口外）
+- assertNotVisible: "RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll"
+
+# 在表格区域从右向左扫，露出右侧列
+- swipe:
+    start: "85%, 67%"
+    end: "10%, 67%"
+- extendedWaitUntil:
+    visible: "RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll"
+    timeout: 5000
+
+# 全屏兜底入口仍可用（回归）
+- tapOn: "全屏查看表格"
+- extendedWaitUntil:
+    visible: "表格视图"
+    timeout: 5000
+- tapOn: "关闭表格视图"
