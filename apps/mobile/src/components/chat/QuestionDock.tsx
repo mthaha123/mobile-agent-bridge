@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { useQuestionStore, SingleQuestion } from '../../stores/questionStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../theme/ThemeContext'
@@ -78,7 +79,7 @@ const QuestionItem: React.FC<QuestionItemProps> = ({ question, onReject, onSubmi
             {q.options.map((opt, oi) => {
               const isSelected = (selected[qi] || []).includes(opt.label)
               return (
-                <TouchableOpacity
+                <AppPressable
                   key={oi}
                   style={[styles.option, isSelected && styles.optionSelected]}
                   onPress={() => handleSelect(qi, opt.label, q.multiple)}
@@ -87,19 +88,19 @@ const QuestionItem: React.FC<QuestionItemProps> = ({ question, onReject, onSubmi
                     {q.multiple ? (isSelected ? '☑ ' : '☐ ') : (isSelected ? '◉ ' : '○ ')}
                     {opt.label}
                   </Text>
-                </TouchableOpacity>
+                </AppPressable>
               )
             })}
           </View>
         ))}
       </View>
           <View style={styles.dockFooter}>
-            <TouchableOpacity style={styles.rejectBtn} onPress={onReject}>
+            <AppPressable style={styles.rejectBtn} onPress={onReject}>
               <Text style={styles.btnText}>Reject</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+            </AppPressable>
+            <AppPressable style={styles.submitBtn} onPress={handleSubmit}>
               <Text style={styles.btnText}>Submit</Text>
-            </TouchableOpacity>
+            </AppPressable>
           </View>
     </View>
   )

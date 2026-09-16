@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
@@ -22,7 +23,7 @@ export const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ content, streaming
 
   return (
     <View style={styles.block}>
-      <TouchableOpacity
+      <AppPressable
         style={styles.header}
         onPress={() => setExpanded(v => !v)}
         activeOpacity={0.7}
@@ -32,7 +33,7 @@ export const ThinkingBlock: React.FC<ThinkingBlockProps> = ({ content, streaming
           {streaming ? '思考中...' : '思考过程'}
         </Text>
         <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
-      </TouchableOpacity>
+      </AppPressable>
       {expanded && content ? (
         <View style={styles.body}>
           <MarkdownRenderer content={content} />

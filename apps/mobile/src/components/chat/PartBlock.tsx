@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Clipboard } from 'react-native'
+import { View, Text, StyleSheet, Alert, Clipboard } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { PartProps, Part, getPartRenderer, registerPart } from '../../types/message'
 import { ToolPart } from './BasicTool'
 import { ToolErrorCard } from './ToolErrorCard'
@@ -47,7 +48,7 @@ const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?:
   }
 
   return (
-    <TouchableOpacity
+    <AppPressable
       activeOpacity={1}
       onLongPress={showMenu}
       delayLongPress={500}
@@ -56,7 +57,7 @@ const MessageWrapper: React.FC<{ content: string; message: { id?: string; role?:
       testID={message.role === 'assistant' ? 'assistant-text-part' : undefined}
     >
       {children}
-    </TouchableOpacity>
+    </AppPressable>
   )
 }
 
@@ -94,11 +95,11 @@ export const ReasoningHeader: React.FC<{ expanded: boolean; onToggle: () => void
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   return (
-    <TouchableOpacity style={styles.reasoningHeader} onPress={onToggle} activeOpacity={0.7}>
+    <AppPressable style={styles.reasoningHeader} onPress={onToggle} activeOpacity={0.7}>
       <Text style={styles.reasoningIcon}>🧠</Text>
       <Text style={styles.reasoningLabel}>思考过程</Text>
       <Text style={styles.reasoningArrow}>{expanded ? '▼' : '▶'}</Text>
-    </TouchableOpacity>
+    </AppPressable>
   )
 }
 

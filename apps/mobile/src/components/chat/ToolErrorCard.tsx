@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Clipboard } from 'react-native'
+import { View, Text, StyleSheet, Clipboard } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
 
@@ -24,7 +25,7 @@ export const ToolErrorCard: React.FC<ToolErrorCardProps> = ({ tool, error, title
 
   return (
     <View style={styles.errorCard}>
-      <TouchableOpacity
+      <AppPressable
         style={styles.errorHeader}
         onPress={() => setExpanded(v => !v)}
         activeOpacity={0.7}
@@ -33,13 +34,13 @@ export const ToolErrorCard: React.FC<ToolErrorCardProps> = ({ tool, error, title
         <Text style={styles.errorTool}>{title || tool}</Text>
         {subtitle ? <Text style={styles.errorSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
         <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
-      </TouchableOpacity>
+      </AppPressable>
       {expanded ? (
         <View style={styles.errorBody}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={handleCopy} style={styles.copyBtn}>
+          <AppPressable onPress={handleCopy} style={styles.copyBtn}>
             <Text style={styles.copyText}>{copied ? '已复制' : '复制错误'}</Text>
-          </TouchableOpacity>
+          </AppPressable>
         </View>
       ) : null}
     </View>

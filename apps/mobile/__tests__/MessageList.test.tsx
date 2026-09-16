@@ -39,7 +39,7 @@ function textOf(tree: TestRenderer.ReactTestInstance): string {
   return s
 }
 
-/** mock FlatList 不转发 data prop，改用渲染出的 FlatList-Item 顺序验证展示序 */
+/** mock FlatList 渲染出的 FlatList-Item 顺序验证展示序 */
 function itemTexts(tree: TestRenderer.ReactTestInstance): string[] {
   const collect = (node: any): string => {
     let s = ''
@@ -54,15 +54,15 @@ function itemTexts(tree: TestRenderer.ReactTestInstance): string[] {
 }
 
 describe('MessageList', () => {
-  it('display data is newest-first (index 0 = newest message)', () => {
+  it('display data is oldest-first (index 0 = oldest message)', () => {
     const a = msg('older', NOW - DAY)
     const b = msg('newer', NOW - 1000)
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(<MessageList {...buildProps({ messages: [a, b] })} />)
     })
-    // 渲染序 = 展示序：最新消息在首位；每天一个分隔符，最旧日的分隔符在末尾（视觉顶部）
-    expect(itemTexts(tree)).toEqual(['newer', '今天', 'older', '昨天'])
+    // 正序：最旧在前，最新在后；每天一个分隔符，放在该天第一条消息之前
+    expect(itemTexts(tree)).toEqual(['昨天', 'older', '今天', 'newer'])
   })
 
   it('calls renderMessage once per message, never for separators', () => {
@@ -92,9 +92,7 @@ describe('MessageList', () => {
   it('labels even a single same-day group (今天) with no boundary separators', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ messages: [msg('A', NOW - 10), msg('B', NOW - 5)] })} />,
-      )
+      tree = TestRenderer.create(<MessageList {...buildProps({ messages: [msg('A', NOW - 10), msg('B', NOW - 5)] })} />)
     })
     expect(textOf(tree)).toContain('今天')
     expect(textOf(tree)).not.toContain('昨天')
@@ -108,12 +106,12 @@ describe('MessageList', () => {
     expect(flatListNode(tree)).toBeDefined()
   })
 
-  it('keeps inverted prop true', () => {
+  it('does not use inverted', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
-    expect(flatListNode(tree).props.inverted).toBe(true)
+    expect(flatListNode(tree).props.inverted).toBeFalsy()
   })
 
   it('has nestedScrollEnabled so horizontal children can scroll', () => {
@@ -124,7 +122,7 @@ describe('MessageList', () => {
     expect(flatListNode(tree).props.nestedScrollEnabled).toBe(true)
   })
 
-  it('thinkingIndicator goes to ListHeaderComponent, historyHint to ListFooterComponent', () => {
+  it('thinkingIndicator goes to ListFooterComponent (visual bottom), historyHint to ListHeaderComponent (visual top)', () => {
     const shimmer = <Text>shimmer</Text>
     const hint = <Text>hint</Text>
     let tree!: TestRenderer.ReactTestInstance
@@ -134,11 +132,12 @@ describe('MessageList', () => {
       )
     })
     const list = flatListNode(tree)
-    expect(list.props.ListHeaderComponent).toBe(shimmer)
-    expect(list.props.ListFooterComponent).toBe(hint)
+    // 正序：header = 视觉顶部（历史提示），footer = 视觉底部（思考指示）
+    expect(list.props.ListHeaderComponent).toBe(hint)
+    expect(list.props.ListFooterComponent).toBe(shimmer)
   })
 
-  it('does not expose pull-to-refresh props anymore', () => {
+  it('does not expose pull-to-refresh props', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(<MessageList {...buildProps()} />)
@@ -148,40 +147,17 @@ describe('MessageList', () => {
     expect(list.props.onRefresh).toBeUndefined()
   })
 
-  it('loads more history when end reached and hasMore && !loading', () => {
-    const onLoadMore = jest.fn()
+  it('does not use onEndReached (history loaded via onScroll)', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: true, onLoadMoreHistory: onLoadMore })} />,
-      )
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
     })
-    act(() => { flatListNode(tree).props.onEndReached() })
-    expect(onLoadMore).toHaveBeenCalledTimes(1)
+    const list = flatListNode(tree)
+    // 正序列表不用 onEndReached 触发历史加载，改由 onScroll 顶部检测
+    expect(list.props.onEndReached).toBeUndefined()
   })
 
-  it('does not load more while loading or when exhausted', () => {
-    const onLoadMore = jest.fn()
-    let tree!: TestRenderer.ReactTestInstance
-    act(() => {
-      tree = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: true, historyLoading: true, onLoadMoreHistory: onLoadMore })} />,
-      )
-    })
-    act(() => { flatListNode(tree).props.onEndReached() })
-    expect(onLoadMore).not.toHaveBeenCalled()
-
-    let tree2!: TestRenderer.ReactTestInstance
-    act(() => {
-      tree2 = TestRenderer.create(
-        <MessageList {...buildProps({ hasMoreHistory: false, onLoadMoreHistory: onLoadMore })} />,
-      )
-    })
-    act(() => { flatListNode(tree2).props.onEndReached() })
-    expect(onLoadMore).not.toHaveBeenCalled() // 两次都被抑制
-  })
-
-  it('FAB hidden by default, shown when scrolled >200 away, hides again near bottom', () => {
+  it('FAB hidden by default, shown when scrolled >200 from bottom, hides again near bottom', () => {
     let tree!: TestRenderer.ReactTestInstance
     act(() => {
       tree = TestRenderer.create(<MessageList {...buildProps({ messages: [msg('A', NOW)] })} />)
@@ -191,13 +167,18 @@ describe('MessageList', () => {
     expect(fabCount()).toBe(0)
 
     const list = flatListNode(tree)
+    // 模拟距底部 >200（内容高度 500, 可见 300, offset.y = 50 → distFromBottom = 150 → 不够）
+    // distFromBottom = contentSize.height - layoutMeasurement.height - offset.y
+    // 要 distFromBottom > 200: 500 - 300 - y > 200 → y < 0 不可能
+    // 改为大内容：contentSize=800, layout=300, y=200 → dist=300 > 200 → 显示
     act(() => {
-      list.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } })
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: 200 }, layoutMeasurement: { height: 300 }, contentSize: { height: 800 } } })
     })
     expect(fabCount()).toBeGreaterThan(0)
 
+    // 回到底部附近：contentSize=800, layout=300, y=550 → dist=−50 ≤ 24 → 隐藏
     act(() => {
-      list.props.onScroll({ nativeEvent: { contentOffset: { y: 30 } } })
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: 550 }, layoutMeasurement: { height: 300 }, contentSize: { height: 800 } } })
     })
     expect(fabCount()).toBe(0)
   })

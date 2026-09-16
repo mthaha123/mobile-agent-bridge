@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
@@ -41,11 +42,11 @@ export const ShellOutput: React.FC<ShellOutputProps> = ({ result, input }) => {
             </View>
           </HorizontalScrollBox>
           {lines.length > maxLines ? (
-            <TouchableOpacity onPress={() => setShowAll(v => !v)} style={styles.showMoreBtn}>
+            <AppPressable onPress={() => setShowAll(v => !v)} style={styles.showMoreBtn}>
               <Text style={styles.showMoreText}>
                 {showAll ? '收起' : `显示全部 ${lines.length} 行`}
               </Text>
-            </TouchableOpacity>
+            </AppPressable>
           ) : null}
           {lines.length > 0 ? (
             <Text style={styles.lineCount}>{lines.length} lines</Text>

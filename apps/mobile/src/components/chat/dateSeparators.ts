@@ -24,9 +24,9 @@ export function dayLabel(ts: number, now: number = Date.now()): string {
 }
 
 /**
- * 输入时间正序消息（chatStore 原始数组），
- * 输出展示序（最新在前）并在每个日界插入分隔符。
- * 分隔符位于"该天第一条消息之前"——反转后即视觉上该天消息的下方。
+ * 输入时间正序消息（chatStore 原始数组，旧→新），
+ * 输出正序展示项（旧→新）并在每个日界插入分隔符。
+ * 分隔符位于"该天第一条消息之前"——正序 FlatList 中视觉上在该天消息上方。
  */
 export function buildChatListItems(
   messages: ChatMessage[],
@@ -37,11 +37,12 @@ export function buildChatListItems(
   for (const m of messages) {
     const ts = m.created ?? m.timestamp
     const day = startOfDay(ts)
+    // 新的一天 → 分隔符插在该天第一条消息之前
     if (prevDay === null || day !== prevDay) {
       out.push({ kind: 'separator', key: `sep_${day}`, label: dayLabel(ts, now) })
       prevDay = day
     }
     out.push({ kind: 'message', key: m.id, message: m })
   }
-  return out.reverse()
+  return out
 }

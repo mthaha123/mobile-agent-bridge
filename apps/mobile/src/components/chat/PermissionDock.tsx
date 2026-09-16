@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { useToolStore } from '../../stores/toolStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../theme/ThemeContext'
@@ -33,15 +34,15 @@ export const PermissionDock: React.FC = () => {
           </Text>
         </View>
         <View style={styles.dockFooter}>
-          <TouchableOpacity style={styles.rejectBtn} onPress={() => reject(current.id, getReplyCall())}>
+          <AppPressable style={styles.rejectBtn} onPress={() => reject(current.id, getReplyCall())}>
             <Text style={styles.btnText}>Reject</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.approveBtn} onPress={() => approve(current.id, getReplyCall())}>
+          </AppPressable>
+          <AppPressable style={styles.approveBtn} onPress={() => approve(current.id, getReplyCall())}>
             <Text style={styles.btnText}>Approve</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.alwaysBtn} onPress={() => alwaysAllow(current.id, getReplyCall())}>
+          </AppPressable>
+          <AppPressable style={styles.alwaysBtn} onPress={() => alwaysAllow(current.id, getReplyCall())}>
             <Text style={styles.btnText}>Always Allow</Text>
-          </TouchableOpacity>
+          </AppPressable>
         </View>
         {queuedCount > 0 ? (
           <View style={styles.queuedBadge}>

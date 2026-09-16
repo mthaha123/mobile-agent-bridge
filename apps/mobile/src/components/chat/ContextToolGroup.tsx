@@ -4,7 +4,8 @@
  * "Read 2 files" style inline group. New code should use ToolGroupCard.
  */
 import React, { useState, useMemo } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { getToolInfo } from '../../types/message'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
@@ -50,7 +51,7 @@ export const ContextToolGroup: React.FC<ContextToolGroupProps> = ({ tools }) => 
 
   return (
     <View style={styles.groupCard}>
-      <TouchableOpacity
+      <AppPressable
         style={styles.groupHeader}
         onPress={() => setExpanded(v => !v)}
         activeOpacity={0.7}
@@ -59,7 +60,7 @@ export const ContextToolGroup: React.FC<ContextToolGroupProps> = ({ tools }) => 
         <Text style={styles.groupTitle} numberOfLines={1}>{summary}</Text>
         <Text style={styles.groupCount}>{tools.length}</Text>
         <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
-      </TouchableOpacity>
+      </AppPressable>
       {expanded ? (
         <View style={styles.groupBody}>
           {tools.map((tool, i) => {

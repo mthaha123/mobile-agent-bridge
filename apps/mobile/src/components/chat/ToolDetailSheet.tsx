@@ -1,5 +1,6 @@
 import React from 'react'
-import { Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Modal, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ToolPart } from './BasicTool'
 import { useThemeColors } from '../../theme/ThemeContext'
@@ -40,14 +41,14 @@ export const ToolDetailSheet: React.FC<ToolDetailSheetProps> = ({ visible, parts
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
           <Text style={styles.title}>工具详情</Text>
-          <TouchableOpacity
+          <AppPressable
             onPress={onClose}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityLabel="关闭工具详情"
             accessibilityRole="button"
           >
             <Text style={styles.close}>✕</Text>
-          </TouchableOpacity>
+          </AppPressable>
         </View>
 
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>

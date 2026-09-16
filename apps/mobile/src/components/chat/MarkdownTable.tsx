@@ -4,9 +4,9 @@ import {
   Modal,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 import type { ThemeColors } from '../../theme/colors'
@@ -278,7 +278,7 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
         </HorizontalScrollBox>
 
         {/* 保底入口：不依赖嵌套手势协商，任何情况下都能看全 */}
-        <TouchableOpacity
+        <AppPressable
           style={styles.expandButton}
           onPress={() => setViewerVisible(true)}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -287,7 +287,7 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
           testID="md-table-expand"
         >
           <Text style={styles.expandIcon}>⤢</Text>
-        </TouchableOpacity>
+        </AppPressable>
       </View>
 
       <Modal
@@ -300,7 +300,7 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
         <View style={[styles.viewerContainer, { backgroundColor: colors.background }]}>
           <View style={[styles.viewerHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.viewerTitle, { color: colors.text }]}>表格视图</Text>
-            <TouchableOpacity
+            <AppPressable
               onPress={() => setViewerVisible(false)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="关闭表格视图"
@@ -308,7 +308,7 @@ export const MarkdownTable: React.FC<MarkdownTableProps> = ({ header, rows }) =>
               testID="md-table-modal-close"
             >
               <Text style={[styles.viewerClose, { color: colors.primary }]}>✕</Text>
-            </TouchableOpacity>
+            </AppPressable>
           </View>
           {/* 横向滚动：无需外层垂直 ScrollView（单表无纵向内容），避免手势竞争 */}
           <HorizontalScrollBox

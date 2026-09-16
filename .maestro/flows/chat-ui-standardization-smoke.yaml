@@ -7,8 +7,10 @@ appId: com.mobileagentbridge
 - eraseText: 60
 - inputText: "ws://10.0.2.2:8080/ws"
 - tapOn: "password (optional)"
+- eraseText: 30
 - inputText: "test123"
 - tapOn: "project directory (e.g. /home/user/project)"
+- eraseText: 30
 - inputText: "."
 - tapOn: "Connect"
 - extendedWaitUntil:

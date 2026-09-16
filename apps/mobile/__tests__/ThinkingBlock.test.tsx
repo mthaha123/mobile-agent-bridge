@@ -1,6 +1,6 @@
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
-import { Text, TouchableOpacity } from 'react-native'
+import { Text, Pressable } from 'react-native'
 import { ThinkingBlock } from '../src/components/chat/ThinkingBlock'
 
 describe('ThinkingBlock', () => {
@@ -13,7 +13,7 @@ describe('ThinkingBlock', () => {
 
   it('expands to show content on press', () => {
     const tree = TestRenderer.create(<ThinkingBlock content="分析代码结构，决定先读取..." />)
-    const touchables = tree.root.findAllByType(TouchableOpacity)
+    const touchables = tree.root.findAllByType(Pressable)
     act(() => { touchables[0].props.onPress() })
 
     const text = tree.root.findAllByType(Text).map(t => t.props.children).join('')
@@ -22,7 +22,7 @@ describe('ThinkingBlock', () => {
 
   it('collapses again on second press', () => {
     const tree = TestRenderer.create(<ThinkingBlock content="thinking..." />)
-    const touchables = () => tree.root.findAllByType(TouchableOpacity)
+    const touchables = () => tree.root.findAllByType(Pressable)
     act(() => { touchables()[0].props.onPress() })
     act(() => { touchables()[0].props.onPress() })
 

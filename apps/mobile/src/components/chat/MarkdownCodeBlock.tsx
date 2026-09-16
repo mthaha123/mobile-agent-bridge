@@ -1,6 +1,7 @@
 import React from 'react'
-import { Clipboard, Text, TouchableOpacity, View } from 'react-native'
+import { Clipboard, Text, View } from 'react-native'
 import type { TextStyle, ViewStyle } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 
@@ -46,14 +47,14 @@ export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
           </Text>
         </View>
       </HorizontalScrollBox>
-      <TouchableOpacity
+      <AppPressable
         style={[styles.copyBtn, { backgroundColor: colors.surfaceVariant }]}
         onPress={() => { Clipboard.setString(text) }}
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         testID="md-code-copy"
       >
         <Text style={[styles.copyText, { color: colors.textSecondary }]}>Copy</Text>
-      </TouchableOpacity>
+      </AppPressable>
     </View>
   )
 }

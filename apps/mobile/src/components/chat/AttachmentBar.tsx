@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, Image, ScrollView } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { useAttachmentStore, Attachment } from '../../stores/attachmentStore'
 import { useThemeColors } from '../../theme/ThemeContext'
 import { ThemeColors } from '../../theme/colors'
@@ -39,9 +40,9 @@ const AttachmentChip: React.FC<{ attachment: Attachment; onRemove: () => void }>
         </Text>
       )}
       <Text style={styles.chipName} numberOfLines={1}>{attachment.name}</Text>
-      <TouchableOpacity onPress={onRemove} style={styles.chipClose}>
+      <AppPressable onPress={onRemove} style={styles.chipClose}>
         <Text style={styles.chipCloseText}>✕</Text>
-      </TouchableOpacity>
+      </AppPressable>
     </View>
   )
 }

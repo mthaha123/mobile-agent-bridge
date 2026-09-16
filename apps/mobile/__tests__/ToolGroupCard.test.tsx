@@ -9,7 +9,7 @@
  */
 import React from 'react'
 import TestRenderer, { act } from 'react-test-renderer'
-import { ScrollView, TouchableOpacity } from 'react-native'
+import { ScrollView, Pressable } from 'react-native'
 import { ToolGroupCard } from '../src/components/chat/ToolGroupCard'
 import { ToolDetailSheet } from '../src/components/chat/ToolDetailSheet'
 import { ClampBox } from '../src/components/chat/ClampBox'
@@ -29,9 +29,9 @@ function render(parts: AnyPart[]) {
   return TestRenderer.create(<ToolGroupCard parts={parts as any} />)
 }
 
-/** 点标题栏（第一个 TouchableOpacity，即 header） */
+/** 点标题栏（第一个 Pressable，即 header） */
 function pressHeader(tree: TestRenderer.ReactTestRenderer) {
-  const header = tree.root.findAllByType(TouchableOpacity)[0]
+  const header = tree.root.findAllByType(Pressable)[0]
   act(() => { header.props.onPress() })
 }
 
@@ -187,7 +187,7 @@ describe('ToolPart — defaultExpanded', () => {
   it('默认展开后仍可点一下收起（应对超长输出）', () => {
     const tree = TestRenderer.create(<ToolPart data={data} messageRole="assistant" defaultExpanded />)
     expect(textOf(tree)).toContain('文件内容')
-    const header = tree.root.findAllByType(TouchableOpacity)[0]
+    const header = tree.root.findAllByType(Pressable)[0]
     act(() => { header.props.onPress() })
     expect(textOf(tree)).not.toContain('文件内容')
   })

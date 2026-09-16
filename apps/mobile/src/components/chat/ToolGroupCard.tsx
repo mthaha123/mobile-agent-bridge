@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react'
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
 } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { getToolInfo } from '../../types/message'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ClampBox } from './ClampBox'
@@ -120,7 +120,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
 
   return (
     <View style={styles.card}>
-      <TouchableOpacity
+      <AppPressable
         style={styles.header}
         onPress={handleHeaderPress}
         activeOpacity={0.7}
@@ -131,7 +131,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
         </Text>
         {hasTools ? <Text style={styles.statusText}>{statusIcon}</Text> : null}
         <Text style={styles.chevron}>{level === 0 ? '▶' : '▼'}</Text>
-      </TouchableOpacity>
+      </AppPressable>
 
       {level === 1 ? (
         <>
@@ -160,7 +160,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
           </ClampBox>
 
           {hasTools ? (
-            <TouchableOpacity
+            <AppPressable
               style={styles.expandAllRow}
               onPress={handleOpenDetail}
               activeOpacity={0.7}
@@ -170,7 +170,7 @@ export const ToolGroupCard: React.FC<ToolGroupCardProps> = ({ parts }) => {
                 {count > 1 ? `展开全部 (${count})` : '查看详情'}
               </Text>
               <Text style={styles.expandAllChevron}>›</Text>
-            </TouchableOpacity>
+            </AppPressable>
           ) : null}
         </>
       ) : null}

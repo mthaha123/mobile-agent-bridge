@@ -20,7 +20,6 @@ describe('dayLabel', () => {
     expect(dayLabel(NOW - DAY, NOW)).toBe('昨天')
   })
   it('labels older same-year date as M月D日', () => {
-    // 双端显式传参，确定性断言：同年较早日期不加年份前缀
     expect(
       dayLabel(
         new Date('2024-03-05T10:00:00').getTime(),
@@ -34,28 +33,29 @@ describe('dayLabel', () => {
 })
 
 describe('buildChatListItems', () => {
-  it('returns display data newest-first (reversed)', () => {
+  it('returns display data in oldest-first order (no reverse)', () => {
     const items = buildChatListItems([msg('a', NOW - DAY), msg('b', NOW)], NOW)
     const kinds = items.map((i: ChatListItem) => (i.kind === 'separator' ? 'sep' : i.key))
-    // 底部→顶部：最新消息在 index 0；每天一个分隔符，最旧一天的分隔符在数组末尾（视觉顶部）
-    expect(kinds).toEqual(['b', 'sep', 'a', 'sep'])
+    // 正序：最旧在 index 0，最新在末尾；分隔符在每天第一条消息之前
+    expect(kinds).toEqual(['sep', 'a', 'sep', 'b'])
   })
 
   it('inserts one separator at each day boundary', () => {
-    // 同一天两条 + 前一天一条 → 2 个分隔符
     const items = buildChatListItems(
       [msg('a', NOW - DAY), msg('b', NOW - 1000), msg('c', NOW - 500)],
       NOW,
     )
     const seps = items.filter((i: ChatListItem) => i.kind === 'separator')
     expect(seps.length).toBe(2)
-    expect(seps.map((s: any) => s.label)).toEqual(['今天', '昨天'])
+    // 正序：昨天在前（最旧），今天在后
+    expect(seps.map((s: any) => s.label)).toEqual(['昨天', '今天'])
   })
 
-  it('separator sits between the two days in display order', () => {
+  it('separator sits before the first message of each day', () => {
     const items = buildChatListItems([msg('old', NOW - DAY), msg('new', NOW)], NOW)
     const kinds = items.map((i: ChatListItem) => (i.kind === 'separator' ? 'sep' : i.key))
-    expect(kinds).toEqual(['new', 'sep', 'old', 'sep']) // 底部→顶部，最旧日的分隔符在最顶
+    // 正序：分隔符在每天第一条消息之前
+    expect(kinds).toEqual(['sep', 'old', 'sep', 'new'])
   })
 
   it('empty input yields empty output', () => {

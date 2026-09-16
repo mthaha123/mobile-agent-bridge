@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
+import { AppPressable } from '../common/AppPressable'
 import { getToolInfo, getToolRenderer, registerToolRenderer } from '../../types/message'
 import { ShellOutput } from './ShellOutput'
 import { DiffDisplay } from './DiffDisplay'
@@ -37,7 +38,7 @@ export const ToolPart: React.FC<{
 
   return (
     <View style={styles.toolCard}>
-      <TouchableOpacity
+      <AppPressable
         style={styles.toolTrigger}
         onPress={() => setExpanded(v => !v)}
         activeOpacity={0.7}
@@ -55,7 +56,7 @@ export const ToolPart: React.FC<{
           <Text style={styles.statusRunning}>⏳</Text>
         ) : null}
         <Text style={styles.chevron}>{expanded ? '▼' : '▶'}</Text>
-      </TouchableOpacity>
+      </AppPressable>
       {expanded && content ? (
         <View style={styles.toolBody}>
           {content}
