@@ -561,8 +561,8 @@ describe('ChatScreen', () => {
     )
     const mdComponents = tree.root.findAllByType(MarkdownRenderer)
     expect(mdComponents).toHaveLength(2)
-    // inverted 展示序：最新消息（m2 'Hi'）先渲染
-    expect(mdComponents.map((m) => m.props.content)).toEqual(['Hi', 'Hello'])
+    // 非 inverted 展示序：正序（旧→新），m1 'Hello' 先渲染
+    expect(mdComponents.map((m) => m.props.content)).toEqual(['Hello', 'Hi'])
   })
 
   it('copy is available via long-press menu on messages', () => {
