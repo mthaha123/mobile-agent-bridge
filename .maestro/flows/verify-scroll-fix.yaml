@@ -1,0 +1,62 @@
+appId: com.mobileagentbridge
+---
+# Connect
+- launchApp
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 15000
+
+- tapOn:
+    point: "540,1131"
+- eraseText
+- inputText: "ws://10.0.2.2:8080/ws"
+- pressKey: Enter
+
+- tapOn:
+    point: "540,1280"
+- eraseText
+- inputText: "test123"
+- pressKey: Enter
+
+- tapOn:
+    point: "540,1428"
+- eraseText
+- inputText: "D:/code/mobile-agent-bridge"
+
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# Go to Chat
+- tapOn: "Chat"
+- assertVisible: "+ New"
+
+# Create new session
+- tapOn: "+ New"
+- extendedWaitUntil:
+    visible: "< Sessions"
+    timeout: 15000
+
+# Back to chat
+- tapOn: "< Sessions"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 10000
+
+# Type message
+- tapOn: "Message…"
+- inputText: "show me a python hello world code and run it"
+- tapOn:
+    point: "660,2220"
+
+# Wait for response (the model should use bash tool)
+- extendedWaitUntil:
+    visible: "●"
+    timeout: 20000
+- takeScreenshot: D:\code\mobile-agent-bridge\logs\build\verify-p1-streaming
+
+- extendedWaitUntil:
+    visible: "✓"
+    timeout: 60000
+- takeScreenshot: D:\code\mobile-agent-bridge\logs\build\verify-p1-done

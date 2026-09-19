@@ -1,0 +1,37 @@
+appId: com.mobileagentbridge
+---
+# App is already connected. Just send messages and screenshot.
+
+# Phase 1: Verify we're on chat screen
+- assertVisible: "Type a message..."
+
+# Phase 2: Send tool-triggering message
+- tapOn: "Type a message..."
+- inputText: "list files in the current directory"
+- tapOn:
+    point: "987,2077"
+
+# Phase 3: Wait for streaming - take screenshot quickly
+- takeScreenshot: logs/build/verify-p1-streaming
+
+# Phase 4: Wait for completion
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 60000
+- takeScreenshot: logs/build/verify-p1-done
+
+# Phase 5: Send code message for P2
+- tapOn: "Type a message..."
+- inputText: "write a python hello world function"
+- tapOn:
+    point: "987,2077"
+
+# Wait for completion
+- extendedWaitUntil:
+    visible: "Type a message..."
+    timeout: 60000
+- takeScreenshot: logs/build/verify-p2-code-blocks
+
+# Phase 6: Scroll up to test P3
+- scroll
+- takeScreenshot: logs/build/verify-p3-scroll

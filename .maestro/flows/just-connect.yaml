@@ -1,0 +1,34 @@
+appId: com.mobileagentbridge
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Mobile Agent Bridge"
+    timeout: 10000
+
+# URL field
+- tapOn:
+    point: "540,1131"
+- eraseText
+- inputText: "ws://10.0.2.2:8080/ws"
+
+# Password field
+- tapOn:
+    point: "540,1280"
+- eraseText
+- inputText: "test123"
+
+# Project directory
+- tapOn:
+    point: "540,1428"
+- eraseText
+- inputText: "D:/code/mobile-agent-bridge"
+
+# Connect
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 30000
+
+# Tap Chat tab
+- tapOn: "Chat"
+- assertVisible: "+ New"
