@@ -69,9 +69,17 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   }, [])
 
   // ── 流式更新/新消息到达时，若贴底则自动跟随 ──
+  // 两条触发路径缺一不可：
+  //   1) listData.length 变化 —— 新增消息（条数变）
+  //   2) onContentSizeChange —— 流式文本增长（条数不变、仅内容变高）
+  // 去掉 inverted 后不再天然贴底，必须靠 (2) 兜住长回复的流式跟随。
   React.useEffect(() => {
     scrollToEndIfPinned()
   }, [listData.length, scrollToEndIfPinned])
+
+  const handleContentSizeChange = useCallback(() => {
+    scrollToEndIfPinned()
+  }, [scrollToEndIfPinned])
 
   const renderItem = useCallback(
     ({ item }: { item: ChatListItem }) => {
@@ -106,6 +114,7 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
         ListFooterComponent={thinkingIndicator}
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         onScroll={handleScroll}
+        onContentSizeChange={handleContentSizeChange}
         scrollEventThrottle={100}
         style={styles.list}
       />

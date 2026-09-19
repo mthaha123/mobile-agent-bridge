@@ -190,4 +190,14 @@ describe('MessageList', () => {
     })
     expect(flatListNode(tree).props.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 })
   })
+
+  it('wires onContentSizeChange so streaming text growth follows the bottom', () => {
+    // 去 inverted 后不再天然贴底：流式条数不变、仅内容变高，
+    // 必须由 onContentSizeChange → scrollToEndIfPinned 兜住跟随。
+    let tree!: TestRenderer.ReactTestInstance
+    act(() => {
+      tree = TestRenderer.create(<MessageList {...buildProps()} />)
+    })
+    expect(typeof flatListNode(tree).props.onContentSizeChange).toBe('function')
+  })
 })
