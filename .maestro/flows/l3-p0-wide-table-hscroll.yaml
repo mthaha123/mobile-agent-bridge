@@ -6,18 +6,22 @@ appId: com.mobileagentbridge
 #       断言横滑前右侧锚点不可见 → 横滑后可见（证明嵌套横向滚动生效）
 #
 # 起点自适应：
-#   先等主界面（auto-connect 到生产 8080 成功即到 Sessions）→ Settings → Disconnect
-#   （Disconnect 会持久化 autoConnect=false，之后连接页不再被自动连接抢占）
-#   若已在连接页（+ New 一直不出现），则跳过断开直接改写 URL。
+#   若停在主界面（Settings 可见）→ Settings → Disconnect（持久化 autoConnect=false）
+#   若已在连接页 → 跳过，直接改写 URL
 - launchApp
 
+# autoConnect 默认连生产 8080：成功则进入 Sessions（+ New 出现）。
+# 等它稳定后再 Disconnect，避免在连接页被 500ms 自动连接抢占。
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 15000
+    optional: true
+
+# 若已进入主界面 → Settings → Disconnect（持久化 autoConnect=false）
 - runFlow:
     when:
-      notVisible: "Mobile Agent Bridge"
+      visible: "Settings"
     commands:
-      - extendedWaitUntil:
-          visible: "+ New"
-          timeout: 20000
       - tapOn: "Settings"
       - scrollUntilVisible:
           element:
@@ -37,11 +41,16 @@ appId: com.mobileagentbridge
     index: 0
 - eraseText: 60
 - inputText: "ws://10.0.2.2:8081/ws"
-- tapOn:
-    text: "password (optional)"
-    index: 0
-- eraseText: 30
-- inputText: "test123"
+# 密码框可能已有默认值（placeholder 不显示）→ 仅在可见时补填
+- runFlow:
+    when:
+      visible: "password (optional)"
+    commands:
+      - tapOn:
+          text: "password (optional)"
+          index: 0
+      - eraseText: 30
+      - inputText: "test123"
 - tapOn: "Connect"
 
 # 连上后进入主界面
@@ -77,9 +86,11 @@ appId: com.mobileagentbridge
 - assertNotVisible: "RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll"
 
 # 在表格区域从右向左扫，露出右侧列
+# y 取表格垂直中心（表格 bounds ≈ [1051,1624]，中心 ≈1337px ≈ 56%），
+# 避免贴底被外层列表抢走手势
 - swipe:
-    start: "85%, 67%"
-    end: "10%, 67%"
+    start: "88%, 56%"
+    end: "10%, 56%"
 - extendedWaitUntil:
     visible: "RIGHTMOST-ANCHOR-visible-only-after-horizontal-scroll"
     timeout: 5000

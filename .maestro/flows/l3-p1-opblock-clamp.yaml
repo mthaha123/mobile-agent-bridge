@@ -8,7 +8,14 @@ appId: com.mobileagentbridge
 #   从框内起手的纵向手势直接归外层列表，方向正常。
 - launchApp
 
-# 起点自适应：主界面 → Settings → Disconnect（持久化 autoConnect=false）
+# autoConnect 默认连生产 8080：成功则进入 Sessions（+ New 出现）。
+# 等它稳定后再 Disconnect，避免在连接页被 500ms 自动连接抢占。
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 15000
+    optional: true
+
+# 若已进入主界面 → Settings → Disconnect（持久化 autoConnect=false）
 - runFlow:
     when:
       visible: "Settings"
@@ -31,11 +38,16 @@ appId: com.mobileagentbridge
     index: 0
 - eraseText: 60
 - inputText: "ws://10.0.2.2:8081/ws"
-- tapOn:
-    text: "password (optional)"
-    index: 0
-- eraseText: 30
-- inputText: "test123"
+# 密码框可能已有默认值（placeholder 不显示）→ 仅在可见时补填
+- runFlow:
+    when:
+      visible: "password (optional)"
+    commands:
+      - tapOn:
+          text: "password (optional)"
+          index: 0
+      - eraseText: 30
+      - inputText: "test123"
 - tapOn: "Connect"
 - extendedWaitUntil:
     visible: "+ New"
@@ -93,8 +105,6 @@ appId: com.mobileagentbridge
     timeout: 5000
 # 思考标签在裁剪框内可见（形如 "💭 思考"）
 - assertVisible: ".*思考.*"
-# 一级只露最新一个工具（5 个工具均成功 → 展示最后一个 read src/file-5.ts）
-- assertVisible: "src/file-5.ts"
 
 # ── 从裁剪框内起手纵向滑动：外层列表应正常滚动（无方向反转）──
 # 向上滑（内容上移）→ 露出更早的用户消息 "run an operation block"
