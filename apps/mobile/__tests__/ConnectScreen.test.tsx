@@ -295,38 +295,51 @@ describe('ConnectScreen — interactions', () => {
   })
 })
 
-// ─── 自动连接开关（尊重用户显式 Disconnect / 便于 E2E 连 Mock）─────────
+// ─── 无默认登录（连接必须由用户显式触发）──────────────────
 
-describe('ConnectScreen — autoConnect', () => {
-  it('autoConnect=true 时挂载后自动连接默认地址', async () => {
+describe('ConnectScreen — 无默认登录', () => {
+  it('挂载后不会自动发起登录（不再用硬编码默认地址/密码自动连）', async () => {
     jest.useFakeTimers()
-    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
+    const loginSpy = jest
+      .spyOn(useAuthStore.getState(), 'login')
+      .mockResolvedValue(undefined as any)
     try {
-      useSettingsStore.setState({ loaded: true, autoConnect: true })
+      useSettingsStore.setState({
+        loaded: true,
+        bridgeUrl: null,
+        bridgePassword: null,
+        projectDirectory: null,
+      })
       await act(async () => {
         TestRenderer.create(<ConnectScreen />)
-        await jest.advanceTimersByTimeAsync(600)
+        await jest.advanceTimersByTimeAsync(2000)
       })
-      expect(useAuthStore.getState().bridgeUrl).toBe('ws://10.0.2.2:8080/ws')
-      expect(loginSpy).toHaveBeenCalled()
+      expect(loginSpy).not.toHaveBeenCalled()
+      expect(useAuthStore.getState().bridgeUrl).toBe('')
     } finally {
       loginSpy.mockRestore()
       jest.useRealTimers()
     }
   })
 
-  it('autoConnect=false 时不自动连接（停留在连接页）', async () => {
+  it('即使有持久化地址也不自动连接（仍停在连接页）', async () => {
     jest.useFakeTimers()
-    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
+    const loginSpy = jest
+      .spyOn(useAuthStore.getState(), 'login')
+      .mockResolvedValue(undefined as any)
     try {
-      useSettingsStore.setState({ loaded: true, autoConnect: false })
+      useSettingsStore.setState({
+        loaded: true,
+        bridgeUrl: 'ws://10.0.2.2:8081/ws',
+        bridgePassword: 'pw',
+        projectDirectory: '/mock-project',
+      })
       let tree!: TestRenderer.ReactTestRenderer
       await act(async () => {
         tree = TestRenderer.create(<ConnectScreen />)
-        await jest.advanceTimersByTimeAsync(600)
+        await jest.advanceTimersByTimeAsync(2000)
       })
       expect(loginSpy).not.toHaveBeenCalled()
-      // 仍停留在连接页
       expect(textOf(tree)).toContain('Connect to your OpenCode agent')
     } finally {
       loginSpy.mockRestore()
@@ -334,34 +347,15 @@ describe('ConnectScreen — autoConnect', () => {
     }
   })
 
-  it('settings 尚未从磁盘恢复（loaded=false）时不自动连接', async () => {
-    jest.useFakeTimers()
-    const loginSpy = jest.spyOn(useAuthStore.getState(), 'login').mockResolvedValue(undefined as any)
-    try {
-      useSettingsStore.setState({ loaded: false, autoConnect: true })
-      await act(async () => {
-        TestRenderer.create(<ConnectScreen />)
-        await jest.advanceTimersByTimeAsync(600)
-      })
-      expect(loginSpy).not.toHaveBeenCalled()
-    } finally {
-      loginSpy.mockRestore()
-      jest.useRealTimers()
-    }
-  })
-
-  it('autoConnect=false 时手动点 Connect 仍会发起登录', async () => {
-    useSettingsStore.setState({ loaded: true, autoConnect: false })
+  it('手动点 Connect 仍会发起登录', async () => {
+    useSettingsStore.setState({ loaded: true })
     const tree = TestRenderer.create(<ConnectScreen />)
 
-    const setByPlaceholder = (prefix: string, value: string) => {
-      const input = findAllInputs(tree).find((i: any) =>
-        (i.props.placeholder || '').startsWith(prefix),
-      )
-      expect(input).toBeDefined()
-      act(() => { input!.props.onChangeText(value) })
-    }
-    setByPlaceholder('ws://', 'ws://localhost:8081/ws')
+    const input = findAllInputs(tree).find((i: any) =>
+      (i.props.placeholder || '').startsWith('ws://'),
+    )
+    expect(input).toBeDefined()
+    act(() => { input!.props.onChangeText('ws://localhost:8081/ws') })
 
     const connectBtn = findAllPressable(tree).find((p: any) => {
       const t = textOf({ toJSON: () => p } as any)
@@ -371,5 +365,67 @@ describe('ConnectScreen — autoConnect', () => {
     await act(async () => { connectBtn!.props.onPress() })
 
     expect(useAuthStore.getState().bridgeUrl).toBe('ws://localhost:8081/ws')
+  })
+})
+
+// ─── 连接参数持久化（联调不再退回默认地址 / 不再误连生产）─────────────
+
+describe('ConnectScreen — persisted connection settings', () => {
+  const byPlaceholder = (tree: TestRenderer.ReactTestRenderer, prefix: string) => {
+    const input = findAllInputs(tree).find((i: any) =>
+      (i.props.placeholder || '').startsWith(prefix),
+    )
+    expect(input).toBeDefined()
+    return input as any
+  }
+
+  it('从未连接过时输入框为空（不预填任何硬编码地址/密码）', async () => {
+    useSettingsStore.setState({
+      loaded: true,
+      bridgeUrl: null,
+      bridgePassword: null,
+      projectDirectory: null,
+    })
+
+    let tree!: TestRenderer.ReactTestRenderer
+    await act(async () => { tree = TestRenderer.create(<ConnectScreen />) })
+
+    expect(byPlaceholder(tree, 'ws://').props.value).toBe('')
+    expect(byPlaceholder(tree, 'password').props.value).toBe('')
+    expect(byPlaceholder(tree, 'project directory').props.value).toBe('')
+  })
+
+  it('挂载时回填上次持久化的连接参数', async () => {
+    useSettingsStore.setState({
+      loaded: true,
+      bridgeUrl: 'ws://10.0.2.2:8081/ws',
+      bridgePassword: 'pw',
+      projectDirectory: '/mock-project',
+    })
+
+    let tree!: TestRenderer.ReactTestRenderer
+    await act(async () => { tree = TestRenderer.create(<ConnectScreen />) })
+
+    expect(byPlaceholder(tree, 'ws://').props.value).toBe('ws://10.0.2.2:8081/ws')
+    expect(byPlaceholder(tree, 'password').props.value).toBe('pw')
+    expect(byPlaceholder(tree, 'project directory').props.value).toBe('/mock-project')
+  })
+
+  it('点 Connect 会把本次连接参数存盘（下次启动回填）', async () => {
+    useSettingsStore.setState({ loaded: true })
+    const tree = TestRenderer.create(<ConnectScreen />)
+
+    act(() => { byPlaceholder(tree, 'ws://').props.onChangeText('ws://10.0.2.2:8081/ws') })
+    act(() => { byPlaceholder(tree, 'password').props.onChangeText('pw') })
+
+    const connectBtn = findAllPressable(tree).find((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t.includes('Connect')
+    })
+    expect(connectBtn).toBeDefined()
+    await act(async () => { connectBtn!.props.onPress() })
+
+    expect(useSettingsStore.getState().bridgeUrl).toBe('ws://10.0.2.2:8081/ws')
+    expect(useSettingsStore.getState().bridgePassword).toBe('pw')
   })
 })

@@ -3,6 +3,12 @@
  *
  * 用户输入 WebSocket URL 和可选密码，连接至 OpenCode Agent。
  * 读取 useAuthStore 管理连接状态。
+ *
+ * 连接必须由用户显式触发（无默认登录）：
+ * 此前挂载后会拿硬编码的 `ws://10.0.2.2:8080/ws` + `test123` 自动登录，
+ * 联调时极易误连到生产地址；现已移除该行为。
+ * 输入框从 settingsStore 回填「上次真正用过的连接参数」（从未填过则为空），
+ * 点 Connect 时把本次输入存盘，下次启动直接可用。
  */
 import React, { useState, useEffect, useRef } from 'react'
 import {
@@ -21,48 +27,38 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
 
-const DEFAULT_URL = 'ws://10.0.2.2:8080/ws'
-const DEFAULT_PASSWORD = 'test123'
-/** 自动登录使用较短的连接超时（秒），避免用户长时间等待不可达的地址 */
-const AUTO_CONNECT_TIMEOUT_MS = 5000
-
 export const ConnectScreen: React.FC = () => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
-  const [urlInput, setUrlInput] = useState(DEFAULT_URL)
-  const [passwordInput, setPasswordInput] = useState(DEFAULT_PASSWORD)
+  const [urlInput, setUrlInput] = useState('')
+  const [passwordInput, setPasswordInput] = useState('')
   const [directoryInput, setDirectoryInput] = useState('')
-  const autoConnectDone = useRef(false)
+  const hydrated = useRef(false)
 
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
   const settingsLoaded = useSettingsStore((s) => s.loaded)
-  const autoConnect = useSettingsStore((s) => s.autoConnect)
 
-  // Auto-connect with defaults on first mount (for dev/testing convenience).
-  // 尊重用户显式 Disconnect：设置 autoConnect=false 后不再自动连回，
-  // 从而停留在连接页（也便于 E2E 连接 Mock Bridge 而不被生产地址抢占）。
-  // 必须等 settingsStore 从磁盘恢复完成，否则会读到默认 true 而误连。
+  // 用磁盘上「上次真正用过的连接参数」回填输入框
+  // （只回填一次，不覆盖用户正在输入的内容；从未连过则保持为空）
   useEffect(() => {
-    if (autoConnectDone.current) return
-    if (!settingsLoaded) return
-    if (!autoConnect) return
-    autoConnectDone.current = true
-    const timer = setTimeout(async () => {
-      useAuthStore.getState().setBridgeUrl(DEFAULT_URL)
-      useProjectStore.getState().setDirectory('')
-      try {
-        await useAuthStore.getState().login(DEFAULT_PASSWORD, AUTO_CONNECT_TIMEOUT_MS)
-      } catch {
-        // login() 内部已处理错误，此处仅防止未捕获异常
-      }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [settingsLoaded, autoConnect])
+    if (!settingsLoaded || hydrated.current) return
+    hydrated.current = true
+    const saved = useSettingsStore.getState()
+    if (saved.bridgeUrl) setUrlInput(saved.bridgeUrl)
+    if (saved.bridgePassword) setPasswordInput(saved.bridgePassword)
+    if (saved.projectDirectory) setDirectoryInput(saved.projectDirectory)
+  }, [settingsLoaded])
 
   const handleConnect = () => {
     useAuthStore.getState().setBridgeUrl(urlInput)
     useProjectStore.getState().setDirectory(directoryInput)
+    // 记住本次连接参数：下次启动回填（避免退回默认地址误连）
+    void useSettingsStore.getState().saveConnection({
+      url: urlInput,
+      password: passwordInput,
+      directory: directoryInput,
+    })
     useAuthStore.getState().login(passwordInput || undefined)
   }
 

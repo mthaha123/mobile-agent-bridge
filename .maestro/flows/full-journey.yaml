@@ -2,6 +2,7 @@ appId: com.mobileagentbridge
 ---
 # ─── 启动 app ───────────────────────────────────
 - launchApp
+- runFlow: shared/connect.yaml
 
 # ─── 导航测试：Tab 切换 ──────────────────────
 - tapOn: "Files"

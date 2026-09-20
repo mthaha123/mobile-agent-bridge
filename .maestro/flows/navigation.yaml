@@ -1,5 +1,6 @@
 appId: com.mobileagentbridge
 ---
+- runFlow: shared/connect.yaml
 - tapOn: "Chat"
 - assertVisible: "Sessions"
 - assertVisible: "+ New"

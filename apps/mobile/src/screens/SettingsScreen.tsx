@@ -45,7 +45,6 @@ export const SettingsScreen: React.FC = () => {
   const setDefaultAgent = useSettingsStore((s) => s.setDefaultAgent)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
   const setChatDisplayMode = useSettingsStore((s) => s.setChatDisplayMode)
-  const setAutoConnect = useSettingsStore((s) => s.setAutoConnect)
   const agents = useConfigStore((s) => s.agents) as Array<{ id?: string; name?: string; label?: string; description?: string }>
   const models = useConfigStore((s) => s.models)
 
@@ -95,8 +94,6 @@ export const SettingsScreen: React.FC = () => {
   }, [client])
 
   const handleDisconnect = () => {
-    // 显式断开 = 不再自动连回（避免刚断开又被 500ms 自动连接带回；也便于 E2E 停留连接页）
-    void setAutoConnect(false)
     logout()
     setScreen('connect')
   }

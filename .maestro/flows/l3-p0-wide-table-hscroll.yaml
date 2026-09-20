@@ -5,30 +5,8 @@ appId: com.mobileagentbridge
 # 思路：连 Mock → 新建会话 → 发 "__widetable__" 注入超宽 Markdown 表格 →
 #       断言横滑前右侧锚点不可见 → 横滑后可见（证明嵌套横向滚动生效）
 #
-# 起点自适应：
-#   若停在主界面（Settings 可见）→ Settings → Disconnect（持久化 autoConnect=false）
-#   若已在连接页 → 跳过，直接改写 URL
+# 无默认登录：App 启动即停在连接页（不会再自动连生产 8080）
 - launchApp
-
-# autoConnect 默认连生产 8080：成功则进入 Sessions（+ New 出现）。
-# 等它稳定后再 Disconnect，避免在连接页被 500ms 自动连接抢占。
-- extendedWaitUntil:
-    visible: "+ New"
-    timeout: 15000
-    optional: true
-
-# 若已进入主界面 → Settings → Disconnect（持久化 autoConnect=false）
-- runFlow:
-    when:
-      visible: "Settings"
-    commands:
-      - tapOn: "Settings"
-      - scrollUntilVisible:
-          element:
-            text: "Disconnect"
-          direction: DOWN
-          timeout: 15000
-      - tapOn: "Disconnect"
 
 # 连接页就绪
 - extendedWaitUntil:

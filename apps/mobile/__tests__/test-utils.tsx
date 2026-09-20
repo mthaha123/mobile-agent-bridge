@@ -114,7 +114,9 @@ export function resetAllStores() {
     defaultAgent: null,
     defaultModel: null,
     chatDisplayMode: 'flat',
-    autoConnect: true,
+    bridgeUrl: null,
+    bridgePassword: null,
+    projectDirectory: null,
     loaded: false,
   })
 }

@@ -1,6 +1,7 @@
 appId: com.mobileagentbridge
 ---
 - launchApp
+- runFlow: shared/connect.yaml
 - tapOn: "Settings"
 - assertVisible: "Disconnect"
 - assertVisible: "Connected"

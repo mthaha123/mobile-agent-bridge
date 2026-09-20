@@ -21,7 +21,15 @@ const SETTINGS_PATH = '/mock/documents/mobile-agent-bridge-settings.json'
 describe('settingsStore', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    useSettingsStore.setState({ defaultAgent: null, defaultModel: null, chatDisplayMode: 'flat', autoConnect: true, loaded: false })
+    useSettingsStore.setState({
+      defaultAgent: null,
+      defaultModel: null,
+      chatDisplayMode: 'flat',
+      bridgeUrl: null,
+      bridgePassword: null,
+      projectDirectory: null,
+      loaded: false,
+    })
   })
 
   it('load 从 DocumentDir 恢复持久化设置', async () => {
@@ -117,30 +125,76 @@ describe('settingsStore', () => {
     )
   })
 
-  it('load 恢复 autoConnect=false（用户曾显式断开）', async () => {
+  // ─── 连接参数持久化（联调不再误连默认地址）───────────────
+
+  it('load 恢复上次使用的连接参数', async () => {
     fs.exists.mockResolvedValue(true)
-    fs.readFile.mockResolvedValue(JSON.stringify({ autoConnect: false }))
+    fs.readFile.mockResolvedValue(JSON.stringify({
+      bridgeUrl: 'ws://10.0.2.2:8081/ws',
+      bridgePassword: 'pw',
+      projectDirectory: '/mock-project',
+    }))
     await useSettingsStore.getState().load()
 
-    expect(useSettingsStore.getState().autoConnect).toBe(false)
+    expect(useSettingsStore.getState().bridgeUrl).toBe('ws://10.0.2.2:8081/ws')
+    expect(useSettingsStore.getState().bridgePassword).toBe('pw')
+    expect(useSettingsStore.getState().projectDirectory).toBe('/mock-project')
   })
 
-  it('load 容忍旧格式（无 autoConnect 字段）默认 true', async () => {
+  it('load 容忍旧格式（无连接参数字段）默认 null', async () => {
     fs.exists.mockResolvedValue(true)
     fs.readFile.mockResolvedValue(JSON.stringify({ defaultAgent: 'plan' }))
     await useSettingsStore.getState().load()
 
-    expect(useSettingsStore.getState().autoConnect).toBe(true)
+    expect(useSettingsStore.getState().bridgeUrl).toBeNull()
+    expect(useSettingsStore.getState().bridgePassword).toBeNull()
+    expect(useSettingsStore.getState().projectDirectory).toBeNull()
   })
 
-  it('setAutoConnect 更新状态并持久化', async () => {
-    await useSettingsStore.getState().setAutoConnect(false)
+  it('saveConnection 更新状态并持久化', async () => {
+    await useSettingsStore.getState().saveConnection({
+      url: 'ws://10.0.2.2:8081/ws',
+      password: 'pw',
+      directory: '/mock-project',
+    })
 
-    expect(useSettingsStore.getState().autoConnect).toBe(false)
+    expect(useSettingsStore.getState().bridgeUrl).toBe('ws://10.0.2.2:8081/ws')
+    expect(useSettingsStore.getState().bridgePassword).toBe('pw')
+    expect(useSettingsStore.getState().projectDirectory).toBe('/mock-project')
     expect(fs.writeFile).toHaveBeenCalledWith(
       SETTINGS_PATH,
-      expect.stringContaining('"autoConnect":false'),
+      expect.stringContaining('"bridgeUrl":"ws://10.0.2.2:8081/ws"'),
       'utf8',
     )
+  })
+
+  it('saveConnection 只传部分字段时其余沿用当前值', async () => {
+    await useSettingsStore.getState().saveConnection({ url: 'ws://a/ws' })
+    await useSettingsStore.getState().saveConnection({ password: 'pw2' })
+
+    expect(useSettingsStore.getState().bridgeUrl).toBe('ws://a/ws')
+    expect(useSettingsStore.getState().bridgePassword).toBe('pw2')
+  })
+
+  it('保存其它设置时不会丢掉已保存的连接参数（共用整份落盘）', async () => {
+    await useSettingsStore.getState().saveConnection({ url: 'ws://a/ws' })
+    fs.writeFile.mockClear()
+
+    await useSettingsStore.getState().setChatDisplayMode('grouped')
+
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      SETTINGS_PATH,
+      expect.stringContaining('"bridgeUrl":"ws://a/ws"'),
+      'utf8',
+    )
+  })
+
+  it('saveConnection 持久化失败不阻断状态更新', async () => {
+    fs.writeFile.mockRejectedValue(new Error('disk full'))
+
+    await expect(
+      useSettingsStore.getState().saveConnection({ url: 'ws://b/ws' }),
+    ).resolves.not.toThrow()
+    expect(useSettingsStore.getState().bridgeUrl).toBe('ws://b/ws')
   })
 })
