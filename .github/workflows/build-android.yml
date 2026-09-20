@@ -35,7 +35,13 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # 显式只装 platform-tools：Google 已下架 `tools` 包
+          # （v3 默认会装 `tools platform-tools`，导致 sdkmanager 报
+          #  "Failed to find package 'tools'" 而整个 action 失败）。
+          # cmdline-tools 由本 action 自身安装并加入 PATH，无需再装 `tools`。
+          packages: 'platform-tools'
 
       - name: Install NDK 27.1.12297006
         run: sdkmanager --install "ndk;27.1.12297006" "build-tools;34.0.0" "platforms;android-34"
