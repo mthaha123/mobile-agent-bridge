@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Part } from '../types/message'
 import { buildToolPartFromRaw, isTerminalToolStatus, isOpenToolStatus } from '../utils/toolParts'
+import { runReconcile } from '../services/reconcile'
 
 // ─── 新数据模型 ────────────────────────────────────────────
 
@@ -914,6 +915,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return
         }
         await get().fetchSessionRunStatus(statusPollSid, client.call.bind(client))
+        // 顺带对账 question/permission：WS/SSE 不重放事件，前台运行中一旦静默
+        // 丢事件（bridge 转发停摆、僵尸半开等）就没有任何弹框了。这里复用已经
+        // 在跑的 busy 轮询 tick（5s）做兜底，不额外挂定时器。未注册钩子时为 no-op。
+        runReconcile()
         // 用查询后的最新状态裁决是否继续
         const now = get()
         const busyLike =

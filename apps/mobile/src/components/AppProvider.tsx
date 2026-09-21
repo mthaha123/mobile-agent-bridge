@@ -11,6 +11,12 @@ import { useQuestionStore, type QuestionItem } from '../stores/questionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useConfigStore, CONFIG_REFRESH_TTL_MS } from '../stores/configStore'
 import { BridgeClient } from '../services/BridgeClient'
+import { setReconcileHook } from '../services/reconcile'
+import {
+  createStreamDeltaCoalescer,
+  isStreamDeltaMethod,
+  type StreamDeltaCoalescer,
+} from '../services/streamDeltaCoalescer'
 import { setToolReplyCall } from '../screens/ToolApprovalSheet'
 import { setQuestionReplyCall, setQuestionRejectCall } from '../screens/QuestionSheet'
 
@@ -38,6 +44,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const appStateSubRef = useRef<{ remove: () => void } | null>(null)
   const configRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configRefreshSubRef = useRef<(() => void) | null>(null)
+  const streamCoalescerRef = useRef<StreamDeltaCoalescer | null>(null)
 
   // 启动时一次性恢复本地偏好（默认 agent/model），失败静默
   useEffect(() => {
@@ -119,7 +126,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     // 配置拉取由 authStore.login 在 project.switch 建立 OpenCode 连接后显式驱动，
     // 保证时序：连接 → 切项目 → 拉配置 → 进入主界面
 
+    // 最近一次收到任何通知的时间：对账时打印「距上次事件多久」，用于定位静默丢事件
+    let lastNotificationAt = 0
+
+    // 高频文本增量的合并投递器（见 services/streamDeltaCoalescer）
+    streamCoalescerRef.current?.discard() // 重复 setup 时先丢弃上一实例的挂起增量
+    const streamCoalescer = createStreamDeltaCoalescer((method, payload) => {
+      useChatStore.getState().ingestEvent(method, payload as any)
+    })
+    streamCoalescerRef.current = streamCoalescer
+
     client.on('notification', (method: string, payload: any) => {
+      lastNotificationAt = Date.now()
+      // 高频文本增量先入队合并投递（见 streamDeltaCoalescer 说明）：逐条写入
+      // 会让流式 markdown 全文被反复 lex+parse 并整树重挂载，JS/UI 线程被打满。
+      // 其余事件到达前必须先 flush，保证事件顺序（尤其 text.ended 权威全文覆盖）。
+      if (isStreamDeltaMethod(method)) {
+        streamCoalescer.push(method, payload)
+        return
+      }
+      streamCoalescer.flush()
       // chat 相关事件统一交给 ingestEvent：会话过滤、工具 part 状态、
       // runError/waiting/pendingSteps 状态机均在 ingest 层处理
       useChatStore.getState().ingestEvent(method, payload)
@@ -175,6 +201,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // 问答请求
       if (method === 'question.v2.asked') {
+        console.log(
+          `[question] 实时 question.v2.asked id=${p.id || ''} session=${p.sessionID || ''} pendingBefore=${useQuestionStore.getState().pending.length}`,
+        )
         useQuestionStore.getState().addQuestion({
           id: p.id || '',
           sessionId: p.sessionID || '',
@@ -227,9 +256,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }>
         if (!Array.isArray(list)) return
         const serverIds = new Set<string>()
+        const added: string[] = []
         for (const req of list) {
           if (!req || typeof req.id !== 'string' || !req.id) continue
           serverIds.add(req.id)
+          if (!beforeIds.has(req.id)) added.push(req.id)
           useToolStore.getState().enqueue({
             id: req.id,
             tool: typeof req.permission === 'string' ? req.permission : 'unknown',
@@ -241,13 +272,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             sourceCallID: req.tool?.callID,
           })
         }
+        const removed: string[] = []
         for (const item of useToolStore.getState().pendingApprovals) {
           if (beforeIds.has(item.id) && !serverIds.has(item.id)) {
             useToolStore.getState().dequeue(item.id)
+            removed.push(item.id)
           }
         }
-      } catch {
-        // 静默：对账失败保持现状，等待下一次 connected/实时事件
+        if (added.length > 0 || removed.length > 0) {
+          console.log(
+            `[permission] 对账 server=${list.length} added=${added.length} removed=${removed.length}`,
+          )
+        }
+      } catch (e) {
+        console.warn('[permission] 对账失败:', e instanceof Error ? e.message : e)
       }
     }
 
@@ -260,6 +298,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     //   - 服务器有而本地无 → 补入 questionStore（弹框立即出现）
     //   - 本地有而服务器无 → 仅移除"快照前已存在"的条目，避免与实时通知竞态
     const reconcileQuestions = async () => {
+      const startedAt = Date.now()
       try {
         const beforeIds = new Set(
           useQuestionStore.getState().pending.map((q) => q.id),
@@ -272,6 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }>
         if (!Array.isArray(list)) return
         const serverIds = new Set<string>()
+        const added: string[] = []
         for (const req of list) {
           if (!req || typeof req.id !== 'string' || !req.id) continue
           serverIds.add(req.id)
@@ -284,16 +324,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
               : []) as QuestionItem['questions'],
             tool: req.tool as QuestionItem['tool'],
           })
+          added.push(req.id)
         }
+        const removed: string[] = []
         for (const item of useQuestionStore.getState().pending) {
           if (beforeIds.has(item.id) && !serverIds.has(item.id)) {
             useQuestionStore.getState().removeQuestion(item.id)
+            removed.push(item.id)
           }
         }
-      } catch {
-        // 静默：对账失败保持现状，等待下一次 connected/实时事件
+        const sinceNotify = lastNotificationAt ? `${Date.now() - lastNotificationAt}ms` : 'n/a'
+        // 只在有变化时打日志：无变化时每个 tick 都打印会刷屏（对账本身是幂等的）
+        if (added.length > 0 || removed.length > 0) {
+          console.log(
+            `[question] 对账 server=${list.length} added=${added.length} removed=${removed.length} elapsed=${Date.now() - startedAt}ms sinceLastNotify=${sinceNotify}`,
+          )
+        }
+        if (added.length > 0) {
+          // 服务端仍在等待、本地却没有 → 实时 question.v2.asked 未到达的实锤
+          console.warn(
+            `[question] 实时事件疑似丢失，对账补回 ${added.length} 条: ${added.join(', ')}（sinceLastNotify=${sinceNotify}）`,
+          )
+        }
+      } catch (e) {
+        // 不再静默：对账失败要能从日志看到（下一次 connected/tick 会重试）
+        console.warn('[question] 对账失败:', e instanceof Error ? e.message : e)
       }
     }
+
+    // 注册周期对账钩子：chatStore 的 busy 轮询 tick（5s）会调用它，兜底
+    // 「前台运行中静默丢事件」——无需等 WS 重连 / App 回前台才有弹框。
+    setReconcileHook(async () => {
+      await Promise.all([reconcileQuestions(), reconcilePermissions()])
+    })
 
     // 连接/重连建立时校正当前会话状态。
     //
@@ -377,7 +440,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     configRefreshTimerRef.current = null
     configRefreshSubRef.current?.()
     configRefreshSubRef.current = null
+    streamCoalescerRef.current?.discard() // 连接销毁：丢弃挂起的流式增量
+    streamCoalescerRef.current = null
     useChatStore.getState().stopStatusPolling() // 连接销毁：条件轮询一并撤销
+    setReconcileHook(null) // 连接销毁：周期对账钩子一并撤销
     setQuestionRejectCall(null)
     clientRef.current?.destroy()
     clientRef.current = null

@@ -16,6 +16,17 @@ import { useQuestionStore } from '../src/stores/questionStore'
 import { useSessionStore } from '../src/stores/sessionStore'
 import { useConfigStore, CONFIG_REFRESH_TTL_MS } from '../src/stores/configStore'
 import { mockClient, resetAllStores } from './test-utils'
+import { STREAM_DELTA_FLUSH_MS } from '../src/services/streamDeltaCoalescer'
+
+/**
+ * 流式文本增量在 transport 层按 STREAM_DELTA_FLUSH_MS 合并后才投递给 chatStore
+ * （见 services/streamDeltaCoalescer）。断言 store 状态前必须等一个合并窗口。
+ */
+async function flushStreamDeltas(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, STREAM_DELTA_FLUSH_MS + 30))
+  })
+}
 
 function mockClientAndRender(opts?: {
   connected?: boolean
@@ -91,7 +102,7 @@ describe('project.changed handler', () => {
     expect(state.currentServe).toEqual({ id: 's1', name: 'test-serve', port: 4100, status: 'running' })
   })
 
-  it('feeds text delta into chat store on session.next.text.delta', () => {
+  it('feeds text delta into chat store on session.next.text.delta', async () => {
     const { notifyHandler } = mockClientAndRender()
 
     TestRenderer.act(() => {
@@ -102,6 +113,7 @@ describe('project.changed handler', () => {
         delta: 'Hello ',
       })
     })
+    await flushStreamDeltas()
 
     const msgs = useChatStore.getState().messages
     expect(msgs).toHaveLength(1)
@@ -110,7 +122,7 @@ describe('project.changed handler', () => {
     expect(msgs[0].content).toBe('Hello ')
   })
 
-  it('ignores text delta from a different session than active', () => {
+  it('ignores text delta from a different session than active', async () => {
     useChatStore.setState({ activeSessionId: 'sess-A' })
     const { notifyHandler } = mockClientAndRender()
 
@@ -121,6 +133,7 @@ describe('project.changed handler', () => {
         delta: 'intruder',
       })
     })
+    await flushStreamDeltas()
 
     expect(useChatStore.getState().messages).toHaveLength(0)
   })
@@ -628,7 +641,7 @@ describe('session.next.reasoning.delta handler', () => {
     expect(rp?.data.content).toBe('Thinking...')
   })
 
-  it('routes string eventId (SDK v3 evt_) to chat store append', () => {
+  it('routes string eventId (SDK v3 evt_) to chat store append', async () => {
     const { notifyHandler } = mockClientAndRender()
 
     TestRenderer.act(() => {
@@ -638,6 +651,7 @@ describe('session.next.reasoning.delta handler', () => {
         eventId: 'evt_fb6f255e9001TJs7iVnFH5LJz9',
       })
     })
+    await flushStreamDeltas()
 
     expect(useChatStore.getState().messages[0].content).toBe('Hello ')
   })
@@ -1272,6 +1286,55 @@ describe('重连后待回答问题对账', () => {
     await flush()
 
     expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['keep'])
+  })
+
+  it('busy 轮询 tick 触发对账：实时事件丢失时也能补回提问（无需重连/回前台）', async () => {
+    jest.useFakeTimers()
+    try {
+      const { client } = mockClientAndRender({ connected: true })
+      client.call.mockImplementation(async (method: string) => {
+        if (method === 'question.list') return [pendingQuestion]
+        if (method === 'permission.list') return []
+        if (method === 'session.status') return {}
+        throw new Error(`Unhandled method: ${method}`)
+      })
+
+      // 进入运行态（模拟发消息后 agent 阻塞在 question 上）→ 启动 busy 条件轮询
+      TestRenderer.act(() => {
+        useChatStore.setState({ activeSessionId: 'sess-1' })
+        useChatStore.getState().ensureStatusPolling('sess-1')
+      })
+
+      // 一个 5s tick 内不依赖任何实时 question.v2.asked
+      await TestRenderer.act(async () => { await jest.advanceTimersByTimeAsync(5000) })
+      await flush()
+
+      expect(client.call).toHaveBeenCalledWith('question.list', {})
+      expect(useQuestionStore.getState().pending.map((q) => q.id)).toEqual(['que-1'])
+    } finally {
+      useChatStore.getState().stopStatusPolling()
+      jest.useRealTimers()
+    }
+  })
+
+  it('对账补回实时丢失的提问时打 WARN 日志（便于线上定位事件丢失）', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { handlers, client } = mockClientAndRender({ connected: false })
+      client.call.mockImplementation(async (method: string) => {
+        if (method === 'question.list') return [pendingQuestion]
+        if (method === 'permission.list') return []
+        throw new Error(`Unhandled method: ${method}`)
+      })
+
+      await act(async () => { handlers['connected']?.() })
+      await flush()
+
+      const combined = warnSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n')
+      expect(combined).toContain('que-1')
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 })
 

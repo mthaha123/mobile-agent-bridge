@@ -1,7 +1,7 @@
 import React from 'react'
 import TestRenderer from 'react-test-renderer'
 import { View } from 'react-native'
-import { MarkdownRenderer } from '../src/components/chat/MarkdownRenderer'
+import { MarkdownRenderer, TableAwareRenderer } from '../src/components/chat/MarkdownRenderer'
 
 function textOf(node: any): string {
   if (!node) return ''
@@ -191,5 +191,45 @@ describe('MarkdownRenderer', () => {
     const tree = TestRenderer.create(<MarkdownRenderer content="#Heading" />)
     const text = textOf(tree.toJSON())
     expect(text).not.toBe('')
+  })
+
+  // ── 位置键（性能回归防护）──────────────────────────────────────────────
+  //
+  // 背景：react-native-marked 的 Renderer.getKey() 用 github-slugger 的单调递增
+  // slug 当 key，且 slugger 永不重置 —— 每次重新解析（流式每 80ms 一次）都产出全新
+  // key，React 判定整棵 markdown 子树"全删全建"，Fabric 把每个节点重新
+  // create + measure + layout（实测主线程卡在 View.<init>/View.measure 打满、
+  // 点击无响应，slugger 内部 Set 还无界增长导致内存持续上涨）。
+  //
+  // 修复：覆盖 getKey() 为"单次解析内自增的位置键"（见 MarkdownRenderer.tsx）。
+  // 注意：jest 环境下 react-native-marked 的 marked.lexer 不解析（返回整段原始
+  // 文本），因此这里直接对渲染器契约做单测，而不是断言组件产出的 key。
+  describe('位置键（性能回归防护）', () => {
+    it('同一实例 resetKeys 后键序列可复现（前缀稳定，避免整树重建）', () => {
+      const r = new TableAwareRenderer()
+      r.resetKeys()
+      const first = [r.getKey(), r.getKey(), r.getKey()]
+      r.resetKeys()
+      const second = [r.getKey(), r.getKey(), r.getKey()]
+      expect(second).toEqual(first)
+      // 单次解析内键必须唯一
+      expect(new Set(first).size).toBe(first.length)
+    })
+
+    it('resetKeys 后首个键与上次相同（旧 slugger 实现会持续递增）', () => {
+      const r = new TableAwareRenderer()
+      r.resetKeys()
+      const k1 = r.getKey()
+      r.resetKeys()
+      expect(r.getKey()).toBe(k1)
+    })
+
+    it('不同实例的键命名空间互不冲突', () => {
+      const a = new TableAwareRenderer()
+      const b = new TableAwareRenderer()
+      a.resetKeys()
+      b.resetKeys()
+      expect(a.getKey()).not.toBe(b.getKey())
+    })
   })
 })

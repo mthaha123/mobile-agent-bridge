@@ -18,7 +18,12 @@ import type { Part } from '../../types/message'
  * - 单条 assistant 消息原样透传（引用不变，配合 MessageItem memo 避免多余重渲染）
  *
  * 仅影响展示：chatStore 数据保持逐条 SDK 消息不变。
+ *
+ * mergedRunCache：key = run 首条消息引用，value = 上次的成员快照与合并对象。
+ * 成员引用逐一未变时复用合并对象，保住 MessageItem 的 memo（详见 flush 内注释）。
  */
+const mergedRunCache = new WeakMap<ChatMessage, { members: ChatMessage[]; merged: ChatMessage }>()
+
 export function mergeConsecutiveAssistantMsgs(msgs: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = []
   let acc: ChatMessage[] = []
@@ -29,6 +34,15 @@ export function mergeConsecutiveAssistantMsgs(msgs: ChatMessage[]): ChatMessage[
       // 单条无需重建，原引用透传
       result.push(acc[0])
     } else {
+      // 成员引用全都没变时复用上一次的合并结果 —— 否则每次流式 flush 都会
+      // 生成新的合并对象，使 MessageItem 的 memo 失效，整段 run（含历史文本、
+      // 思考块、工具卡）跟着重渲染并重新 lex+parse markdown。
+      const cached = mergedRunCache.get(acc[0])
+      if (cached && cached.members.length === acc.length && cached.members.every((m, i) => m === acc[i])) {
+        result.push(cached.merged)
+        acc = []
+        return
+      }
       const first = acc[0]
       const parts: Part[] = []
       for (const m of acc) {
@@ -50,11 +64,13 @@ export function mergeConsecutiveAssistantMsgs(msgs: ChatMessage[]): ChatMessage[
         acc = []
         return
       }
-      result.push({
+      const merged: ChatMessage = {
         ...first,
         parts,
         content: '',
-      })
+      }
+      mergedRunCache.set(first, { members: [...acc], merged })
+      result.push(merged)
     }
     acc = []
   }

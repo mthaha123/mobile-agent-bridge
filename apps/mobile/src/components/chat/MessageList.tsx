@@ -39,7 +39,10 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
   } = props
 
   const colors = useThemeColors()
-  const styles = makeStyles(colors)
+  // styles 必须跨渲染稳定：否则 renderItem（useCallback 依赖 styles）每次父级重渲染
+  // 都换新引用 → FlatList 认为 renderItem 变了 → 全量 cell 重渲染（VirtualizedList
+  // 会打出 "large list that is slow to update" 警告）。
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null)
   const [showBackToBottom, setShowBackToBottom] = useState(false)
