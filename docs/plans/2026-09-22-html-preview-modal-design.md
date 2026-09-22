@@ -107,42 +107,19 @@ htmlPreviewFile.content
 
 保留文本 / 图片 / Markdown 全部逻辑不变。
 
-## Android 原生配置（外部打开必需）
+## Android 原生配置：无需 App 侧改动
 
-`targetSdk 34`。`react-native-blob-util` 的 `actionViewIntent` 使用
-authority = `${applicationId}.provider` 的 FileProvider。
+`targetSdk 34`。实施时核对 `react-native-blob-util@0.24` 源码后确认：**App 侧无需任何原生配置**。
 
-### `android/app/src/main/AndroidManifest.xml`
+- 库自身的 `android/src/main/AndroidManifest.xml` 已声明 FileProvider：
+  - class `com.ReactNativeBlobUtil.Utils.FileProvider`
+  - authority `${applicationId}.provider`（与 `actionViewIntent` 中 `RCTContext.getPackageName() + ".provider"` 一致）
+  - paths `@xml/provider_paths`，其中已含 `<cache-path name="cache-path" path="." />`，覆盖我们写入的 `CacheDir`。
+- **不可**在 App manifest 重复声明同 authority 的 provider，否则清单合并冲突导致构建失败。
+- `actionViewIntent`（v0.24）用 `try { startActivity } catch (ActivityNotFoundException)`，不做 `resolveActivity` 门控，
+  故也无需 `<queries>`；无应用可处理时 promise reject → 弹窗捕获并 `Alert`。
 
-```xml
-<provider
-  android:name="androidx.core.content.FileProvider"
-  android:authorities="${applicationId}.provider"
-  android:exported="false"
-  android:grantUriPermissions="true">
-  <meta-data
-    android:name="android.support.FILE_PROVIDER_PATHS"
-    android:resource="@xml/filepaths" />
-</provider>
-
-<!-- 防 Android 11+ 包可见性导致无法解析 text/html 查看器 -->
-<queries>
-  <intent>
-    <action android:name="android.intent.action.VIEW" />
-    <data android:mimeType="text/html" />
-  </intent>
-</queries>
-```
-
-### 新增 `android/app/src/main/res/xml/filepaths.xml`
-
-```xml
-<paths>
-  <cache-path name="cache" path="." />
-</paths>
-```
-
-最小权限：只暴露应用 cache 目录（写入目标即 `CacheDir`）。
+结论：外部打开只需 JS 侧 `ReactNativeBlobUtil.android.actionViewIntent()`，原生零改动。
 
 ## 安全策略
 
@@ -179,8 +156,8 @@ authority = `${applicationId}.provider` 的 FileProvider。
 | `apps/mobile/src/screens/FileBrowserScreen.tsx` | HTML 路由改 `openHtmlPreview` |
 | `apps/mobile/src/screens/FileViewerScreen.tsx` | 移除 HTML 分支 |
 | `apps/mobile/src/components/MainLayout.tsx` | 挂载 `HtmlPreviewModal` |
-| `apps/mobile/android/app/src/main/AndroidManifest.xml` | FileProvider + queries |
-| `apps/mobile/android/app/src/main/res/xml/filepaths.xml` | 新增 cache-path |
+| ~~`apps/mobile/android/app/src/main/AndroidManifest.xml`~~ | **无需改动**（库自带 FileProvider，见「Android 原生配置」） |
+| ~~`apps/mobile/android/app/src/main/res/xml/filepaths.xml`~~ | **无需改动** |
 | `apps/mobile/__mocks__/react-native-blob-util.js` | 补 actionViewIntent mock |
 | `apps/mobile/__tests__/HtmlPreviewModal.test.tsx` | 新增测试 |
 | `apps/mobile/__tests__/fileStore.test.ts` | 新 action 测试 |

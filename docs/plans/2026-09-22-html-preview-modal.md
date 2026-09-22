@@ -699,61 +699,24 @@ git commit -m "refactor(mobile): retire full-screen html viewer path"
 
 ---
 
-## Task 7: Android 原生配置（外部打开）
+## Task 7: Android 原生配置 — ✅ 核实为「无需改动」
 
-**Files:**
-- Modify: `apps/mobile/android/app/src/main/AndroidManifest.xml`
-- Create: `apps/mobile/android/app/src/main/res/xml/filepaths.xml`
+> 实施时核对 `react-native-blob-util@0.24` 源码后确认：库自带 FileProvider
+> （authority `${applicationId}.provider`，paths `@xml/provider_paths` 已含 `<cache-path>`）；
+> `actionViewIntent` 用 try/catch 直接 `startActivity`（无 resolveActivity 门控）。
+> 因此 App manifest **不可**重复声明同 authority provider（会清单合并冲突），也无需 `<queries>`。
+> 外部打开仅靠 JS 侧 `actionViewIntent` 即可。
 
-**Step 1: 新增 filepaths.xml**
+**Files:** 无（AndroidManifest.xml / filepaths.xml 均不改）
 
-创建 `apps/mobile/android/app/src/main/res/xml/filepaths.xml`：
+**Step 1: 验证无原生脏改动**
 
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-  <cache-path name="cache" path="." />
-</paths>
-```
+Run: `git status --short apps/mobile/android`
+Expected: 无输出
 
-**Step 2: 修改 AndroidManifest.xml**
+**Step 2: 无需提交**
 
-2a. 在 `<application>` 内、`<activity>...</activity>` 之后新增 FileProvider：
-
-```xml
-      <provider
-        android:name="androidx.core.content.FileProvider"
-        android:authorities="${applicationId}.provider"
-        android:exported="false"
-        android:grantUriPermissions="true">
-        <meta-data
-          android:name="android.support.FILE_PROVIDER_PATHS"
-          android:resource="@xml/filepaths" />
-      </provider>
-```
-
-2b. 在 `</application>` 之后、`</manifest>` 之前新增 `<queries>`：
-
-```xml
-    <queries>
-      <intent>
-        <action android:name="android.intent.action.VIEW" />
-        <data android:mimeType="text/html" />
-      </intent>
-    </queries>
-```
-
-**Step 3: 静态校验（XML 结构）**
-
-Run: `powershell -NoProfile -Command "[xml](Get-Content -Raw apps/mobile/android/app/src/main/AndroidManifest.xml) | Out-Null; [xml](Get-Content -Raw apps/mobile/android/app/src/main/res/xml/filepaths.xml) | Out-Null; 'XML OK'"`
-Expected: 输出 `XML OK`
-
-**Step 4: 提交**
-
-```bash
-git add apps/mobile/android/app/src/main/AndroidManifest.xml apps/mobile/android/app/src/main/res/xml/filepaths.xml
-git commit -m "chore(android): add FileProvider for external html open"
-```
+（本任务无文件改动。）
 
 ---
 
