@@ -19,5 +19,8 @@ module.exports = {
       mkdir: jest.fn().mockResolvedValue(undefined),
       ls: jest.fn().mockResolvedValue([]),
     },
+    android: {
+      actionViewIntent: jest.fn().mockResolvedValue(true),
+    },
   },
 }
