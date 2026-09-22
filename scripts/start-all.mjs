@@ -13,7 +13,8 @@
  *   BRIDGE_PORT            bridge 端口（默认 8080）
  *   BRIDGE_PASSWORD        bridge 密码（默认 test123）
  *   BRIDGE_DATA_DIR        bridge 数据目录（默认 <root>/servers/bridge/data）
- *   BRIDGE_SERVE_PORT_POOL 项目 serve 端口池，逗号分隔（默认 4100-4104）
+ *   BRIDGE_SERVE_PORT_POOL 项目 serve 端口池，逗号分隔（默认 4100-4109，冗余 10）
+ *   BRIDGE_SERVE_MAX       项目 serve 并发上限（默认 5）
  *   BRIDGE_LOG_DIR         日志目录（默认 <root>/logs/build）
  *   BRIDGE_RUN_DIR         PID 目录（默认同日志目录）
  *   BRIDGE_ENTRY           可选：编译产物入口（生产用 dist/index.js，免 tsx）
@@ -95,7 +96,7 @@ mkdirSync(runDir, { recursive: true })
 
 // ─── 端口分段校验（防生产/开发顺位串段）────────────────────
 function validatePortSegments() {
-  const pool = (process.env.BRIDGE_SERVE_PORT_POOL || "4100,4101,4102,4103,4104")
+  const pool = (process.env.BRIDGE_SERVE_PORT_POOL || "4100,4101,4102,4103,4104,4105,4106,4107,4108,4109")
     .split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n) && n > 0)
 
   if (SERVE_PORT === BRIDGE_PORT) {

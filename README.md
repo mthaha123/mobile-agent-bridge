@@ -107,7 +107,7 @@ npm run e2e:test-rpcs     # 验证 5 个核心 RPC (9 断言)
 
 | 文件 | bridge | 默认 serve | 项目 serve 池 | 数据目录 |
 |---|---|---|---|---|
-| `scripts/prod.env` | 8080 | 4097 | 4100-4104 | `servers/bridge/data` |
+| `scripts/prod.env` | 8080 | 4097 | 4100-4109 | `servers/bridge/data` |
 | `scripts/dev.env` | 19985 | 19986 | 19990-19999 | `.dev-data` |
 
 两段最小间隔 >1.5 万端口，"顺位分配"绝不可能跨段；混段配置会被拒绝启动。
@@ -126,7 +126,7 @@ node scripts/start-all.mjs --env-file scripts/prod.env --status
 node scripts/start-all.mjs --env-file scripts/prod.env --stop
 ```
 
-> 不带 `--env-file` 时 `start-all` 默认即生产端口（8080/4097/4100-4104）。
+> 不带 `--env-file` 时 `start-all` 默认即生产端口（8080/4097/4100-4109）。
 
 ### 开发 / 联调
 
@@ -136,7 +136,8 @@ node scripts/start-all.mjs --env-file scripts/dev.env
 
 ### 健康检查
 
-`GET http://localhost:<BRIDGE_PORT>/health` → `{ ok, service, port, uptime, dataDir, servePortPool }`
+`GET http://localhost:<BRIDGE_PORT>/health` → `{ ok, service, port, uptime, dataDir, servePortPool, serveStatus }`
+（`serveStatus` 含 `pool / maxServes / used / dead`，用于诊断端口分配与僵尸端口）
 
 ### 环境变量（`start-all` / bridge 通用）
 
@@ -144,7 +145,8 @@ node scripts/start-all.mjs --env-file scripts/dev.env
 |---|---|---|
 | `BRIDGE_PORT` | bridge WS 端口 | 8080 |
 | `SERVE_PORT` | 默认 opencode serve 端口 | 4097 |
-| `BRIDGE_SERVE_PORT_POOL` | 项目 serve 端口池（逗号分隔） | 4100-4104 |
+| `BRIDGE_SERVE_PORT_POOL` | 项目 serve 端口池（逗号分隔，冗余 10） | 4100-4109 |
+| `BRIDGE_SERVE_MAX` | 项目 serve 并发上限 | 5 |
 | `BRIDGE_DATA_DIR` | 数据目录（注册表 projects.json） | `<root>/servers/bridge/data` |
 | `BRIDGE_ENTRY` | 编译产物入口（生产用 `dist/index.js`） | 空（走 tsx/src） |
 | `BRIDGE_LOG_DIR` / `BRIDGE_RUN_DIR` | 日志 / PID 目录 | `logs/build` |

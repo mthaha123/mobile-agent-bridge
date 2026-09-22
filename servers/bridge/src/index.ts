@@ -1,6 +1,6 @@
 import { createWSServer } from "./server/ws.js"
 import { initBackend } from "./adapters/OpenCodeAdapter.js"
-import { initManager, getServePortPool } from "./state/serveManager.js"
+import { initManager, getServePortPool, getServeStatus } from "./state/serveManager.js"
 import { resolve } from "path"
 import { resolveBridgePort, resolveOpenCodeUrl, resolveDataDir } from "./config.js"
 
@@ -29,4 +29,4 @@ initBackend(OPENCODE_URL)
 // 初始化 serve 管理器（清理孤儿 + 注册退出清理）
 await initManager(PROJECT_ROOT, DATA_DIR)
 
-createWSServer(PORT, () => ({ dataDir: DATA_DIR, servePortPool: getServePortPool() }))
+createWSServer(PORT, () => ({ dataDir: DATA_DIR, servePortPool: getServePortPool(), serveStatus: getServeStatus() }))

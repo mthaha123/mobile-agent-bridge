@@ -135,13 +135,13 @@ async function main() {
   if (!existsSync(registry)) fail("BRIDGE_DATA_DIR 未生效，缺少 " + registry)
   log("[PASS] 独立数据目录生效: " + registry)
 
-  // 3) serve 端口池隔离：本实例实际生效的是配置的池，而非默认 4100-4104
+  // 3) serve 端口池隔离：本实例实际生效的是配置的池，而非默认 4100-4109
   const pool = parsed.servePortPool
   const expected = SERVE_POOL.split(",").map((s) => parseInt(s, 10))
   if (!Array.isArray(pool) || JSON.stringify(pool) !== JSON.stringify(expected)) {
     fail("serve 端口池未按 BRIDGE_SERVE_PORT_POOL 生效: " + JSON.stringify(pool))
   }
-  if (pool.some((p) => [4100, 4101, 4102, 4103, 4104].includes(p))) {
+  if (pool.some((p) => [4100, 4101, 4102, 4103, 4104, 4105, 4106, 4107, 4108, 4109].includes(p))) {
     fail("端口池仍包含默认端口，隔离失效: " + JSON.stringify(pool))
   }
   log("[PASS] serve 端口池隔离生效: " + JSON.stringify(pool))

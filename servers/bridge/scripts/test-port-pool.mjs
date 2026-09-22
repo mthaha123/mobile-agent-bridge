@@ -28,30 +28,40 @@ ws.on("open", async () => {
     "D:\\code\\mobile-agent-bridge\\scripts",
   ]
   console.log("=== 端口池测试 ===")
+  // 端口池 / 并发上限（与 bridge 配置对齐；默认池 4100-4109、并发 5）
+  const POOL = (process.env.BRIDGE_SERVE_PORT_POOL || "4100,4101,4102,4103,4104,4105,4106,4107,4108,4109")
+    .split(",").map((s) => parseInt(s.trim(), 10))
+  const MAX = parseInt(process.env.BRIDGE_SERVE_MAX || "5", 10)
+
   const ports = []
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < MAX; i++) {
     const r = await send("serve.add", { name: "S" + i, directory: dirs[i] })
     if (r.ok) { ports.push(r.payload.port); console.log("add S" + i + ": port=" + r.payload.port) }
     else console.log("add S" + i + ": ERROR " + r.error)
   }
-  const poolOk = JSON.stringify(ports) === "[4100,4101,4102,4103,4104]"
-  console.log("端口:", ports.join(","), "| PASS:", poolOk)
+  const distinct = new Set(ports).size === ports.length
+  const inPool = ports.length === MAX && ports.every((p) => POOL.includes(p))
+  console.log("端口:", ports.join(","), "| 去重:", distinct, "| 在池内:", inPool)
 
-  const r5 = await send("serve.add", { name: "S5", directory: "D:\\code\\mobile-agent-bridge\\docs" })
-  console.log("第6个:", r5.ok ? "BUG 应该失败" : "正确拒绝: " + r5.error)
+  // 第 MAX+1 个必须被并发上限拒绝
+  const rExtra = await send("serve.add", { name: "SX", directory: "D:\\code\\mobile-agent-bridge\\docs" })
+  const capOk = !rExtra.ok
+  console.log("超并发上限:", capOk ? "正确拒绝: " + rExtra.error : "BUG 应该失败")
 
+  // 删一个再添加：应拿到池内、且当前未被占用的端口
   const list = await send("serve.list", {})
-  const target = list.payload.find((p) => p.port === 4102)
+  const target = list.payload[0]
   await send("serve.remove", { id: target.id })
-  console.log("删除 port 4102")
+  console.log("删除 port " + target.port)
 
-  const r6 = await send("serve.add", { name: "S6", directory: "D:\\code\\mobile-agent-bridge\\docs" })
-  const reuse = r6.ok && r6.payload.port === 4102
-  console.log("再次添加:", r6.ok ? "port=" + r6.payload.port + " 复用4102=" + reuse : "ERROR " + r6.error)
+  const stillUsed = new Set(ports.filter((p) => p !== target.port))
+  const rAgain = await send("serve.add", { name: "SN", directory: "D:\\code\\mobile-agent-bridge\\docs" })
+  const reuse = rAgain.ok && POOL.includes(rAgain.payload.port) && !stillUsed.has(rAgain.payload.port)
+  console.log("再次添加:", rAgain.ok ? "port=" + rAgain.payload.port + " 池内空闲=" + reuse : "ERROR " + rAgain.error)
 
   const final = await send("serve.list", {})
   for (const s of final.payload) await send("serve.remove", { id: s.id })
   console.log("清理完成")
   ws.close()
-  process.exit(poolOk && !r5.ok && reuse ? 0 : 1)
+  process.exit(distinct && inPool && capOk && reuse ? 0 : 1)
 })

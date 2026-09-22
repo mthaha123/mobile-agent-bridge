@@ -130,7 +130,7 @@ python -c "..."  2>&1     # timeout ≤ 15s，不加 sleep
 |---|---|
 | 8080 | 生产 bridge（隧道入口） |
 | 4097 | 生产默认 opencode serve |
-| 4100-4104 | 生产项目 serve 端口池 |
+| 4100-4109 | 生产项目 serve 端口池（10，冗余；并发上限 5，`BRIDGE_SERVE_MAX`） |
 
 开发/测试段（离生产 >1.5 万端口，杜绝"顺位使用"串段）：
 
@@ -154,7 +154,7 @@ python -c "..."  2>&1     # timeout ≤ 15s，不加 sleep
 - 开发联调：`node scripts/start-all.mjs --env-file scripts/dev.env`（模板 `scripts/dev.env.example`）。
 - 生产部署：先 `cd servers/bridge && npm run build`，再 `node scripts/start-all.mjs --env-file scripts/prod.env`（生产跑 `dist/index.js`，不跑 tsx；模板 `scripts/prod.env.example`）。
 - 健康检查：`GET http://localhost:<BRIDGE_PORT>/health`；隔离冒烟：`node scripts/verify-prod-env.mjs`。
-- 新增测试脚本/flow 时，**禁止硬编码 8080/4097/4100-4104**；一律走 `scripts/ports.mjs`。
+- 新增测试脚本/flow 时，**禁止硬编码 8080/4097/4100-4109**；一律走 `scripts/ports.mjs`。
 
 ## 接口对齐约束
 
@@ -313,7 +313,7 @@ node scripts/start-all.mjs --status
 
 - **必须直接 spawn `opencode.exe`（绝对路径）**，不要用 `opencode.cmd` + `shell:true`——.cmd 包装层会丢失传入的 env。
 - **新增 serve 的 key 由 `serveManager.startServe()` 解析**（`resolveProviderKey`）；只改 start-all 不改 serveManager，会导致"已有的 serve 正常、新加的 serve 报 429"。
-- **孤儿 serve 状态错乱**：`node scripts/start-all.mjs --stop` 只杀 pid 文件里的进程（bridge + 默认 serve 4097 + cf），**不杀项目 serve（4100+）**。项目 serve 的父进程死后会成孤儿，`cleanOrphans` 偶尔没清掉 → `serve.list` 报 `stopped` 但端口仍在监听。彻底干净：停服务后按端口杀 4100-4104。
+- **孤儿 serve 状态错乱**：`node scripts/start-all.mjs --stop` 只杀 pid 文件里的进程（bridge + 默认 serve 4097 + cf），**不杀项目 serve（4100+）**。项目 serve 的父进程死后会成孤儿，`cleanOrphans` 偶尔没清掉 → `serve.list` 报 `stopped` 但端口仍在监听。彻底干净：停服务后按端口杀 4100-4109。
 - **重启后项目 serve 是 `stopped`**（`cleanOrphans` 杀掉不自动重启）：切到已注册项目会 `ECONNREFUSED`，需在 Settings 里点 Start（或调用 `serve.start`）。
 
 ---

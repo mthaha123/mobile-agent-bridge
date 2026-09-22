@@ -16,7 +16,7 @@ const DIR_A = "D:\\code\\mobile-agent-bridge"
 const DIR_B = "D:\\code"
 
 // 生产隔离守卫：本脚本会 kill bridge，绝不能跑在生产端口上
-const PROD_PORTS = [8080, 4097, 4100, 4101, 4102, 4103, 4104]
+const PROD_PORTS = [8080, 4097, 4100, 4101, 4102, 4103, 4104, 4105, 4106, 4107, 4108, 4109]
 const BRIDGE_PORT = new URL(BRIDGE_URL).port || (BRIDGE_URL.startsWith("wss") ? "443" : "80")
 if (PROD_PORTS.includes(Number(BRIDGE_PORT))) {
   console.error(`[守卫] 拒绝在疑似生产端口 ${BRIDGE_PORT} 上运行（本脚本会 kill bridge）。请使用测试桥 19985。`)

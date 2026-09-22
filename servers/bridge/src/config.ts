@@ -9,8 +9,24 @@
  */
 import { join, resolve, isAbsolute } from "path"
 
-/** serve 端口池默认值（与历史行为一致） */
-export const DEFAULT_SERVE_PORT_POOL = [4100, 4101, 4102, 4103, 4104]
+/**
+ * serve 端口池默认值：4100-4109（10 个）。
+ * 目标并发 5 个 serve，池留 2x 冗余，便于跳过被外部占用 / 僵尸的坏端口。
+ */
+export const DEFAULT_SERVE_PORT_POOL = [4100, 4101, 4102, 4103, 4104, 4105, 4106, 4107, 4108, 4109]
+
+/** serve 并发上限默认值（端口池长度只决定冗余，不决定并发数） */
+export const DEFAULT_MAX_SERVES = 5
+
+/**
+ * 解析 serve 并发上限：BRIDGE_SERVE_MAX，非法/未设回退 DEFAULT_MAX_SERVES；
+ * 结果不会超过端口池长度（否则永远无法满足）。
+ */
+export function resolveMaxServes(env: NodeJS.ProcessEnv, poolLength: number): number {
+  const n = parseInt(env.BRIDGE_SERVE_MAX || "", 10)
+  const wanted = Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_SERVES
+  return Math.max(1, Math.min(wanted, poolLength))
+}
 
 /**
  * 解析 serve 端口池：逗号分隔，去重、过滤非法值。
