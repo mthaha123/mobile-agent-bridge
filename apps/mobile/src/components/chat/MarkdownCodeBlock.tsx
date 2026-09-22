@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { Clipboard, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type {
   LayoutChangeEvent,
   NativeSyntheticEvent,
@@ -7,7 +7,6 @@ import type {
   TextStyle,
   ViewStyle,
 } from 'react-native'
-import { AppPressable } from '../common/AppPressable'
 import { HorizontalScrollBox } from '../common/HorizontalScrollBox'
 import { useThemeColors } from '../../theme/ThemeContext'
 
@@ -46,28 +45,44 @@ const isUsableProbeWidth = (w: number): boolean => w > 0 && w < PROBE_WIDTH - 10
  *    （已修：horizontal ScrollView + nestedScrollEnabled，对齐 MarkdownTable 标准方案）
  * 2. 文本 selectable → Android 原生文本选择手势参与触摸分发，
  *    与横向 pan 竞争导致"滑动很难触发"（对照组：同环境的 MarkdownTable
- *    单元格不可选中、滑动正常）。已移除 selectable，复制能力改由右上角
- *    Copy 按钮显式提供。
+ *    单元格不可选中、滑动正常）。已移除 selectable；右上角 Copy 按钮后来也
+ *    整个删除（见第 6 条），复制改由系统长按选择 / 全局复制入口承担。
  * 3. 仅当内容实测超宽时显示横向滚动指示条。
  * 4. react-native-marked 默认 theme 的 code 容器样式含 `minWidth: "100%"`，
  *    会把横向 ScrollView 的 content container 撑成确定宽度。已剥离该属性，
  *    背景色改由外层 View 承担（短代码块背景仍铺满整行）。
- * 5. 【横向"完全滑不动"的真正根因】新版架构（Fabric）下 `Text` 在
- *    `AT_MOST(可用宽度)` 里会把**节点宽度撑满可用宽度**
- *    （RN 已知回归 facebook/react-native#54571 / #52421 / yoga#1730：
- *    Yoga 用 fit-content 而非 max-content 测量 flex basis，
- *    且 RN「文本需要折行时取整个可用宽度」——见 PR #47435）。
- *    实测：168 字符的长行**并没有折行**（截图里是被右侧裁断的 3 行），
- *    但 Text 节点宽度 == 可用宽度，于是横向 ScrollView 的 content 宽度
- *    恒等于视口宽度 → 可滚动范围恒为 0 → "代码块横向完全不动"
- *    （外层列表也不动，因为根本没有滚动量）。
+ * 5. 【横向"完全滑不动"的真正根因】react-native-marked 默认 theme 的 code 容器样式
+ *    含 `minWidth: "100%"`（见第 4 条）：它把横向 ScrollView 的 content container
+ *    变成**确定宽度**，容器内的 Text 便按容器宽度测量（而不是固有宽度）→
+ *    content 宽度恒等于视口宽度 → 可滚动范围恒为 0 → "横向完全不动"。
+ *    实测（Pixel 7 / Android 15 模拟器，2026-09-21）：剥掉 minWidth 后，
+ *    **不套任何显式宽度**时真实 Text 节点宽度 = 2325dp = 固有宽度（314 字符长行），
+ *    content = 2356.95dp vs 视口 403.43dp —— 原生测量本身就会给出固有宽度，
+ *    滚动量完整。
+ *    ⚠️ 早先"Text 节点宽度 == 可用宽度"的结论来自 uiautomator dump 的 bounds：
+ *    Android 会把可滚动祖先内的节点 bounds **裁剪到视口**，"右边界 == 视口右边界"
+ *    是裁剪假象，不能作为"Text 被撑满"的证据。
  *
- *    对策：用「绝对定位 + 固定超宽容器 + alignSelf: flex-start」的隐藏探针
- *    量出每行真实固有宽度，再把它显式写成 Text 的 `width`
- *    （显式宽度走 EXACTLY 测量，不再被可用宽度撑满）→ content 真正溢出 → 横向可滚。
- *    实测（Pixel 7 / Android 15 模拟器）：168 字符长行量得 1259dp，
- *    滑动后文本左边界由 53 → 11（内容真实位移）。
+ *    对策：保留探针做**兜底**（防平台行为回归），但落到样式上必须是 `minWidth`
+ *    而不是 `width`：探针值在流式期间必然滞后文本增长一个测量周期，用 `width`
+ *    会**反向限制**文本（折行 + content 被压回视口宽度 → 可滚动范围归零，
+ *    必须等一次重新布局，例如弹出键盘，才恢复）；`minWidth` 只保证不小于固有宽度，
+ *    永不小于文本自身需求，因此两种世界（原生测量正确 / 平台回归）都成立。
  *    对照组：MarkdownTable 的单元格有显式列宽，所以它一直能正常横滚。
+ *
+ * 6. 【"从右上角起手横向完全滑不动、弹键盘才好"的根因】右上角 Copy 按钮是
+ *    ScrollView 的**兄弟覆盖层**。Android 的 ScrollView 只能拦截落在自己
+ *    **子树内**的触摸：落在兄弟覆盖层上的手势被 Pressable 吃掉后，永远传不到
+ *    ScrollView → 从按钮矩形内起手时横向滚动一点都触发不了；而弹出键盘会
+ *    触发一次重排（窗口变矮 → 列表/卡片位移），同一手指位置落到代码文字上，
+ *    于是"弹键盘才能横滑"。
+ *    实测（Pixel 7 / Android 15 模拟器，2026-09-21，打桩脚本
+ *    scripts/e2e/stub-code-scroll.mjs --diag-matrix）起点二维隔离：
+ *      (950,块中部)  PASS   (1000,块中部) PASS
+ *      (950,按钮带)  PASS   (1000,按钮带) FAIL ← 唯一失效组合 = 同时落在按钮矩形内
+ *    处置：**整个删除 Copy 按钮**（用户决定）。按钮消失后滚动区不再有覆盖层，
+ *    任何起点的手势都能到达 ScrollView；同时少了 Pressable 覆盖层，
+ *    代码块也不再被误触。
  */
 export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
   text,
@@ -116,9 +131,18 @@ export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
         {/* 包一层 View 避免 "Cannot add a child that doesn't have a YogaNode..." 错误 */}
         <View>
           {/* selectable 会挂载 Android 文本选择手势、抢横向 pan —— 保持 false */}
+          {/*
+           * 这里必须是 minWidth 而不是 width（关键）：
+           * - 原生测量本身就会给到固有宽度（见文件头第 5 条实测），探针只是"兜底"，
+           *   用来在平台行为回归时仍能撑出溢出；
+           * - 若写成 width，一旦探针值滞后于文本增长（流式期间必然滞后一个测量周期），
+           *   显式宽度会**反向限制**文本 → 文本折行 + content 宽度被压到视口宽度
+           *   → 横向可滚动范围归零，必须等一次重新布局（如弹出键盘）才恢复；
+           * - minWidth 只保证"不小于固有宽度"，永不小于文本自身需求 → 无此风险。
+           */}
           <Text
             selectable={false}
-            style={[textStyle, contentWidth !== null ? { width: contentWidth } : null]}
+            style={[textStyle, contentWidth !== null ? { minWidth: contentWidth } : null]}
             testID="md-code-text"
           >
             {text}
@@ -137,15 +161,6 @@ export const MarkdownCodeBlock: React.FC<MarkdownCodeBlockProps> = ({
           {text}
         </Text>
       </View>
-
-      <AppPressable
-        style={[styles.copyBtn, { backgroundColor: colors.surfaceVariant }]}
-        onPress={() => { Clipboard.setString(text) }}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        testID="md-code-copy"
-      >
-        <Text style={[styles.copyText, { color: colors.textSecondary }]}>Copy</Text>
-      </AppPressable>
     </View>
   )
 }
@@ -165,17 +180,5 @@ const styles = {
   probeText: {
     // 关键：否则会被 column 容器的 alignItems: 'stretch' 拉成 20000dp
     alignSelf: 'flex-start',
-  } as TextStyle,
-  copyBtn: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  } as ViewStyle,
-  copyText: {
-    fontSize: 11,
-    fontWeight: '600',
   } as TextStyle,
 }

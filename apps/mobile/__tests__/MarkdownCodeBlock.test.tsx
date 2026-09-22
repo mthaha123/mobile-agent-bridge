@@ -109,24 +109,27 @@ describe('MarkdownCodeBlock', () => {
   it('未测到宽度前，真实 Text 不设显式宽度（避免用被钳制的值锁死布局）', () => {
     const tree = makeBlock('const veryLongLine = "' + 'A'.repeat(200) + '";')
     expect(styleOf(codeText(tree)).width).toBeUndefined()
+    expect(styleOf(codeText(tree)).minWidth).toBeUndefined()
     tree.unmount()
   })
 
-  it('探针 onTextLayout 后把「最大行宽 + 2」写成真实 Text 的显式 width（根因 5 的核心修复）', () => {
-    // 根因 5：Fabric 下 Text 在 AT_MOST 里会撑满可用宽度，content 永远 == 视口宽
-    // → 横向滚动量为 0。显式 width（EXACTLY 测量）才能让 content 真正溢出。
+  it('探针 onTextLayout 后把「最大行宽 + 2」写成真实 Text 的 minWidth（兜底修复）', () => {
+    // 根因 5：content container 的 minWidth:"100%" 被剥离后，原生测量本就会给出
+    // 固有宽度；探针只是防平台行为回归的兜底。落点必须是 minWidth：
+    // 用 width 会在探针值滞后于文本增长时反向限制文本（折行 + content 被压回视口宽）。
     const tree = makeBlock('const veryLongLine = "' + 'A'.repeat(200) + '";')
     fireLayout(tree, [300, 1734.4])
-    expect(styleOf(codeText(tree)).width).toBe(1737)
+    expect(styleOf(codeText(tree)).minWidth).toBe(1737)
+    expect(styleOf(codeText(tree)).width).toBeUndefined()
     tree.unmount()
   })
 
-  it('探针 onLayout 通道同样能写入显式 width（双通道容错）', () => {
+  it('探针 onLayout 通道同样能写入 minWidth（双通道容错）', () => {
     const tree = makeBlock('const x = 1;')
     act(() => {
       probeText(tree).props.onLayout({ nativeEvent: { layout: { width: 812.2, height: 24 } } })
     })
-    expect(styleOf(codeText(tree)).width).toBe(815)
+    expect(styleOf(codeText(tree)).minWidth).toBe(815)
     tree.unmount()
   })
 
@@ -135,18 +138,31 @@ describe('MarkdownCodeBlock', () => {
     act(() => {
       probeText(tree).props.onLayout({ nativeEvent: { layout: { width: 20000, height: 24 } } })
     })
-    expect(styleOf(codeText(tree)).width).toBeUndefined()
+    expect(styleOf(codeText(tree)).minWidth).toBeUndefined()
+    tree.unmount()
+  })
+
+  it('探针值滞后（远小于文本固有宽度）时不得限制文本宽度', () => {
+    // 回归防护：流式期间探针值必然滞后一个测量周期。若写成 width，文本会被
+    // 限制在滞后值 → 折行 + content 宽度 == 视口宽 → 横向可滚动范围归零，
+    // 必须等一次重新布局（例如弹出键盘）才恢复 —— 正是用户报告的症状。
+    const tree = makeBlock('const veryLongLine = "' + 'A'.repeat(200) + '";')
+    fireLayout(tree, [120])
+    const style = styleOf(codeText(tree))
+    expect(style.minWidth).toBe(122)
+    // 关键：不得出现 width（EXACTLY 测量会锁死宽度、压掉横向滚动量）
+    expect(style.width).toBeUndefined()
     tree.unmount()
   })
 
   it('行宽重复上报时保持稳定（不抖动 / 不无限 setState）', () => {
     const tree = makeBlock('const x = 1;')
     fireLayout(tree, [500])
-    expect(styleOf(codeText(tree)).width).toBe(502)
+    expect(styleOf(codeText(tree)).minWidth).toBe(502)
     fireLayout(tree, [500])
-    expect(styleOf(codeText(tree)).width).toBe(502)
+    expect(styleOf(codeText(tree)).minWidth).toBe(502)
     fireLayout(tree, [500])
-    expect(styleOf(codeText(tree)).width).toBe(502)
+    expect(styleOf(codeText(tree)).minWidth).toBe(502)
     tree.unmount()
   })
 
@@ -195,15 +211,21 @@ describe('MarkdownCodeBlock', () => {
     tree.unmount()
   })
 
-  it('复制按钮写入剪贴板（补偿移除 selectable 的复制能力）', () => {
-    const { Clipboard } = require('react-native')
-    ;(Clipboard.setString as jest.Mock).mockClear()
-    const code = 'const x = 1;\nconsole.log(x);'
-    const tree = makeBlock(code)
-
-    const copyBtn = tree.root.findByProps({ testID: 'md-code-copy' })
-    act(() => { copyBtn.props.onPress() })
-    expect(Clipboard.setString).toHaveBeenCalledWith(code)
+  it('代码块内不得有覆盖在滚动区上的可点击覆盖层（历史根因：Copy 按钮吞掉横向手势）', () => {
+    // 根因（见组件头第 6 条）：Copy 按钮作为 ScrollView 的兄弟覆盖层时，
+    // 落在其矩形内的触摸被 Pressable 吃掉、永远传不到 ScrollView
+    // → 从右上角起手横向完全滑不动（弹键盘重排后才恢复）。
+    // 按钮已整个删除；这里做结构性回归防护：滚动区之上不得再有 Pressable。
+    const tree = makeBlock('const x = 1;')
+    const copyBtn = tree.root.findAllByProps({ testID: 'md-code-copy' })
+    expect(copyBtn).toHaveLength(0)
+    const scroll = horizontalScroll(tree)
+    expect(scroll).toBeTruthy()
+    // 滚动区内部只应有代码文本（+ 无覆盖层）
+    const pressables = tree.root.findAll(
+      (n: any) => typeof n.type === 'string' && /Pressable|Touchable/.test(n.type),
+    )
+    expect(pressables).toHaveLength(0)
     tree.unmount()
   })
 })
