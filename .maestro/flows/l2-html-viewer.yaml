@@ -2,15 +2,13 @@ appId: com.mobileagentbridge
 ---
 # Layer 2 — HTML 文件弹窗预览: WebView 渲染 + 源码切换 + 外部打开入口
 #
-# 前置：测试桥（19985 / Mock）已就绪，项目目录含 test-sample.html 夹具。
-# 说明：v1 的 HTML 全屏查看器已退役，HTML 改为 Modal 弹窗预览（HtmlPreviewModal）。
-#       因此不再断言全屏查看器专有的「行号开 / 复制 / ←」，改为弹窗顶栏控件。
-- launchApp
-
-# 等待主界面
-- extendedWaitUntil:
-    visible: "Files"
-    timeout: 25000
+# 自包含：clearState + 自行连接 Mock Bridge（不依赖前序 flow 的连接状态），
+# 既可被 run-layer.mjs 的 l2 批次执行，也可单独运行。
+# 依赖 mock-bridge.mjs 的 test-sample.html 夹具（file.list + file.read.html）。
+# v1 的全屏 HTML 查看器已退役 → HTML 改为 Modal 弹窗预览（HtmlPreviewModal）。
+- launchApp:
+    clearState: true
+- runFlow: shared/connect.yaml
 
 # 进入 Files 标签
 - tapOn: "Files"

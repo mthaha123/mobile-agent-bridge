@@ -1,0 +1,48 @@
+appId: com.mobileagentbridge
+---
+# 手动单次运行 — HTML「外部打开」端到端
+#
+# 验证：点「↗ 外部打开」→ 系统「Open with」选择器 → 选 HTML Viewer
+#       → 外部 App 确实加载并渲染该 HTML → Back 回到 app 弹窗。
+#
+# 用法：.maestro\maestro.cmd test .maestro\flows\html-external-open-mock.yaml
+# 依赖：mock-bridge.mjs 的 test-sample.html 夹具。
+# 不加 "l2-" 前缀：避免被 run-layer.mjs 的 l2 批次扫到（该流程会切到外部 App）。
+- launchApp:
+    clearState: true
+- runFlow: shared/connect.yaml
+
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "Search files..."
+    timeout: 15000
+- scrollUntilVisible:
+    element: "test-sample.html"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "test-sample.html"
+- extendedWaitUntil:
+    visible: "HTML File Viewer Test"
+    timeout: 15000
+
+# 触发外部打开
+- tapOn: ".*外部打开.*"
+- extendedWaitUntil:
+    visible: "Open with"
+    timeout: 10000
+
+# 选择 HTML Viewer（com.android.htmlviewer）→ 确认 Just once
+- tapOn: "HTML Viewer"
+- tapOn: "Just once"
+
+# 外部 App 确实加载了 HTML 内容
+- extendedWaitUntil:
+    visible: "HTML File Viewer Test"
+    timeout: 15000
+- assertVisible: "CSS styling"
+
+# 返回 app 弹窗仍在
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "HTML File Viewer Test"
+    timeout: 10000
