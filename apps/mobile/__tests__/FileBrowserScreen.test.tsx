@@ -11,6 +11,7 @@ import { FileBrowserScreen } from '../src/screens/FileBrowserScreen'
 import { useAuthStore } from '../src/stores/authStore'
 import { useFileStore } from '../src/stores/fileStore'
 import { useProjectStore } from '../src/stores/projectStore'
+import { useUiStore } from '../src/stores/uiStore'
 import {
   mockClient, resetAllStores, textOf, findAllInputs,
 } from './test-utils'
@@ -524,5 +525,43 @@ describe('FileBrowserScreen — image preview & download', () => {
     expect(data.content).toBe('aGVsbG8=')
     await writeFileSpy('/mock/downloads/x.bin', data.content, 'base64')
     expect(writeFileSpy).toHaveBeenCalled()
+  })
+})
+
+// ─── HTML 弹窗路由 ───────────────────────────────────────
+
+describe('FileBrowserScreen — html preview routing', () => {
+  it('clicking an html file opens the preview modal (not full-screen viewer)', async () => {
+    const client = mockClient()
+    client.listFiles = jest.fn().mockResolvedValue([
+      { name: 'page.html', type: 'file', size: 11, modified: '', permissions: '' },
+    ])
+    client.readFile = jest.fn().mockResolvedValue({
+      path: '/test/page.html', content: '<h1>Hi</h1>', encoding: 'utf-8', size: 11,
+    })
+    act(() => {
+      useAuthStore.setState({ client: client as any })
+      useProjectStore.setState({ directory: '/test' })
+    })
+    act(() => {
+      useFileStore.setState({ currentPath: '/test', files: [], searchResults: [] })
+    })
+    const tree = TestRenderer.create(<FileBrowserScreen />)
+    // 等待挂载后的 listFiles effect 完成，文件项才渲染出来
+    await act(async () => {})
+
+    const htmlItem = tree.root.findAll((n: any) => typeof n.props?.onPress === 'function').find((n: any) => {
+      let t = ''
+      function walk(node: any) { if (!node) return; if (typeof node === 'string') t += node; if (node.children) node.children.forEach(walk) }
+      walk(n)
+      return t.includes('page.html')
+    })
+    expect(htmlItem).toBeTruthy()
+    await act(async () => { await htmlItem!.props.onPress() })
+
+    expect(useFileStore.getState().htmlPreviewFile?.content).toBe('<h1>Hi</h1>')
+    expect(useUiStore.getState().filesSubScreen).toBe('browser')
+    expect(useFileStore.getState().viewerMode).toBeNull()
+    tree.unmount()
   })
 })

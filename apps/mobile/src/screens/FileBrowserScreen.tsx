@@ -59,7 +59,7 @@ export const FileBrowserScreen: React.FC = () => {
   const projectDir = useProjectStore((s) => s.directory)
   const openTextViewer = useFileStore((s) => s.openTextViewer)
   const openImageViewer = useFileStore((s) => s.openImageViewer)
-  const openHtmlViewer = useFileStore((s) => s.openHtmlViewer)
+  const openHtmlPreview = useFileStore((s) => s.openHtmlPreview)
   const pushViewer = useUiStore((s) => s.pushViewer)
 
   const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
@@ -121,15 +121,14 @@ export const FileBrowserScreen: React.FC = () => {
         }
         return
       }
-      // HTML 文件 → WebView 查看器
+      // HTML 文件 → 弹窗预览（不整页跳转）
       if (HTML_EXTS.includes(ext)) {
         setLoading(true)
         try {
           const filePath = currentPath + '/' + file.name
           const content = await client?.readFile(filePath)
           if (content) {
-            openHtmlViewer(content)
-            pushViewer()
+            openHtmlPreview(content)
           }
         } catch (err: unknown) {
           Alert.alert('Error', err instanceof Error ? err.message : 'Failed to read HTML file')
