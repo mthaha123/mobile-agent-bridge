@@ -192,3 +192,42 @@ describe('fileStore — HTML viewer', () => {
     expect(useFileStore.getState().viewerHtmlRendered).toBe(true)
   })
 })
+
+describe('fileStore — HTML preview modal', () => {
+  beforeEach(() => {
+    useFileStore.getState().reset()
+  })
+
+  it('openHtmlPreview sets file and defaults to rendered (source=false)', () => {
+    const file = { content: '<h1>Hi</h1>', encoding: 'utf-8', size: 12, path: '/a/index.html' }
+    useFileStore.getState().openHtmlPreview(file)
+    const state = useFileStore.getState()
+    expect(state.htmlPreviewFile).toEqual(file)
+    expect(state.htmlPreviewSource).toBe(false)
+  })
+
+  it('toggleHtmlPreviewSource flips source flag', () => {
+    const file = { content: '<p>x</p>', encoding: 'utf-8', size: 8, path: '/a/x.html' }
+    useFileStore.getState().openHtmlPreview(file)
+    useFileStore.getState().toggleHtmlPreviewSource()
+    expect(useFileStore.getState().htmlPreviewSource).toBe(true)
+    useFileStore.getState().toggleHtmlPreviewSource()
+    expect(useFileStore.getState().htmlPreviewSource).toBe(false)
+  })
+
+  it('closeHtmlPreview clears the file', () => {
+    const file = { content: '<p>x</p>', encoding: 'utf-8', size: 8, path: '/a/x.html' }
+    useFileStore.getState().openHtmlPreview(file)
+    useFileStore.getState().closeHtmlPreview()
+    expect(useFileStore.getState().htmlPreviewFile).toBeNull()
+  })
+
+  it('reset clears html preview state', () => {
+    const file = { content: '<p>x</p>', encoding: 'utf-8', size: 8, path: '/a/x.html' }
+    useFileStore.getState().openHtmlPreview(file)
+    useFileStore.getState().toggleHtmlPreviewSource()
+    useFileStore.getState().reset()
+    expect(useFileStore.getState().htmlPreviewFile).toBeNull()
+    expect(useFileStore.getState().htmlPreviewSource).toBe(false)
+  })
+})

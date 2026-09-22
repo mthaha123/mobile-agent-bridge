@@ -64,6 +64,10 @@ export interface FileState {
   viewerHtmlRendered: boolean
   /** 文本查看器：是否折行（true=换行模式，false=不换行+横向滚动） */
   viewerWrap: boolean
+  /** HTML 弹窗预览：非空即显示弹窗 */
+  htmlPreviewFile: FileContent | null
+  /** HTML 弹窗：true=显示源码，false=WebView 渲染 */
+  htmlPreviewSource: boolean
 
   /** 设置当前路径 */
   setCurrentPath: (path: string) => void
@@ -97,6 +101,12 @@ export interface FileState {
   toggleHtmlRendered: () => void
   /** 切换换行/不换行模式 */
   toggleViewerWrap: () => void
+  /** 打开 HTML 弹窗预览 */
+  openHtmlPreview: (file: FileContent) => void
+  /** 关闭 HTML 弹窗预览 */
+  closeHtmlPreview: () => void
+  /** 切换 HTML 弹窗 渲染/源码 */
+  toggleHtmlPreviewSource: () => void
   /** 导航到上级目录 */
   goUp: () => void
   /** 进入子目录 */
@@ -147,6 +157,8 @@ const initialState = {
   viewerShowSource: false,
   viewerHtmlRendered: true,
   viewerWrap: true,
+  htmlPreviewFile: null,
+  htmlPreviewSource: false,
 }
 
 export const useFileStore = create<FileState>((set, get) => ({
@@ -197,6 +209,15 @@ export const useFileStore = create<FileState>((set, get) => ({
   toggleHtmlRendered: () => set((s) => ({ viewerHtmlRendered: !s.viewerHtmlRendered })),
 
   toggleViewerWrap: () => set((s) => ({ viewerWrap: !s.viewerWrap })),
+
+  openHtmlPreview: (file) => set({
+    htmlPreviewFile: file,
+    htmlPreviewSource: false,
+  }),
+
+  closeHtmlPreview: () => set({ htmlPreviewFile: null }),
+
+  toggleHtmlPreviewSource: () => set((s) => ({ htmlPreviewSource: !s.htmlPreviewSource })),
 
   goUp: () => {
     const { currentPath } = get()
