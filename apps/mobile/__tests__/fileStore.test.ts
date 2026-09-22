@@ -152,47 +152,6 @@ describe('fileStore', () => {
   })
 })
 
-describe('fileStore — HTML viewer', () => {
-  beforeEach(() => {
-    useFileStore.getState().reset()
-  })
-
-  it('should open HTML viewer with viewerMode html and viewerHtmlRendered true', () => {
-    const file = { content: '<h1>Hello</h1>', encoding: 'utf-8', size: 14, path: '/test.html' }
-    useFileStore.getState().openHtmlViewer(file)
-    const state = useFileStore.getState()
-    expect(state.viewerMode).toBe('html')
-    expect(state.currentFile).toEqual(file)
-    expect(state.viewerHtmlRendered).toBe(true)
-    expect(state.viewerImage).toBeNull()
-  })
-
-  it('should toggle html rendered state', () => {
-    const file = { content: '<p>Hi</p>', encoding: 'utf-8', size: 9, path: '/test.html' }
-    useFileStore.getState().openHtmlViewer(file)
-    expect(useFileStore.getState().viewerHtmlRendered).toBe(true)
-    useFileStore.getState().toggleHtmlRendered()
-    expect(useFileStore.getState().viewerHtmlRendered).toBe(false)
-    useFileStore.getState().toggleHtmlRendered()
-    expect(useFileStore.getState().viewerHtmlRendered).toBe(true)
-  })
-
-  it('should close HTML viewer', () => {
-    const file = { content: '<p>Hi</p>', encoding: 'utf-8', size: 9, path: '/test.html' }
-    useFileStore.getState().openHtmlViewer(file)
-    expect(useFileStore.getState().viewerMode).toBe('html')
-    useFileStore.getState().closeViewer()
-    expect(useFileStore.getState().viewerMode).toBeNull()
-  })
-
-  it('should reset viewerHtmlRendered on reset', () => {
-    useFileStore.getState().toggleHtmlRendered()
-    expect(useFileStore.getState().viewerHtmlRendered).toBe(false)
-    useFileStore.getState().reset()
-    expect(useFileStore.getState().viewerHtmlRendered).toBe(true)
-  })
-})
-
 describe('fileStore — HTML preview modal', () => {
   beforeEach(() => {
     useFileStore.getState().reset()
@@ -229,5 +188,12 @@ describe('fileStore — HTML preview modal', () => {
     useFileStore.getState().reset()
     expect(useFileStore.getState().htmlPreviewFile).toBeNull()
     expect(useFileStore.getState().htmlPreviewSource).toBe(false)
+  })
+
+  it('retires the full-screen html channel', () => {
+    const state = useFileStore.getState() as any
+    expect(state.openHtmlViewer).toBeUndefined()
+    expect(state.viewerHtmlRendered).toBeUndefined()
+    expect(state.toggleHtmlRendered).toBeUndefined()
   })
 })

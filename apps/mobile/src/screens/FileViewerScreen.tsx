@@ -5,6 +5,8 @@
  * - 文本/代码：行号 + 等宽字体，字号可调，可复制/下载
  * - Markdown：默认渲染，一键切换查看源码
  * - 图片：全屏查看 + 下载
+ *
+ * 注：HTML 文件的预览已迁移至弹窗（HtmlPreviewModal），不再走此全屏页。
  */
 import React from 'react'
 import {
@@ -25,7 +27,6 @@ import { HorizontalScrollBox } from '../components/common/HorizontalScrollBox'
 import ReactNativeBlobUtil from 'react-native-blob-util'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
-import WebView from 'react-native-webview'
 
 const MAX_FONT = 24
 const MIN_FONT = 10
@@ -52,13 +53,11 @@ export const FileViewerScreen: React.FC = () => {
   const viewerFontSize = useFileStore((s) => s.viewerFontSize)
   const viewerShowLineNumbers = useFileStore((s) => s.viewerShowLineNumbers)
   const viewerShowSource = useFileStore((s) => s.viewerShowSource)
-  const viewerHtmlRendered = useFileStore((s) => s.viewerHtmlRendered)
   const viewerWrap = useFileStore((s) => s.viewerWrap)
   const closeViewer = useFileStore((s) => s.closeViewer)
   const setViewerFontSize = useFileStore((s) => s.setViewerFontSize)
   const toggleLineNumbers = useFileStore((s) => s.toggleLineNumbers)
   const toggleViewerSource = useFileStore((s) => s.toggleViewerSource)
-  const toggleHtmlRendered = useFileStore((s) => s.toggleHtmlRendered)
   const toggleViewerWrap = useFileStore((s) => s.toggleViewerWrap)
   const setLoading = useFileStore((s) => s.setLoading)
 
@@ -66,13 +65,8 @@ export const FileViewerScreen: React.FC = () => {
   const popViewer = useUiStore((s) => s.popViewer)
 
   const isMarkdown = (path: string) => path.toLowerCase().endsWith('.md')
-  const isHtml = (path: string) => {
-    const lower = path.toLowerCase()
-    return lower.endsWith('.html') || lower.endsWith('.htm')
-  }
   const showRendered = isMarkdown(currentFile?.path || '') && !viewerShowSource
-  const canToggleSource = isMarkdown(currentFile?.path || '') || isHtml(currentFile?.path || '')
-  const isHtmlMode = viewerMode === 'html'
+  const canToggleSource = isMarkdown(currentFile?.path || '')
 
   const handleClose = () => {
     closeViewer()
@@ -199,28 +193,12 @@ export const FileViewerScreen: React.FC = () => {
     )
   }
 
-  const renderHtml = () => {
-    if (!currentFile) return null
-    if (viewerHtmlRendered) {
-      return (
-        <WebView
-          source={{ html: currentFile.content }}
-          originWhitelist={['*']}
-          javaScriptEnabled={false}
-          style={styles.webview}
-        />
-      )
-    }
-    // 源码模式：复用 renderText 的逻辑
-    return renderText()
-  }
-
   const fileName = currentFile?.path.split(/[/\\]/).pop()
     || viewerImage?.name
     || ''
 
-  // HTML 源码模式下也显示文本类控件（行号、换行、复制）
-  const showTextFooter = viewerMode === 'text' || (isHtmlMode && !viewerHtmlRendered)
+  // 文本类控件（行号、换行、复制）仅在文本模式下显示
+  const showTextFooter = viewerMode === 'text'
 
   return (
     <View style={styles.container}>
@@ -233,11 +211,11 @@ export const FileViewerScreen: React.FC = () => {
         <View style={styles.headerActions}>
           {canToggleSource && (
             <TouchableOpacity
-              onPress={isHtmlMode ? toggleHtmlRendered : toggleViewerSource}
+              onPress={toggleViewerSource}
               style={styles.headerBtn}
             >
               <Text style={styles.headerActionText}>
-                {isHtmlMode ? (viewerHtmlRendered ? '源码' : '渲染') : (viewerShowSource ? '渲染' : '源码')}
+                {viewerShowSource ? '渲染' : '源码'}
               </Text>
             </TouchableOpacity>
           )}
@@ -253,7 +231,6 @@ export const FileViewerScreen: React.FC = () => {
       {/* 内容区 */}
       <View style={styles.content}>
         {viewerMode === 'image' && renderImage()}
-        {viewerMode === 'html' && renderHtml()}
         {viewerMode === 'text' && renderText()}
       </View>
 
@@ -403,10 +380,6 @@ const makeStyles = (colors: ThemeColors) =>
   image: {
     flex: 1,
     width: '100%',
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: colors.background,
   },
   footer: {
     flexDirection: 'row',
