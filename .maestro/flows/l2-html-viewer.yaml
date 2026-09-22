@@ -1,6 +1,10 @@
 appId: com.mobileagentbridge
 ---
-# Layer 2 — HTML 文件查看器: WebView 渲染 + 源码切换
+# Layer 2 — HTML 文件弹窗预览: WebView 渲染 + 源码切换 + 外部打开入口
+#
+# 前置：测试桥（19985 / Mock）已就绪，项目目录含 test-sample.html 夹具。
+# 说明：v1 的 HTML 全屏查看器已退役，HTML 改为 Modal 弹窗预览（HtmlPreviewModal）。
+#       因此不再断言全屏查看器专有的「行号开 / 复制 / ←」，改为弹窗顶栏控件。
 - launchApp
 
 # 等待主界面
@@ -20,7 +24,7 @@ appId: com.mobileagentbridge
     direction: DOWN
     timeout: 15000
 
-# 打开 test-sample.html
+# 打开 test-sample.html → 弹窗预览（不再整页跳转）
 - tapOn: "test-sample.html"
 - extendedWaitUntil:
     visible: "HTML File Viewer Test"
@@ -30,32 +34,27 @@ appId: com.mobileagentbridge
 - assertVisible: "HTML File Viewer Test"
 - assertVisible: "CSS styling"
 
-# 校验点 2: 顶栏显示文件名 + 源码切换按钮
+# 校验点 2: 弹窗顶栏显示文件名 + 源码切换 + 外部打开 + 关闭（弹窗控件集）
 - assertVisible: "test-sample.html"
 - assertVisible: "源码"
+- assertVisible: "外部打开"
+- assertVisible: "✕"
 
 # 校验点 3: 切换到源码模式
 - tapOn: "源码"
 - extendedWaitUntil:
     visible: "渲染"
     timeout: 10000
-
-# 校验点 4: 源码模式 — header 显示"渲染"按钮，底部显示行号控制
 - assertVisible: "渲染"
-- assertVisible: "行号开"
-- assertVisible: "复制"
 
-# 校验点 5: 切回渲染模式
+# 校验点 4: 切回渲染模式
 - tapOn: "渲染"
 - extendedWaitUntil:
     visible: "HTML File Viewer Test"
     timeout: 10000
 
-# 校验点 6: 渲染模式恢复
-- assertVisible: "HTML File Viewer Test"
-
-# 返回文件列表
-- tapOn: "←"
+# 校验点 5: 关闭弹窗，回到文件浏览器（仍在 Files 标签，未整页跳转）
+- tapOn: "✕"
 - extendedWaitUntil:
     visible: "Search files..."
     timeout: 5000
