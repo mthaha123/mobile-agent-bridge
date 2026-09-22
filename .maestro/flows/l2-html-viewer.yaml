@@ -37,7 +37,7 @@ appId: com.mobileagentbridge
 # 校验点 2: 弹窗顶栏显示文件名 + 源码切换 + 外部打开 + 关闭（弹窗控件集）
 - assertVisible: "test-sample.html"
 - assertVisible: "源码"
-- assertVisible: "外部打开"
+- assertVisible: ".*外部打开.*"
 - assertVisible: "✕"
 
 # 校验点 3: 切换到源码模式

@@ -172,7 +172,14 @@ const MOCK_PAYLOADS = {
     { name: "src", type: "directory", size: 4096, modified: new Date().toISOString(), permissions: "drwxr-xr-x" },
     { name: "package.json", type: "file", size: 1024, modified: new Date().toISOString(), permissions: "-rw-r--r--" },
     { name: "README.md", type: "file", size: 512, modified: new Date().toISOString(), permissions: "-rw-r--r--" },
+    { name: "test-sample.html", type: "file", size: 320, modified: new Date().toISOString(), permissions: "-rw-r--r--" },
   ],
+  "file.read.html": {
+    content: "<!DOCTYPE html><html><head><style>body{background:#111;color:#eee;font-family:sans-serif}h1{color:#4fc3f7}</style></head><body><h1>HTML File Viewer Test</h1><p class=\"styled\">CSS styling</p><ul><li>alpha</li><li>beta</li></ul></body></html>",
+    encoding: "utf-8",
+    size: 320,
+    path: "test-sample.html",
+  },
   "file.read": {
     content: "# Mock File\n\nThis is mock content for E2E testing.",
     encoding: "utf-8",
@@ -302,6 +309,9 @@ wss.on("connection", (ws) => {
     }
     if (method === "file.read" && String(frame.params?.path || "").endsWith("README.md")) {
       key = "file.read"
+    }
+    if (method === "file.read" && String(frame.params?.path || "").endsWith("test-sample.html")) {
+      key = "file.read.html"
     }
     let payload = MOCK_PAYLOADS[key] || MOCK_PAYLOADS[method] || getDefaultPayload(method)
 
