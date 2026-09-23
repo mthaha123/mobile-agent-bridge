@@ -171,11 +171,19 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
 
 **附录 — 决策记录（Spike 完成后回填）**
 ```
-- 日期：
+- 日期：2026-09-23
 - Gate B 结果：C2 硬阻塞 —— streamdown 要求 worklets>=0.10，其 peer 为 RN 0.83-0.86 ⇒ 需 RN 升级（React 19.2+）
-- Gate A 结果（构建 / 运行 / JS CPU A-B 数据）：
-- 最终选择（C1 / C2 / 降级 B1）：
-- 后续所需 RN 版本：
+- Gate A 结果：**构建关判负**。`:react-native-nitro-modules:compileReleaseKotlin` 失败——
+  nitro-modules 0.35.7 / 0.36.5 / 0.37.0 / 0.37.1 四处同款**命名参数**调用
+  `ReactModuleInfo(canOverrideExistingModule=, needsEagerInit=, ...)`，而 RN 0.76 的 6 参构造器
+  参数名是 `_canOverrideExistingModule/_needsEagerInit`（7 参版另需 `hasConstants`）→ 源码级不兼容。
+  peer 合规组合无一幸免：nitro-markdown ≥0.7.2 全部绑 nitro-modules ≥0.35.7，版本选择无解。
+  （根因：上游按 RN 0.8x 造，README runtime gate 即 0.86.3；peer 声明宽松、实现不宽松。）
+  运行/JS CPU 未测（构建关未过）。附注：`pnpm peers check` 报出的 RN0.86/React19 三连 unmet
+  来自 2026-07-12 的磁盘孤儿 `.pnpm/react-native@0.86.0_*`，lockfile 图单实例 0.76.9、解析正确，与本次无关。
+- 最终选择：**C1 保留（HEAD 依赖+适配层不回滚）+ 走 Gate C RN 升级**（用户 2026-09-23 决策，未走分支 A 回滚）
+- 后续所需 RN 版本：**RN 0.86.3 + React 19.2.3**（升级计划见 `docs/plans/2026-09-23-rn-upgrade.md`；
+  完成后回本计划 Task 4 重跑 Gate A'，ratex 届时按 README 升 0.1.14）
 ```
 
 ---
