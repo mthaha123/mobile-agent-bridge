@@ -61,16 +61,6 @@ describe('MarkdownRenderer', () => {
     expect(text).toContain('Third')
   })
 
-  it('engine=native 分发到原生引擎（渲染 MarkdownStream）', () => {
-    const tree = TestRenderer.create(<MarkdownRenderer content="# Hi" engine="native" />)
-    expect(tree.root.findAll((n: any) => n.type === 'MarkdownStream').length).toBeGreaterThan(0)
-  })
-
-  it('engine=legacy 走冻结块路径（无 MarkdownStream）', () => {
-    const tree = TestRenderer.create(<MarkdownRenderer content="# Hi" engine="legacy" />)
-    expect(tree.root.findAll((n: any) => n.type === 'MarkdownStream').length).toBe(0)
-  })
-
   it('renders horizontal rules', () => {
     const tree = TestRenderer.create(<MarkdownRenderer content="---" />)
     expect(tree.toJSON()).not.toBeNull()

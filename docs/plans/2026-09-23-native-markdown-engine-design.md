@@ -211,6 +211,12 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
   **残余根因域**：native 渲染树体量 × 每 update 的整批 commit（md4c/React 元素/冻结均已被排除）。
   下一步候选（需另立项）：(a) native vs legacy 的视图节点数对比；(b) 流式期间纯文本、
   `text.ended` 后一次性 markdown（scroll-ownership 设计 P4 先例）；(c) 放弃 C1 执行 Task 5 分支 A 回滚。
+- **最终处置（2026-09-23）：C1 回滚执行（Task 5 分支 A）** —— 用户裁决"搞不了就回退"。
+  判据链：Gate A 构建关判负（nitro-modules 与 RN0.76 源码级不兼容）→ Gate C 升级后 Gate A' 性能关判负
+  → Gate A''（v2 冻结块+快路）仍判负，根因停在"native 渲染大消息的整批 commit"无有界修法。
+  **回滚范围**：nitro 三依赖、`NativeMarkdown`/`markdownEngine` flag/引擎分发、相关测试与 jest 映射；
+  **保留** legacy 四优化（订阅隔离 / 围栏零解析 / 120ms 合并 / useDeferredValue）——当前最优形态。
+  `react-native-nitro-markdown` 的评估数据（含 2×2 A/B 与诊断链）永久留档于本附录，未来重开可直接复用。
 ```
 
 ---

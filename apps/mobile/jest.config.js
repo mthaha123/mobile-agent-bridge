@@ -1,4 +1,4 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
+﻿/** @type {import('ts-jest').JestConfigWithTsJest} */
 export default {
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/jest.setup.js'],
@@ -10,7 +10,6 @@ export default {
     '^react-native-blob-util$': '<rootDir>/__mocks__/react-native-blob-util.js',
     '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
     '^react-native-marked$': '<rootDir>/__mocks__/react-native-marked.js',
-    '^react-native-nitro-markdown$': '<rootDir>/__mocks__/react-native-nitro-markdown.js',
     '^react-native-webview$': '<rootDir>/__mocks__/react-native-webview.js',
   },
   transform: {
