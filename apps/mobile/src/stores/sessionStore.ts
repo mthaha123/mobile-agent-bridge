@@ -197,7 +197,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  renameSession: async (id, title, clientCall): Promise<Session | null> => {
+  renameSession: async (id, title, clientCall) => {
     const trimmed = title.trim()
     if (!id || !trimmed) return null
     set({ error: null })

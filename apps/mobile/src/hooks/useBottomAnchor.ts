@@ -9,7 +9,7 @@ import type { FlatList, NativeScrollEvent, NativeSyntheticEvent } from 'react-na
  * - 不贴底不打断（用户在看历史）
  * - 历史 prepend 由 maintainVisibleContentPosition 保持视口
  */
-export function useBottomAnchor(listRef: React.RefObject<FlatList<any> | null>) {
+export function useBottomAnchor(listRef: React.RefObject<FlatList<any>>) {
   const isAtBottomRef = useRef(true)
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {

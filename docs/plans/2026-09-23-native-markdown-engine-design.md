@@ -217,6 +217,9 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
   **回滚范围**：nitro 三依赖、`NativeMarkdown`/`markdownEngine` flag/引擎分发、相关测试与 jest 映射；
   **保留** legacy 四优化（订阅隔离 / 围栏零解析 / 120ms 合并 / useDeferredValue）——当前最优形态。
   `react-native-nitro-markdown` 的评估数据（含 2×2 A/B 与诊断链）永久留档于本附录，未来重开可直接复用。
+- **Gate C（RN 0.86.3 升级）同日按用户裁决全回退**（"C 方案做的部分全回退"）：android 模板、
+  构建配置、依赖版本族、React19 测试/类型适配全部恢复升级前状态（React 18.3.1 / RN 0.76.9 / Gradle 8.7），
+  升级计划文档 `2026-09-23-rn-upgrade.md` 移除；升级过程与四门证据见 git 历史（merge `fcd377f`）。
 ```
 
 ---

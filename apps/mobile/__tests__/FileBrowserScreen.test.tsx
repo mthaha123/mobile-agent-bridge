@@ -56,11 +56,9 @@ describe('FileBrowserScreen', () => {
     const client = mockClient()
     act(() => {
       useAuthStore.setState({ client: client as any })
+      useFileStore.setState({ error: 'Permission denied' })
     })
     const tree = TestRenderer.create(<FileBrowserScreen />)
-    // React19：先 mount（其 effect 会重置状态），再设 error——否则 create 包在 act 里
-    // 会把 mount effect 先刷出来，断言读到的是干净态。
-    act(() => { useFileStore.setState({ error: 'Permission denied' }) })
     expect(textOf(tree)).toContain('Permission denied')
   })
 
@@ -144,31 +142,33 @@ describe('FileBrowserScreen — interactions', () => {
   })
 
   it('goUp navigates to parent directory', () => {
-    // React19：这里刻意不进 act——进 act 会顺带刷出本文件前面用例残留挂载树的
-    // pending effect/异步回写，覆盖刚设置的 currentPath（升级实测踩坑）。
-    // 断言只读 store，不需要 act 刷新渲染。
-    useFileStore.setState({ currentPath: '/home/user/project' })
+    act(() => {
+      useFileStore.setState({ currentPath: '/home/user/project' })
+    })
     useFileStore.getState().goUp()
     expect(useFileStore.getState().currentPath).toBe('/home/user')
   })
 
   it('enterDirectory navigates into subdirectory', () => {
-    // React19：本组 store-only 断言刻意不进 act——act 会把 beforeEach(resetAllStores)
-    // 在残留挂载树上排队的渲染/effects 刷出来（effect1 会把 currentPath 改写成 projectDir
-    // 回退值 '/'），覆盖刚设置的值。store 读取是同步的，无需 act。
-    useFileStore.setState({ currentPath: '/home' })
+    act(() => {
+      useFileStore.setState({ currentPath: '/home' })
+    })
     useFileStore.getState().enterDirectory('user')
     expect(useFileStore.getState().currentPath).toBe('/home/user')
   })
 
   it('goUp at root stays at root', () => {
-    useFileStore.setState({ currentPath: '/' })
+    act(() => {
+      useFileStore.setState({ currentPath: '/' })
+    })
     useFileStore.getState().goUp()
     expect(useFileStore.getState().currentPath).toBe('/')
   })
 
   it('enterDirectory with trailing slash', () => {
-    useFileStore.setState({ currentPath: '/home/' })
+    act(() => {
+      useFileStore.setState({ currentPath: '/home/' })
+    })
     useFileStore.getState().enterDirectory('user')
     expect(useFileStore.getState().currentPath).toBe('/home/user')
   })
@@ -226,9 +226,8 @@ describe('FileBrowserScreen — rendering', () => {
       useAuthStore.setState({ client: client as any })
       useProjectStore.setState({ directory: '/test' })
     })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    // React19：mount effect 先行（见上），error 在 mount 之后再设。
     act(() => { useFileStore.setState({ error: 'Permission denied' }) })
+    const tree = TestRenderer.create(<FileBrowserScreen />)
     expect(textOf(tree)).toContain('Permission denied')
   })
 
@@ -249,10 +248,8 @@ describe('FileBrowserScreen — rendering', () => {
       useAuthStore.setState({ client: client as any })
       useProjectStore.setState({ directory: '/test' })
     })
-    const tree = TestRenderer.create(<FileBrowserScreen />)
-    // React19：mount 的 effect 会把 currentPath 重置为 projectDir，
-    // 目标路径必须在 mount 之后设置才能被渲染到（升级实测踩坑）。
     act(() => { useFileStore.setState({ currentPath: '/my/project' }) })
+    const tree = TestRenderer.create(<FileBrowserScreen />)
     expect(textOf(tree)).toContain('/my/project')
   })
 
