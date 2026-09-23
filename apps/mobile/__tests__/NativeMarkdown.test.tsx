@@ -58,4 +58,60 @@ describe('NativeMarkdown（原生引擎骨架）', () => {
       nitro.useMarkdownSession = orig
     }
   })
+
+  it('v2：把 renderMarkdown 定制点交给冻结块管线，并透传主题 styles', () => {
+    const tree = render('# Hi')
+    const node = streamNodes(tree)[0]
+    expect(typeof node.props.renderMarkdown).toBe('function')
+    expect(node.props.styles).toBeDefined()
+    expect(node.props.styles.text).toBeDefined()
+    expect(node.props.styles.code_block).toBeDefined()
+  })
+
+  /** 收集返回树里 FrozenChunk 元素的 text（按 themeKey 属性识别） */
+  function frozenTexts(n: any): string[] {
+    if (!n) return []
+    if (Array.isArray(n)) return n.flatMap(frozenTexts)
+    const out: string[] = []
+    if (n.props && typeof n.props.text === 'string' && typeof n.props.themeKey === 'string') {
+      out.push(n.props.text)
+    }
+    const children = n.props?.children
+    if (Array.isArray(children)) out.push(...children.flatMap(frozenTexts))
+    else if (children && typeof children === 'object') out.push(...frozenTexts(children))
+    return out
+  }
+
+  it('v2：冻结块只增不改——前缀推进时旧块 text 引用级不变', () => {
+    const tree = render('第一段\n\n第')
+    const node = streamNodes(tree)[0]
+    const rm = node.props.renderMarkdown as (p: unknown) => unknown
+    const r1 = rm({ text: '第一段\n\n第', markdownProps: {} })
+    const r2 = rm({ text: '第一段\n\n第二段继续写', markdownProps: {} })
+    const t1 = frozenTexts(r1)
+    const t2 = frozenTexts(r2)
+    expect(t1.length).toBeGreaterThan(0)
+    expect(t2[0]).toBe(t1[0]) // 已冻结的块 text 逐字不变
+  })
+
+  it('v2：未闭合围栏尾部走零解析快路（md-stream-code）', () => {
+    const tree = render('x')
+    const rm = (streamNodes(tree)[0].props.renderMarkdown as any)
+    const out = rm({ text: '```ts\nconst a = 1', markdownProps: {} })
+    const rendered = TestRenderer.create(<>{out as any}</>)
+    expect(rendered.root.findAll((n: any) => n.props?.testID === 'md-stream-code').length).toBeGreaterThan(0)
+  })
+
+  it('v2：纯文本尾部走零解析快路（md-plain-tail），真 markdown 尾部才进 <Markdown>', () => {
+    const tree = render('x')
+    const rm = (streamNodes(tree)[0].props.renderMarkdown as any)
+
+    const plainOut = rm({ text: '一段没有标记的普通文字', markdownProps: {} })
+    const plainTree = TestRenderer.create(<>{plainOut as any}</>)
+    expect(plainTree.root.findAll((n: any) => n.props?.testID === 'md-plain-tail').length).toBeGreaterThan(0)
+
+    const mdOut = rm({ text: '正文\n\n**加粗**尾部', markdownProps: {} })
+    const mdTree = TestRenderer.create(<>{mdOut as any}</>)
+    expect(mdTree.root.findAll((n: any) => n.type === 'Markdown').length).toBeGreaterThan(0)
+  })
 })

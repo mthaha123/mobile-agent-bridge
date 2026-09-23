@@ -199,6 +199,18 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
   **状态**：flag 保持 **legacy**（= HEAD 默认，零 diff）；C1 代码与依赖保留在 flag 后。
   后续优化候选（需另行立项）：给 MarkdownStream 定制 `renderMarkdown` 做冻结块语义、
   `updateStrategy=interval` 降频、或把 listener→React 更新限制到尾部块。
+- Gate A'' 结果（2026-09-23，候选①实现后重测 = v2「React 冻结块 + 三快路 + 尾 memo」）：**仍 FAIL，
+  flag 维持 legacy**。诊断链（release/ANGLE/同 harness）：
+  1. v2 全管线 text：JS **14.1–16.5s**（比 Gate A' 更差），p90 300–350ms；
+  2. 后期探针：`update#60 len=7360 chunks=25` **无 BIGCHUNK-RENDER** → 冻结块全程有效；rlaf 空帧零渲染；
+  3. 逐帧阶段：**layout p90=0.1ms（布局无嫌疑）**、Hermes 6%、`libNitroMarkdown.so` 不在榜（原生增量解析正常）；
+  4. **短路实验（renderMarkdown 单 Text，AST/hook 成本照付）：JS 2.34s / p90 57ms / input 29 —— 优于 legacy**
+     ⇒ **原生内容管线（session + 增量 AST）无辜，14s 全部在「native 渲染的大消息 + 每次 update 的整批
+     Fabric commit」**（设备 md-time 探针：单批 56–140ms、max 600ms、随消息体量增长，`len=3` 亦 331ms
+     —— 该计时含整批 commit 等待，非单个 `<Markdown>` 自身）。
+  **残余根因域**：native 渲染树体量 × 每 update 的整批 commit（md4c/React 元素/冻结均已被排除）。
+  下一步候选（需另立项）：(a) native vs legacy 的视图节点数对比；(b) 流式期间纯文本、
+  `text.ended` 后一次性 markdown（scroll-ownership 设计 P4 先例）；(c) 放弃 C1 执行 Task 5 分支 A 回滚。
 ```
 
 ---
