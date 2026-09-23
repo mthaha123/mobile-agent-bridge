@@ -432,6 +432,63 @@ describe('ChatScreen', () => {
     expect(mockCall).toHaveBeenCalledWith('session.list', expect.anything())
   })
 
+  it('refresh button shows a loading animation while refreshing and hides it after render completes', async () => {
+    let resolveRefresh: (v: unknown) => void = () => {}
+    let messagesCalls = 0
+    const mockCall = jest.fn().mockImplementation((method: string) => {
+      if (method === 'session.messages') {
+        messagesCalls += 1
+        // 首次为挂载时的初始加载，立即返回；第二次为 ↻ 刷新，挂起以观察 loading
+        if (messagesCalls === 1) return Promise.resolve({ messages: [] })
+        return new Promise((r) => { resolveRefresh = r })
+      }
+      if (method === 'session.list') return Promise.resolve({ sessions: [] })
+      return Promise.resolve({})
+    })
+    const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }
+    act(() => { useAuthStore.setState({ client: client as any }) })
+    useChatStore.setState({ activeSessionId: 's1' })
+
+    const tree = TestRenderer.create(
+      <ChatScreen onNavigateToSessions={onNavigateToSessions} />,
+    )
+    const refreshBtn = tree.root.findAll((n: any) => typeof n.props?.onPress === 'function').find((n: any) => {
+      let text = ''
+      function walk(node: any) {
+        if (!node) return
+        if (typeof node === 'string') { text += node; return }
+        if (node.children) node.children.forEach(walk)
+      }
+      walk(n)
+      return text.includes('↻')
+    })
+    expect(refreshBtn).toBeTruthy()
+
+    let pressPromise: Promise<void> | undefined
+    await act(async () => { pressPromise = refreshBtn!.props.onPress() })
+
+    // RPC 挂起期间：↻ 被 loading 动画替换
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'refresh-loading').length).toBeGreaterThan(0)
+
+    // 放行 RPC + 等 afterInteractions 的下一 tick → 动画收起
+    await act(async () => {
+      resolveRefresh({ messages: [] })
+      await pressPromise
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'refresh-loading').length).toBe(0)
+    expect(tree.root.findAll((n: any) => typeof n.props?.onPress === 'function').some((n: any) => {
+      let text = ''
+      function walk(node: any) {
+        if (!node) return
+        if (typeof node === 'string') { text += node; return }
+        if (node.children) node.children.forEach(walk)
+      }
+      walk(n)
+      return text.includes('↻')
+    })).toBe(true)
+  })
+
   it('+ New Session button creates new session', async () => {
     const mockCall = jest.fn().mockResolvedValue({ id: 'new-session-123' })
     const client = { call: mockCall, on: jest.fn(() => jest.fn()), connected: true, token: 't', listFiles: jest.fn(), readFile: jest.fn(), searchFiles: jest.fn() }

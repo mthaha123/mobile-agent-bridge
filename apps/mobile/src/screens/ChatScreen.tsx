@@ -10,6 +10,8 @@ import {
   Alert,
   LayoutAnimation,
   UIManager,
+  ActivityIndicator,
+  InteractionManager,
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import type { ChatMessage } from '../stores/chatStore'
@@ -38,6 +40,19 @@ import { ThemeColors } from '../theme/colors'
 // Android 需要显式启用 LayoutAnimation
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true)
+}
+
+/**
+ * 等本次刷新触发的渲染/布局/滚动都落地后再执行回调。
+ * 真机用 InteractionManager.runAfterInteractions（等动画/交互队列清空）；
+ * 测试环境可能没有 InteractionManager，降级为下一个 tick。
+ */
+function afterInteractions(cb: () => void): void {
+  const im = InteractionManager as unknown as
+    | { runAfterInteractions?: (cb: () => void) => void }
+    | undefined
+  if (im && typeof im.runAfterInteractions === 'function') im.runAfterInteractions(cb)
+  else setTimeout(cb, 0)
 }
 
 /** 从服务端消息的 rawContent（parts 数组）构建 App 的 Part 列表（text/tool/reasoning）。
@@ -78,6 +93,8 @@ export const ChatScreen: React.FC = () => {
   const [historyCursor, setHistoryCursor] = useState<string | undefined>()
   const [historyLoading, setHistoryLoading] = useState(false)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  // 右上角 ↻ 手动全量刷新：进行中在按钮位置显示 loading 动画，刷新渲染完成后再收起
+  const [refreshing, setRefreshing] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
   // ⚠️ 不在此订阅 `messages`：整屏订阅会让每次流式 flush 重渲染整屏 → Fabric 整屏 commit
   // （流式卡顿根因）。消息区改由 <ChatMessageArea /> 单独订阅，见该组件注释。
@@ -260,9 +277,12 @@ export const ChatScreen: React.FC = () => {
   }
 
   // 用户可见刷新：头部 ↻ → 同步当前会话消息（幂等合入）+ 权威运行状态校正
-  // （解除 busy 闩锁/假等待态 + 终结卡住的 ⏳），随后刷新会话列表更新标题栏模型/provider
+  // （解除 busy 闩锁/假等待态 + 终结卡住的 ⏳），随后刷新会话列表更新标题栏模型/provider。
+  // 断线重连 / 每轮回复结束仍会自动对账（syncSessionMessages）；↻ 是用户主动触发的补充入口。
+  // 刷新期间按钮显示 loading，等刷新触发的渲染/布局/滚动都结束（InteractionManager）后再收起。
   const handleRefresh = async () => {
-    if (!activeSessionId) return
+    if (!activeSessionId || refreshing) return
+    setRefreshing(true)
     try {
       const client = useAuthStore.getState().client
       if (!client) return
@@ -271,6 +291,8 @@ export const ChatScreen: React.FC = () => {
       await fetchSessions(client.call.bind(client))
     } catch {
       // 刷新失败静默，保留现有状态
+    } finally {
+      afterInteractions(() => setRefreshing(false))
     }
   }
 
@@ -380,7 +402,11 @@ export const ChatScreen: React.FC = () => {
             accessibilityLabel="Refresh"
             hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           >
-            <Text style={styles.headerIcon}>↻</Text>
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} testID="refresh-loading" />
+            ) : (
+              <Text style={styles.headerIcon}>↻</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
