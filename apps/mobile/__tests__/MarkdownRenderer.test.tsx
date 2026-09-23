@@ -233,3 +233,30 @@ describe('MarkdownRenderer', () => {
     })
   })
 })
+
+describe('MarkdownRenderer — 流式代码围栏增量渲染', () => {
+  it('未闭合围栏直接走轻量代码块渲染（跳过 markdown 解析），内容可见', () => {
+    const tree = TestRenderer.create(
+      <MarkdownRenderer content={'```ts\nconst a = 1\nconst b = 2'} />,
+    )
+    const streamBlocks = tree.root.findAll((n: any) => n.props?.testID === 'md-stream-code')
+    expect(streamBlocks.length).toBeGreaterThan(0)
+    const text = textOf(tree.toJSON())
+    expect(text).toContain('const a = 1')
+    expect(text).toContain('const b = 2')
+  })
+
+  it('普通文本尾部不产生代码块（仍走 markdown 增量解析）', () => {
+    const tree = TestRenderer.create(<MarkdownRenderer content={'普通文本，没有围栏'} />)
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'md-stream-code').length).toBe(0)
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'md-code-block').length).toBe(0)
+  })
+
+  it('围栏闭合后不再走流式直渲染（切回 markdown 增量解析路径）', () => {
+    const tree = TestRenderer.create(
+      <MarkdownRenderer content={'```ts\nconst a = 1\n```'} />,
+    )
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'md-stream-code').length).toBe(0)
+    expect(textOf(tree.toJSON())).toContain('const a = 1')
+  })
+})

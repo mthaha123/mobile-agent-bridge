@@ -95,7 +95,7 @@ function isContinuationish(line: string): boolean {
  *   - 前缀最后一行不能是列表项/引用/缩进续行（否则会拆散同一个块）。
  * 找不到安全切分点时返回 stable=''，退化为整篇解析（与原行为一致，不会更差）。
  */
-export function splitStablePrefix(content: string): { stable: string; tail: string } {
+export function splitStablePrefix(content: string): { stable: string; tail: string; openFenceAtEnd: boolean } {
   // 单趟扫描（O(n)）：流式每个 flush 都会调用，不能在候选边界上反复切分整个前缀
   // （列表/引用密集的长文会让 O(n²) 退化成每秒数百 ms 的纯开销）。
   let offset = 0
@@ -125,11 +125,12 @@ export function splitStablePrefix(content: string): { stable: string; tail: stri
     offset = offset + line.length + 1
   }
 
+  const openFenceAtEnd = openFence !== null
   if (lastSafe <= 0) {
     // 无可冻结前缀 → 整篇交给尾部解析（与原行为一致，不会更差）
-    return { stable: '', tail: content }
+    return { stable: '', tail: content, openFenceAtEnd }
   }
-  return { stable: content.slice(0, lastSafe), tail: content.slice(lastSafe) }
+  return { stable: content.slice(0, lastSafe), tail: content.slice(lastSafe), openFenceAtEnd }
 }
 
 // ─── 组件 ─────────────────────────────────────────────────────────
@@ -182,6 +183,44 @@ const MarkdownChunk: React.FC<{ text: string }> = memo(({ text }) => {
   return <>{elements}</>
 })
 
+/**
+ * 尾部是否为「未闭合代码围栏」：是则跳过 markdown 解析，直接按代码块渲染。
+ * 只在 tail 以围栏开头时成立（否则尾部还含其它未完成块，交给 MarkdownChunk 正常解析）。
+ */
+export function isOpenFenceTail(tail: string): boolean {
+  return /^\s*(`{3,}|~{3,})/.test(tail)
+}
+
+/**
+ * 流式「未闭合代码围栏」的尾部渲染。
+ *
+ * 背景：围栏未闭合时 `splitStablePrefix` 找不到安全块边界（块语义要求围栏闭合），
+ * 于是 tail = 整段代码；若走 `useMarkdown`，每个 flush 都会把整段代码**全量重解析**
+ * （实测 16KB 文档：tail 平均 8.3KB、最大 16.6KB，207/208 次 flush 都在重解析）。
+ *
+ * 这里直接把纯文本按代码块样式渲染（单份 Text、不解析）—— 把「每次 flush 全量解析」
+ * 降为**零解析**。围栏一旦闭合，边界推进 → 整块进入冻结块路径，由 MarkdownChunk 解析一次。
+ */
+const StreamingCodeTail: React.FC<{ text: string }> = memo(({ text }) => {
+  const colors = useThemeColors()
+  // 去掉开头的围栏行（含语言标注），只渲染代码正文
+  const m = /^[ \t]*(?:`{3,}|~{3,})[^\n]*\n?/.exec(text)
+  const body = m ? text.slice(m[0].length) : text
+  // 刻意不用 MarkdownCodeBlock：它为了横滚会额外渲染一个隐藏探针（同一份文本渲染两遍）
+  // 并触发 layout→setState，流式期间反而更贵。这里只渲染一份文本（长行换行），
+  // 围栏闭合后自然切回带横滚的 MarkdownCodeBlock。
+  return (
+    <View testID="md-stream-code" style={[styles.streamCodeWrap, { backgroundColor: colors.markdownCodeBg }]}>
+      <Text
+        selectable={false}
+        style={[styles.streamCodeText, { color: colors.markdownText }]}
+      >
+        {body}
+      </Text>
+    </View>
+  )
+})
+
 /** 冻结块累积状态：text = 已冻结文本，chunks = 按边界切开的块（只增不改） */
 export interface FrozenChunks {
   text: string
@@ -204,7 +243,7 @@ export function accumulateChunks(prev: FrozenChunks, stable: string): FrozenChun
 }
 
 const MarkdownRendererInner: React.FC<MarkdownRendererProps> = ({ content }) => {
-  const { stable, tail } = useMemo(() => splitStablePrefix(content), [content])
+  const { stable, tail, openFenceAtEnd } = useMemo(() => splitStablePrefix(content), [content])
   // 冻结块跨渲染累积（只增不改，见 accumulateChunks 不变量）
   const frozen = useRef<FrozenChunks>({ text: '', chunks: [] })
   const next = accumulateChunks(frozen.current, stable)
@@ -216,7 +255,11 @@ const MarkdownRendererInner: React.FC<MarkdownRendererProps> = ({ content }) => 
       {chunks.map((c, i) => (
         <MarkdownChunk key={`c${i}`} text={c} />
       ))}
-      {tail.length > 0 ? <MarkdownChunk key="tail" text={tail} /> : null}
+      {tail.length > 0 ? (
+        openFenceAtEnd && isOpenFenceTail(tail)
+          ? <StreamingCodeTail key="tail" text={tail} />
+          : <MarkdownChunk key="tail" text={tail} />
+      ) : null}
     </View>
   )
 }
@@ -248,4 +291,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = MarkdownRendere
 
 const styles = StyleSheet.create({
   fallback: { fontSize: 14, lineHeight: 22 },
+  streamCodeWrap: {
+    alignSelf: 'stretch',
+    padding: 16,
+  },
+  streamCodeText: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontStyle: 'italic',
+    fontWeight: '300',
+  },
 })

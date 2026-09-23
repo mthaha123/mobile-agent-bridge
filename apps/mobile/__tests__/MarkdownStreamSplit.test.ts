@@ -1,4 +1,4 @@
-import { accumulateChunks, splitStablePrefix, FrozenChunks } from '../src/components/chat/MarkdownRenderer'
+import { accumulateChunks, splitStablePrefix, isOpenFenceTail, FrozenChunks } from '../src/components/chat/MarkdownRenderer'
 
 /**
  * 流式增量解析的切分规则回归防护。
@@ -10,58 +10,46 @@ import { accumulateChunks, splitStablePrefix, FrozenChunks } from '../src/compon
  * 这些用例锁定切分的**安全边界**：切错会把一个 markdown 块拆成两个（松/紧列表、
  * 引用分裂、围栏内空行），渲染结果与整篇解析不一致 —— 属于用户可见的回归。
  */
+/** 断言切分结果（默认 openFenceAtEnd=false，避免每个用例重复写） */
+function expectSplit(content: string, expected: { stable: string; tail: string; openFenceAtEnd?: boolean }) {
+  expect(splitStablePrefix(content)).toEqual({ openFenceAtEnd: false, ...expected })
+}
+
 describe('splitStablePrefix', () => {
   it('无空行时不可切分（退化为整篇解析）', () => {
-    expect(splitStablePrefix('一段没有空行的文字')).toEqual({
-      stable: '',
-      tail: '一段没有空行的文字',
-    })
+    expectSplit('一段没有空行的文字', { stable: '', tail: '一段没有空行的文字' })
   })
 
   it('在段落后的空行处切分', () => {
-    expect(splitStablePrefix('第一段\n\n第二段')).toEqual({
-      stable: '第一段\n\n',
-      tail: '第二段',
-    })
+    expectSplit('第一段\n\n第二段', { stable: '第一段\n\n', tail: '第二段' })
   })
 
   it('切分点不落在列表项之后（避免拆散同一个列表）', () => {
-    const content = '- a\n- b\n\n- c'
-    expect(splitStablePrefix(content)).toEqual({ stable: '', tail: content })
+    expectSplit('- a\n- b\n\n- c', { stable: '', tail: '- a\n- b\n\n- c' })
   })
 
   it('切分点不落在有序列表项之后', () => {
-    const content = '1. a\n2. b\n\n3. c'
-    expect(splitStablePrefix(content)).toEqual({ stable: '', tail: content })
+    expectSplit('1. a\n2. b\n\n3. c', { stable: '', tail: '1. a\n2. b\n\n3. c' })
   })
 
   it('切分点可以落在标题之后', () => {
-    expect(splitStablePrefix('# 标题\n\n正文')).toEqual({
-      stable: '# 标题\n\n',
-      tail: '正文',
-    })
+    expectSplit('# 标题\n\n正文', { stable: '# 标题\n\n', tail: '正文' })
   })
 
   it('未闭合代码围栏内的空行不作为切分点', () => {
-    const content = '```\ncode\n\nmore\n```'
-    expect(splitStablePrefix(content)).toEqual({ stable: '', tail: content })
+    expectSplit('```\ncode\n\nmore\n```', { stable: '', tail: '```\ncode\n\nmore\n```' })
   })
 
   it('闭合围栏之后可以切分', () => {
-    expect(splitStablePrefix('```\na\n```\n\n正文')).toEqual({
-      stable: '```\na\n```\n\n',
-      tail: '正文',
-    })
+    expectSplit('```\na\n```\n\n正文', { stable: '```\na\n```\n\n', tail: '正文' })
   })
 
   it('切分点不落在引用块之后', () => {
-    const content = '> 引用\n\n后续'
-    expect(splitStablePrefix(content)).toEqual({ stable: '', tail: content })
+    expectSplit('> 引用\n\n后续', { stable: '', tail: '> 引用\n\n后续' })
   })
 
   it('切分点不落在缩进续行之后', () => {
-    const content = '段落\n  续行\n\n后续'
-    expect(splitStablePrefix(content)).toEqual({ stable: '', tail: content })
+    expectSplit('段落\n  续行\n\n后续', { stable: '', tail: '段落\n  续行\n\n后续' })
   })
 
   it('多块长文只在最后一个安全块边界处切分', () => {
@@ -69,6 +57,13 @@ describe('splitStablePrefix', () => {
     const { stable, tail } = splitStablePrefix(content)
     expect(stable).toBe('# 一\n\n段落一\n\n## 二\n\n段落二\n\n')
     expect(tail).toBe('- 列表项')
+  })
+
+  it('尾部处于未闭合围栏时标记 openFenceAtEnd=true', () => {
+    expectSplit('```ts\nconst a = 1', { stable: '', tail: '```ts\nconst a = 1', openFenceAtEnd: true })
+    expectSplit('正文\n\n```ts\ncode', { stable: '正文\n\n', tail: '```ts\ncode', openFenceAtEnd: true })
+    // 闭合后不再标记
+    expectSplit('```ts\nconst a = 1\n```', { stable: '', tail: '```ts\nconst a = 1\n```', openFenceAtEnd: false })
   })
 
   it('stable + tail 恒等于原文（任何切分都不丢字）', () => {
@@ -83,11 +78,25 @@ describe('splitStablePrefix', () => {
       '> 引用\n\n后续',
       '# 标题\n\n正文\n\n## 小标题\n\n结尾',
       '段落\n  续行\n\n后续',
+      '```ts\nconst a = 1',
     ]
     for (const content of cases) {
       const { stable, tail } = splitStablePrefix(content)
       expect(stable + tail).toBe(content)
     }
+  })
+})
+
+describe('isOpenFenceTail', () => {
+  it('识别以围栏开头的尾部', () => {
+    expect(isOpenFenceTail('```ts\ncode')).toBe(true)
+    expect(isOpenFenceTail('~~~\ncode')).toBe(true)
+    expect(isOpenFenceTail('  ```\ncode')).toBe(true)
+  })
+  it('普通文本/非围栏开头不算', () => {
+    expect(isOpenFenceTail('普通文本')).toBe(false)
+    expect(isOpenFenceTail('正文\n\n```ts\ncode')).toBe(false)
+    expect(isOpenFenceTail('`inline`')).toBe(false)
   })
 })
 
