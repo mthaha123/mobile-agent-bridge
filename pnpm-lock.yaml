@@ -18,8 +18,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
       ratex-react-native:
-        specifier: 0.1.8
-        version: 0.1.8(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
+        specifier: 0.1.14
+        version: 0.1.14(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -37,7 +37,7 @@ importers:
         version: 8.1.1(react-native-svg@15.15.5(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
       react-native-nitro-markdown:
         specifier: 0.12.4
-        version: 0.12.4(ratex-react-native@0.1.8(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native-nitro-modules@0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
+        version: 0.12.4(ratex-react-native@0.1.14(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native-nitro-modules@0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
       react-native-nitro-modules:
         specifier: 0.37.1
         version: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
@@ -1389,9 +1389,6 @@ packages:
     peerDependenciesMeta:
       jest:
         optional: true
-
-  '@tsconfig/node10@1.0.12':
-    resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
 
   '@tsconfig/node10@1.0.13':
     resolution: {integrity: sha512-gcLdvR9HO1ZJBypsOGqaP6TFEzb6vIta0KSTLt9NAQ6pXQO3cRgSVyCN6pzYqI9DlJgY71XKO0dpDhCf08b3pg==}
@@ -3040,11 +3037,11 @@ packages:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
 
-  ratex-react-native@0.1.8:
-    resolution: {integrity: sha512-bZHcrzSnjeukdEMR3a1EvawBQQAvO2+g36J5CbtAOGvP1TvScbMKyKFwOYLYQVs4yoyXreId7vIXDiuwrzUqMg==}
+  ratex-react-native@0.1.14:
+    resolution: {integrity: sha512-EGLM4tb7OTGWjUexGUDHEDqXtYvQ6VR0Joo4AEz/W6qoGaA7yKRwSfBz0GpaHE+dx1W+sfD6X83DdIjqPudthQ==}
     peerDependencies:
-      react: '*'
-      react-native: '*'
+      react: '>=19.2.0'
+      react-native: '>=0.84.0'
 
   raw-body@3.0.2:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
@@ -5365,10 +5362,7 @@ snapshots:
     optionalDependencies:
       jest: 29.7.0(@types/node@26.0.1)(ts-node@10.9.2(@types/node@26.0.1)(typescript@5.8.3))
 
-  '@tsconfig/node10@1.0.12': {}
-
-  '@tsconfig/node10@1.0.13':
-    optional: true
+  '@tsconfig/node10@1.0.13': {}
 
   '@tsconfig/node12@1.0.11': {}
 
@@ -7486,7 +7480,7 @@ snapshots:
 
   range-parser@1.2.1: {}
 
-  ratex-react-native@0.1.8(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3):
+  ratex-react-native@0.1.14(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3):
     dependencies:
       react: 19.2.3
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3)
@@ -7547,9 +7541,9 @@ snapshots:
       react-native-svg: 15.15.5(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
       svg-parser: 2.0.4
 
-  react-native-nitro-markdown@0.12.4(ratex-react-native@0.1.8(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native-nitro-modules@0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3):
+  react-native-nitro-markdown@0.12.4(ratex-react-native@0.1.14(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native-nitro-modules@0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3):
     dependencies:
-      ratex-react-native: 0.1.8(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
+      ratex-react-native: 0.1.14(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
       react: 19.2.3
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3)
       react-native-nitro-modules: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3))(react@19.2.3)
@@ -7983,7 +7977,7 @@ snapshots:
   ts-node@10.9.2(@types/node@26.0.1)(typescript@5.4.2):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.12
+      '@tsconfig/node10': 1.0.13
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4

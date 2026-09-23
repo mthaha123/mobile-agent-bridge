@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "events": "^3.3.0",
-    "ratex-react-native": "0.1.8",
+    "ratex-react-native": "0.1.14",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-blob-util": "^0.24.10",
