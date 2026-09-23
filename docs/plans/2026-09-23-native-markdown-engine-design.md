@@ -172,6 +172,7 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
 **附录 — 决策记录（Spike 完成后回填）**
 ```
 - 日期：
+- Gate B 结果：C2 硬阻塞 —— streamdown 要求 worklets>=0.10，其 peer 为 RN 0.83-0.86 ⇒ 需 RN 升级（React 19.2+）
 - Gate A 结果（构建 / 运行 / JS CPU A-B 数据）：
 - 最终选择（C1 / C2 / 降级 B1）：
 - 后续所需 RN 版本：
