@@ -184,6 +184,21 @@ peerDependencies` 的 `react-native: 0.83-…` 就是判定依据 → **C2 ⇒ R
 - 最终选择：**C1 保留（HEAD 依赖+适配层不回滚）+ 走 Gate C RN 升级**（用户 2026-09-23 决策，未走分支 A 回滚）
 - 后续所需 RN 版本：**RN 0.86.3 + React 19.2.3**（升级计划见 `docs/plans/2026-09-23-rn-upgrade.md`；
   完成后回本计划 Task 4 重跑 Gate A'，ratex 届时按 README 升 0.1.14）
+- Gate A' 结果（2026-09-23，RN 0.86.3 + React 19.2.3 + ratex 0.1.14，各 2 轮取均值；
+  release 包 / Pixel_7+ANGLE / 12 次每秒打桩）：**性能判据 FAIL → native 引擎暂不启用**
+  | 场景 | 指标 | A 组 legacy | B 组 native | 判据 | 结果 |
+  |---|---|---|---|---|---|
+  | 正文 17k | JS CPU | 2.66s (2.59/2.72) | 5.31s (5.07/5.54) | ≥−50% | ✗ +99% |
+  | 正文 17k | p90 / input-lat | 59ms / 45帧 | 63ms / 137帧 | 劣化≤20% / 不增 | △ / ✗ |
+  | 代码围栏 16.6k | JS CPU | 3.43s (3.87/2.98) | 3.09s (3.11/3.07) | ≥−50% | ✗ 仅 −10% |
+  | 代码围栏 16.6k | p90 / input-lat | 131ms / 76帧 | 77ms / 92帧 | | ✓(−41%) / ✗ |
+  **编译关与运行关全过**（nitro stack 在 RN0.86 编译 EXIT=0 + 启动不红屏 + 流式跑通）——Gate C 目标本身达成。
+  **归因**：native parse 移出 JS 后，`MarkdownStream` 每次 listener→setState→React 重建整棵元素树，
+  **缺少 legacy 侧的冻结块/memo 缓解**，长文场景 JS 成本反超（+99%）；code 场景原生 parse/布局收益使 p90 −41%。
+  input latency 两场景增加即"JS 更忙"的直接体现。
+  **状态**：flag 保持 **legacy**（= HEAD 默认，零 diff）；C1 代码与依赖保留在 flag 后。
+  后续优化候选（需另行立项）：给 MarkdownStream 定制 `renderMarkdown` 做冻结块语义、
+  `updateStrategy=interval` 降频、或把 listener→React 更新限制到尾部块。
 ```
 
 ---
