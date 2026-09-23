@@ -5,6 +5,8 @@ import { Renderer, useMarkdown } from 'react-native-marked'
 import { MarkdownTable } from './MarkdownTable'
 import { MarkdownCodeBlock } from './MarkdownCodeBlock'
 import { useThemeColors, useThemeMode } from '../../theme/ThemeContext'
+import { MARKDOWN_ENGINE, type MarkdownEngine } from '../../config/markdownEngine'
+import { NativeMarkdown } from './NativeMarkdown'
 
 interface MarkdownRendererProps {
   content: string
@@ -311,7 +313,26 @@ const MarkdownRendererInner: React.FC<MarkdownRendererProps> = ({ content }) => 
  *   1) `useMemo(..., [content])` —— content 不变则跳过切分；
  *   2) `MarkdownChunk` 的 `memo` —— 块文本不变则永不重解析。
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = MarkdownRendererInner
+
+export interface MarkdownRendererDispatchProps extends MarkdownRendererProps {
+  /** 默认取全局开关（MARKDOWN_ENGINE）；测试可用它显式覆盖 */
+  engine?: MarkdownEngine
+}
+
+/**
+ * 公开入口：按引擎开关分发。
+ * ⚠️ 必须保持**普通具名函数**导出（不能被 memo 包住），理由同上：
+ * fiber.type 必须是组件本体，`findAllByType(MarkdownRenderer)` 才能命中。
+ */
+export const MarkdownRenderer: React.FC<MarkdownRendererDispatchProps> = ({
+  content,
+  engine = MARKDOWN_ENGINE,
+}) =>
+  engine === 'native' ? (
+    <NativeMarkdown content={content} />
+  ) : (
+    <MarkdownRendererInner content={content} />
+  )
 
 const styles = StyleSheet.create({
   fallback: { fontSize: 14, lineHeight: 22 },
