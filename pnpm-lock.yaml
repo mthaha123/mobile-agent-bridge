@@ -96,12 +96,12 @@ importers:
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
-      '@types/react-native':
-        specifier: ^0.73.0
-        version: 0.73.0(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3)
       '@types/react-test-renderer':
         specifier: ^19.1.0
         version: 19.3.0
+      hermes-compiler:
+        specifier: 250829098.0.17
+        version: 250829098.0.17
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@26.0.1)(ts-node@10.9.2(@types/node@26.0.1)(typescript@5.8.3))
@@ -1393,6 +1393,9 @@ packages:
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
 
+  '@tsconfig/node10@1.0.13':
+    resolution: {integrity: sha512-gcLdvR9HO1ZJBypsOGqaP6TFEzb6vIta0KSTLt9NAQ6pXQO3cRgSVyCN6pzYqI9DlJgY71XKO0dpDhCf08b3pg==}
+
   '@tsconfig/node12@1.0.11':
     resolution: {integrity: sha512-cqefuRsh12pWyGsIoBKJA9luFu3mRxCA+ORZvA4ktLSzIuCUtWVxGIuXigEwO5/ywWFMZ2QEGKWvkZG1zDMTag==}
 
@@ -1443,10 +1446,6 @@ packages:
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
-
-  '@types/react-native@0.73.0':
-    resolution: {integrity: sha512-6ZRPQrYM72qYKGWidEttRe6M5DZBEV5F+MHMHqd4TTYx0tfkcdrUFGdef6CCxY0jXU7wldvd/zA/b0A/kTeJmA==}
-    deprecated: This is a stub types definition. react-native provides its own type definitions, so you do not need this installed.
 
   '@types/react-test-renderer@19.3.0':
     resolution: {integrity: sha512-TX4p2D4Z2oigM3SXU7+QyLSUnSR0vR1S1Pfxm/qFL9nHQ3jclgi6ioGoWQmlIr1DeKRVmPJrmNlhgM0JlWlLUg==}
@@ -5368,6 +5367,9 @@ snapshots:
 
   '@tsconfig/node10@1.0.12': {}
 
+  '@tsconfig/node10@1.0.13':
+    optional: true
+
   '@tsconfig/node12@1.0.11': {}
 
   '@tsconfig/node14@1.0.3': {}
@@ -5431,20 +5433,6 @@ snapshots:
       undici-types: 8.3.0
 
   '@types/prop-types@15.7.15': {}
-
-  '@types/react-native@0.73.0(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3)':
-    dependencies:
-      react-native: 0.86.3(@babel/core@7.29.7)(@react-native-community/cli@20.2.0(typescript@5.8.3))(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.2.3)
-    transitivePeerDependencies:
-      - '@babel/core'
-      - '@react-native-community/cli'
-      - '@react-native/jest-preset'
-      - '@react-native/metro-config'
-      - '@types/react'
-      - bufferutil
-      - react
-      - supports-color
-      - utf-8-validate
 
   '@types/react-test-renderer@19.3.0':
     dependencies:
@@ -8013,7 +8001,7 @@ snapshots:
   ts-node@10.9.2(@types/node@26.0.1)(typescript@5.8.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.12
+      '@tsconfig/node10': 1.0.13
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
