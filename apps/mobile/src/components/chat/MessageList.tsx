@@ -27,7 +27,7 @@ export interface MessageListProps {
  * - maintainVisibleContentPosition 兜住历史 prepend 时的视口锚定
  * - 上滑加载历史：onScroll 检测到达顶部附近触发
  */
-export const MessageList: React.FC<MessageListProps> = (props) => {
+const MessageListInner: React.FC<MessageListProps> = (props) => {
   const {
     messages,
     renderMessage,
@@ -133,6 +133,16 @@ export const MessageList: React.FC<MessageListProps> = (props) => {
     </View>
   )
 }
+
+/**
+ * 消息列表（React.memo 化）。
+ *
+ * 配合 ChatMessageArea 的 `useDeferredValue`：紧急（同步）渲染时 deferredMessages 仍是旧值，
+ * `messages` prop 引用不变 → 本组件整体 bail out，不阻塞点击/输入；真正的列表重渲染落在
+ * 可中断的后台渲染里。⚠️ 依赖 props 引用稳定（renderMessage / onLoadMoreHistory 等），
+ * 故 ChatScreen 侧这些回调必须是 useCallback 稳定引用。
+ */
+export const MessageList = React.memo(MessageListInner)
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({

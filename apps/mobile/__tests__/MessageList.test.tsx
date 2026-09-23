@@ -200,4 +200,16 @@ describe('MessageList', () => {
     })
     expect(typeof flatListNode(tree).props.onContentSizeChange).toBe('function')
   })
+
+  it('is memoized: identical props do not re-render (A1 流式降级依赖此 memo)', () => {
+    const renderMessage = jest.fn((item: ChatMessage) => <Text key={item.id}>{item.content}</Text>)
+    const props = buildProps({ messages: [msg('memo1', NOW)], renderMessage })
+    let tree!: TestRenderer.ReactTestRenderer
+    act(() => { tree = TestRenderer.create(<MessageList {...props} />) })
+    const callsAfterMount = renderMessage.mock.calls.length
+
+    // 用同一批 props 值重渲染：memo 命中 → 不重新调用 renderMessage
+    act(() => { tree.update(<MessageList {...props} />) })
+    expect(renderMessage.mock.calls.length).toBe(callsAfterMount)
+  })
 })

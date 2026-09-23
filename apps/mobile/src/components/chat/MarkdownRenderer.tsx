@@ -221,6 +221,28 @@ const StreamingCodeTail: React.FC<{ text: string }> = memo(({ text }) => {
   )
 })
 
+/** 尾部是否为「无 markdown 语义的纯文本」（无换行、非列表项、无元字符） */
+export function isPlainTextTail(tail: string): boolean {
+  if (tail.length === 0) return false
+  if (tail.includes('\n')) return false
+  if (/^\s*([-+]|\d+[.)])\s/.test(tail)) return false
+  if (/^\s*-{3,}\s*$/.test(tail)) return false // 分隔线 ---
+  return !/[*_`~#>|[\]\\!&]/.test(tail)
+}
+
+/**
+ * 纯文本尾部：无 markdown 语义 → 直接单节点 Text 渲染。
+ * 结果与解析一致（纯文本 markdown 不改变字形），但省掉 useMarkdown 的解析与元素树开销。
+ */
+const PlainTextTail: React.FC<{ text: string }> = memo(({ text }) => {
+  const colors = useThemeColors()
+  return (
+    <Text testID="md-plain-tail" style={[styles.plainTail, { color: colors.markdownText }]}>
+      {text}
+    </Text>
+  )
+})
+
 /** 冻结块累积状态：text = 已冻结文本，chunks = 按边界切开的块（只增不改） */
 export interface FrozenChunks {
   text: string
@@ -258,7 +280,9 @@ const MarkdownRendererInner: React.FC<MarkdownRendererProps> = ({ content }) => 
       {tail.length > 0 ? (
         openFenceAtEnd && isOpenFenceTail(tail)
           ? <StreamingCodeTail key="tail" text={tail} />
-          : <MarkdownChunk key="tail" text={tail} />
+          : isPlainTextTail(tail)
+            ? <PlainTextTail key="tail" text={tail} />
+            : <MarkdownChunk key="tail" text={tail} />
       ) : null}
     </View>
   )
@@ -300,5 +324,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontStyle: 'italic',
     fontWeight: '300',
+  },
+  plainTail: {
+    fontSize: 16,
+    lineHeight: 24,
+    paddingVertical: 8,
   },
 })

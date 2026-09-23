@@ -1,4 +1,4 @@
-import { accumulateChunks, splitStablePrefix, isOpenFenceTail, FrozenChunks } from '../src/components/chat/MarkdownRenderer'
+import { accumulateChunks, splitStablePrefix, isOpenFenceTail, isPlainTextTail, FrozenChunks } from '../src/components/chat/MarkdownRenderer'
 
 /**
  * 流式增量解析的切分规则回归防护。
@@ -97,6 +97,44 @@ describe('isOpenFenceTail', () => {
     expect(isOpenFenceTail('普通文本')).toBe(false)
     expect(isOpenFenceTail('正文\n\n```ts\ncode')).toBe(false)
     expect(isOpenFenceTail('`inline`')).toBe(false)
+  })
+})
+
+describe('isPlainTextTail', () => {
+  it('纯文本（无换行/无元字符）→ true', () => {
+    expect(isPlainTextTail('这是一段普通正文')).toBe(true)
+    expect(isPlainTextTail('Hello world 123')).toBe(true)
+    expect(isPlainTextTail('价格是 3.14 元')).toBe(true)
+  })
+
+  it('含 markdown 元字符 / 列表项 / 分隔线 → false', () => {
+    for (const t of [
+      '**bold**',
+      '# 标题',
+      '- item',
+      '+ item',
+      '1. item',
+      '1) item',
+      '> quote',
+      'a | b',
+      '`code`',
+      '~~del~~',
+      '[link](u)',
+      '![img](u)',
+      '---',
+      'a & b',
+      'path\\to',
+    ]) {
+      expect(isPlainTextTail(t)).toBe(false)
+    }
+  })
+
+  it('含换行 → false（多行块交给解析器）', () => {
+    expect(isPlainTextTail('第一行\n第二行')).toBe(false)
+  })
+
+  it('空串 → false', () => {
+    expect(isPlainTextTail('')).toBe(false)
   })
 })
 

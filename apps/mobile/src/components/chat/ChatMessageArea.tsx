@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useDeferredValue } from 'react'
 import { useChatStore, type ChatMessage } from '../../stores/chatStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { MessageList } from './MessageList'
@@ -32,11 +32,17 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = React.memo((props
   const messages = useChatStore((s) => s.messages)
   const chatDisplayMode = useSettingsStore((s) => s.chatDisplayMode)
 
+  // ⚠️ 流式更新来自 zustand（useSyncExternalStore）→ 其渲染是**同步、不可中断**的，
+  // 用 startTransition 包裹 set 无效（React 官方确认 "uSES update can't be a transition"）。
+  // 与 uSES 兼容的降级方式是 useDeferredValue：先用旧值同步渲染一次（很轻，MessageList
+  // 被 memo 挡住），再在后台做**可中断**的重渲染 —— 点击/输入等紧急更新可抢占流式渲染。
+  const deferredMessages = useDeferredValue(messages)
+
   // 渲染层合并连续 assistant 消息（仅 grouped 模式）：SDK v2 的思考/工具/文本是独立
   // message，实时流式与历史加载统一在此合并，store 数据保持逐条不变
   const displayMessages = useMemo(
-    () => (chatDisplayMode === 'grouped' ? mergeConsecutiveAssistantMsgs(messages) : messages),
-    [messages, chatDisplayMode],
+    () => (chatDisplayMode === 'grouped' ? mergeConsecutiveAssistantMsgs(deferredMessages) : deferredMessages),
+    [deferredMessages, chatDisplayMode],
   )
 
   return (

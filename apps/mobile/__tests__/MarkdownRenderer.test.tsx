@@ -259,4 +259,16 @@ describe('MarkdownRenderer — 流式代码围栏增量渲染', () => {
     expect(tree.root.findAll((n: any) => n.props?.testID === 'md-stream-code').length).toBe(0)
     expect(textOf(tree.toJSON())).toContain('const a = 1')
   })
+
+  it('纯文本尾部走单节点快速路径（md-plain-tail），内容一致', () => {
+    const tree = TestRenderer.create(<MarkdownRenderer content={'一段普通正文'} />)
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'md-plain-tail').length).toBeGreaterThan(0)
+    expect(textOf(tree.toJSON())).toContain('一段普通正文')
+  })
+
+  it('含 markdown 语义的尾部不走纯文本快速路径', () => {
+    const tree = TestRenderer.create(<MarkdownRenderer content={'**加粗**'} />)
+    expect(tree.root.findAll((n: any) => n.props?.testID === 'md-plain-tail').length).toBe(0)
+    expect(textOf(tree.toJSON())).toContain('加粗')
+  })
 })

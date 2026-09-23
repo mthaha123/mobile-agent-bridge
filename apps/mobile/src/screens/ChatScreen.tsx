@@ -205,7 +205,8 @@ export const ChatScreen: React.FC = () => {
   }, [activeSessionId])
 
   // 上滑到顶：用 cursor 加载更早的消息，prepend 到列表前
-  const handleLoadMoreHistory = async () => {
+  // useCallback：保持引用稳定，避免破坏 MessageList 的 React.memo（流式降级依赖它）
+  const handleLoadMoreHistory = useCallback(async () => {
     const client = useAuthStore.getState().client
     console.log(`[DEBUG loadMore] cursor=${historyCursor} loading=${historyLoading}`)
     if (!activeSessionId || !client || !historyCursor || historyLoading) return
@@ -238,7 +239,7 @@ export const ChatScreen: React.FC = () => {
     } finally {
       setHistoryLoading(false)
     }
-  }
+  }, [activeSessionId, historyCursor, historyLoading])
 
   const currentSession = sessions.find((s) => s.id === activeSessionId)
   const sessionName = currentSession?.name ?? `Session ${activeSessionId?.slice(0, 8) ?? ''}`
