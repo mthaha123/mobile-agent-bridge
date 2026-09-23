@@ -24,6 +24,15 @@ export function dayLabel(ts: number, now: number = Date.now()): string {
 }
 
 /**
+ * 未变消息的列表项对象缓存：保持引用稳定。
+ *
+ * 流式期间每 80ms 重建一次列表，若每次都生成全新的 `{kind,message}` 对象，
+ * FlatList 会把每个 cell 都当作"变了"来 diff。对引用未变的消息复用同一 item 对象，
+ * 让未变 cell 在 React/Fabric 侧可被直接跳过。
+ */
+const messageItemCache = new WeakMap<ChatMessage, ChatListItem>()
+
+/**
  * 输入时间正序消息（chatStore 原始数组，旧→新），
  * 输出正序展示项（旧→新）并在每个日界插入分隔符。
  * 分隔符位于"该天第一条消息之前"——正序 FlatList 中视觉上在该天消息上方。
@@ -42,7 +51,12 @@ export function buildChatListItems(
       out.push({ kind: 'separator', key: `sep_${day}`, label: dayLabel(ts, now) })
       prevDay = day
     }
-    out.push({ kind: 'message', key: m.id, message: m })
+    let item = messageItemCache.get(m)
+    if (!item || item.kind !== 'message' || item.key !== m.id) {
+      item = { kind: 'message', key: m.id, message: m }
+      messageItemCache.set(m, item)
+    }
+    out.push(item)
   }
   return out
 }

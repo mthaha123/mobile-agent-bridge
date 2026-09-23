@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
 } from 'react-native'
 import { useChatStore } from '../stores/chatStore'
 import type { ChatMessage } from '../stores/chatStore'
-import { useSettingsStore } from '../stores/settingsStore'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
@@ -26,10 +25,9 @@ import { SlashSheet } from './SlashSheet'
 import { ModelPickerModal } from '../components/ModelPickerModal'
 import type { Part } from '../types/message'
 import { buildToolPartFromRaw } from '../utils/toolParts'
-import { MessageList } from '../components/chat/MessageList'
+import { ChatMessageArea } from '../components/chat/ChatMessageArea'
 import { TAB_BAR_HEIGHT } from '../components/MainLayout'
 import { MessageItem } from '../components/chat/MessageItem'
-import { mergeConsecutiveAssistantMsgs } from '../components/chat/mergeAssistantMessages'
 import { ThinkingShimmer } from '../components/chat/ThinkingShimmer'
 import { PermissionDock } from '../components/chat/PermissionDock'
 import { QuestionDock } from '../components/chat/QuestionDock'
@@ -81,14 +79,8 @@ export const ChatScreen: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
-  const messages = useChatStore((s) => s.messages)
-  const chatDisplayMode = useSettingsStore((s) => s.chatDisplayMode)
-  // 渲染层合并连续 assistant 消息（仅 grouped 模式）：SDK v2 的思考/工具/文本是独立
-  // message，实时流式与历史加载统一在此合并，store 数据保持逐条不变
-  const displayMessages = useMemo(
-    () => (chatDisplayMode === 'grouped' ? mergeConsecutiveAssistantMsgs(messages) : messages),
-    [messages, chatDisplayMode],
-  )
+  // ⚠️ 不在此订阅 `messages`：整屏订阅会让每次流式 flush 重渲染整屏 → Fabric 整屏 commit
+  // （流式卡顿根因）。消息区改由 <ChatMessageArea /> 单独订阅，见该组件注释。
   const inputText = useChatStore((s) => s.inputText)
   const waiting = useChatStore((s) => s.waiting)
   const runError = useChatStore((s) => s.runError)
@@ -403,8 +395,7 @@ export const ChatScreen: React.FC = () => {
         </View>
       ) : null}
 
-      <MessageList
-        messages={displayMessages}
+      <ChatMessageArea
         renderMessage={renderMessage}
         thinkingIndicator={waiting ? <ThinkingShimmer /> : undefined}
         historyHint={hasMoreHistory ? (

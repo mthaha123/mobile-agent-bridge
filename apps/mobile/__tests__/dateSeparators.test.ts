@@ -67,4 +67,25 @@ describe('buildChatListItems', () => {
     const items = buildChatListItems([m], NOW)
     expect(items.some((i) => i.kind === 'separator')).toBe(true)
   })
+
+  it('reuses the same item object for an unchanged message (stable identity)', () => {
+    const a = msg('a', NOW)
+    const b = msg('b', NOW - 1000)
+    const first = buildChatListItems([a, b], NOW)
+    const second = buildChatListItems([a, b], NOW)
+    const itemA1 = first.find((i) => i.kind === 'message' && i.key === 'a')
+    const itemA2 = second.find((i) => i.kind === 'message' && i.key === 'a')
+    expect(itemA2).toBe(itemA1)
+  })
+
+  it('produces a new item object when the message reference changes', () => {
+    const a = msg('a', NOW)
+    const first = buildChatListItems([a], NOW)
+    const a2: ChatMessage = { ...a, content: 'updated' }
+    const second = buildChatListItems([a2], NOW)
+    const itemA1 = first.find((i) => i.kind === 'message' && i.key === 'a')
+    const itemA2 = second.find((i) => i.kind === 'message' && i.key === 'a')
+    expect(itemA2).not.toBe(itemA1)
+    expect(itemA2 && itemA2.kind === 'message' ? itemA2.message : null).toBe(a2)
+  })
 })
