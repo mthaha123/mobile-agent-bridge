@@ -430,3 +430,25 @@ git push origin main
 3. 业务代码除 React19 类型错误外一律不动（升级任务不夹带重构）。
 4. 构建/端口/日志纪律同 AGENTS：后台构建、`logs/build/`、测试段端口。
 5. main 在 Task 8 merge 前不接受任何升级相关改动——回滚 = 弃分支，别做逆向补丁。
+
+---
+
+## 执行状态（2026-09-23 回填）
+
+- **✅ 完成并已合入 main**（merge commit `fcd377f`，已 push；分支 `rn-upgrade-0.86` 保留）。
+  Task 1–6 四门全绿：jest `2 failed / 1103 passed`（基线不变）、tsc `11 ≤ 25`（零新增，
+  一处 `renameSession` 显式标注连锁解开 16 个类型错）、`assembleRelease EXIT=0`（7m50s/312 tasks）、
+  connect 冒烟 5/5 + `l3-core-chat` PASS。
+- **Task 7 Gate A'：性能判据 FAIL（判负）**——2×2 双轮数据与归因见
+  `2026-09-23-native-markdown-engine-design.md` 附录。处置（用户决策）：**C1 留在 flag 后**，
+  默认 `MARKDOWN_ENGINE='legacy'`（零行为变化）；后续优化另行立项（MarkdownStream 定制
+  `renderMarkdown` 做冻结块 / `updateStrategy=interval` 降频 / listener 只刷尾部块）。
+  原生计划 Task 6–10 随之搁置。
+- ratex 已升 `0.1.14`（README 推荐版本，新栈下 peer 满足）。
+- 执行期发现并处置的升级坑（均已入对应 commit）：`react-native` 0.86 不再自带 hermesc
+  → 新增直接依赖 `hermes-compiler`（pnpm isolated 布局 vs gradle 扁平路径）；metro 0.84 默认
+  打开 package exports → 关回（zustand esm 的 `import.meta` 过不了 hermesc）；RTR19 的
+  `create` 初始渲染推迟到 act → `jest.setup.js` 统一垫片。
+- **机器级环境适配（刻意未进仓库）**：`~/.gradle/gradle.properties` 把 Gradle Plugin Portal
+  重定向到阿里云镜像（本环境 plugins.gradle.org 握手被重置）；Gradle 9.3.1 发行包经腾讯云镜像
+  预置进 `~/.gradle/wrapper/dists` 缓存（services.gradle.org 直连超时）。
