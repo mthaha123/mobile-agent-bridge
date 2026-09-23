@@ -17,6 +17,9 @@ importers:
       events:
         specifier: ^3.3.0
         version: 3.3.0
+      ratex-react-native:
+        specifier: 0.1.8
+        version: 0.1.8(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -32,6 +35,12 @@ importers:
       react-native-marked:
         specifier: ^8.1.1
         version: 8.1.1(react-native-svg@15.15.5(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
+      react-native-nitro-markdown:
+        specifier: 0.12.4
+        version: 0.12.4(ratex-react-native@0.1.8(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react-native-nitro-modules@0.37.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
+      react-native-nitro-modules:
+        specifier: 0.37.1
+        version: 0.37.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
       react-native-webview:
         specifier: ^14.0.1
         version: 14.0.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
@@ -3309,6 +3318,12 @@ packages:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
 
+  ratex-react-native@0.1.8:
+    resolution: {integrity: sha512-bZHcrzSnjeukdEMR3a1EvawBQQAvO2+g36J5CbtAOGvP1TvScbMKyKFwOYLYQVs4yoyXreId7vIXDiuwrzUqMg==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   raw-body@3.0.2:
     resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
     engines: {node: '>= 0.10'}
@@ -3353,6 +3368,20 @@ packages:
       react: '>=16.8.6'
       react-native: '>=0.76.0'
       react-native-svg: '>=12.3.0'
+
+  react-native-nitro-markdown@0.12.4:
+    resolution: {integrity: sha512-AohcU++npoSVN+bXg8ojQkOz5FrTMU4WILczRyX6oZ9b3UdCx6IITJjRTpnH33lYE73O2bnSTqkWwmP4FGVBKQ==}
+    peerDependencies:
+      ratex-react-native: '>=0.1.4'
+      react: '*'
+      react-native: '>=0.75.0'
+      react-native-nitro-modules: '>=0.37.0 <0.38.0'
+
+  react-native-nitro-modules@0.37.1:
+    resolution: {integrity: sha512-KpW6EQVQ/bfegpCGxN9Be+ndvsfj56t4IESEvCASu9gWpJa/NDfHpIeIwCOvZQ3eXmLEj6YD4wCLqcC1FJPr2w==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   react-native-reanimated-table@0.0.2:
     resolution: {integrity: sha512-OeuqfU1AFEmHNTJlEOLWrV78JgAXnM0/ZrCm0Ab+9e5nwYJ+xab/UFXkNKz3Gyf08ZfLSNzwMQRjt3eZWPWoGA==}
@@ -8165,6 +8194,11 @@ snapshots:
 
   range-parser@1.2.1: {}
 
+  ratex-react-native@0.1.8(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1)
+
   raw-body@3.0.2:
     dependencies:
       bytes: 3.1.2
@@ -8228,6 +8262,18 @@ snapshots:
       react-native-reanimated-table: 0.0.2(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
       react-native-svg: 15.15.5(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
       svg-parser: 2.0.4
+
+  react-native-nitro-markdown@0.12.4(ratex-react-native@0.1.8(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react-native-nitro-modules@0.37.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      ratex-react-native: 0.1.8(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
+      react: 18.3.1
+      react-native: 0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1)
+      react-native-nitro-modules: 0.37.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
+
+  react-native-nitro-modules@0.37.1(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-native: 0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1)
 
   react-native-reanimated-table@0.0.2(react-native@0.76.9(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli@20.2.0(typescript@5.4.2))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1):
     dependencies:

@@ -10,11 +10,14 @@
   },
   "dependencies": {
     "events": "^3.3.0",
+    "ratex-react-native": "0.1.8",
     "react": "18.3.1",
     "react-native": "0.76.9",
     "react-native-blob-util": "^0.24.10",
     "react-native-markdown-display": "7.0.2",
     "react-native-marked": "^8.1.1",
+    "react-native-nitro-markdown": "0.12.4",
+    "react-native-nitro-modules": "0.37.1",
     "react-native-webview": "^14.0.1",
     "zustand": "^4.5.0"
   },
