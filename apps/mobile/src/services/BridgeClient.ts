@@ -400,4 +400,37 @@ export class BridgeClient {
   }> {
     return this.call('file.info', { path })
   }
+
+  // ─── 分块上传（file.upload.*，服务端 4 步协议） ────────
+
+  async uploadBegin(params: {
+    dir: string
+    name: string
+    size: number
+    overwrite?: boolean
+  }): Promise<{ uploadId: string; chunkSize: number }> {
+    return this.call('file.upload.begin', {
+      dir: params.dir,
+      name: params.name,
+      size: params.size,
+      encoding: 'base64',
+      overwrite: params.overwrite ?? false,
+    })
+  }
+
+  async uploadChunk(
+    uploadId: string,
+    index: number,
+    data: string,
+  ): Promise<{ received: number; total: number }> {
+    return this.call('file.upload.chunk', { uploadId, index, data })
+  }
+
+  async uploadFinish(uploadId: string): Promise<{ path: string; size: number }> {
+    return this.call('file.upload.finish', { uploadId })
+  }
+
+  async uploadAbort(uploadId: string): Promise<{ ok: boolean }> {
+    return this.call('file.upload.abort', { uploadId })
+  }
 }

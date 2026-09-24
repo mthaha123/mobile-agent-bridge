@@ -487,6 +487,82 @@ describe('file operations', () => {
     getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: fileInfo })
     await expect(callPromise).resolves.toEqual(fileInfo)
   })
+
+  it('uploadBegin calls file.upload.begin RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.uploadBegin({ dir: '/home', name: 'a.txt', size: 11 })
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.upload.begin')
+    expect(sentFrame.params).toEqual({
+      dir: '/home', name: 'a.txt', size: 11, encoding: 'base64', overwrite: false,
+    })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { uploadId: 'u1', chunkSize: 262144 } })
+    await expect(callPromise).resolves.toEqual({ uploadId: 'u1', chunkSize: 262144 })
+  })
+
+  it('uploadBegin passes overwrite=true', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.uploadBegin({ dir: '/home', name: 'a.txt', size: 11, overwrite: true })
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.params.overwrite).toBe(true)
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { uploadId: 'u1', chunkSize: 262144 } })
+    await callPromise
+  })
+
+  it('uploadChunk calls file.upload.chunk RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.uploadChunk('u1', 0, 'aGVsbG8=')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.upload.chunk')
+    expect(sentFrame.params).toEqual({ uploadId: 'u1', index: 0, data: 'aGVsbG8=' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { received: 5, total: 11 } })
+    await expect(callPromise).resolves.toEqual({ received: 5, total: 11 })
+  })
+
+  it('uploadFinish calls file.upload.finish RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.uploadFinish('u1')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.upload.finish')
+    expect(sentFrame.params).toEqual({ uploadId: 'u1' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { path: '/home/a.txt', size: 11 } })
+    await expect(callPromise).resolves.toEqual({ path: '/home/a.txt', size: 11 })
+  })
+
+  it('uploadAbort calls file.upload.abort RPC', async () => {
+    const c = makeClient()
+    const connectPromise = c.connect('token123')
+    getWs()._triggerOpen()
+    await connectPromise
+
+    const callPromise = c.uploadAbort('u1')
+    const sentFrame = JSON.parse(getWs().send.mock.calls[0][0])
+    expect(sentFrame.method).toBe('file.upload.abort')
+    expect(sentFrame.params).toEqual({ uploadId: 'u1' })
+
+    getWs()._triggerMessage({ type: 'res', id: sentFrame.id, ok: true, payload: { ok: true } })
+    await expect(callPromise).resolves.toEqual({ ok: true })
+  })
 })
 
 describe('token getter', () => {
