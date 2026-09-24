@@ -1,0 +1,91 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 真实链路 — FILES 页文件上传端到端（真系统选择器 → 分块上传 → 宿主真实落盘）
+#
+# 前置：
+#   1. 测试桥 19985（BRIDGE_PASSWORD=test123，独立 data 目录；绝不使用生产 8080）
+#   2. 模拟器运行中 + 含 @react-native-documents/picker 的新 APK 已安装
+#   3. adb push logs/build/reallink-device-upload.txt /sdcard/Download/ + 媒体扫描
+# 断言闭环：除 UI 断言外，宿主 D:\code\mobile-agent-bridge\reallink-device-upload.txt
+#          必须真实出现（由测试脚本在 flow 结束后做磁盘级验证）。
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 20000
+
+# 连接测试桥（10.0.2.2 = 模拟器访问宿主）
+# ⚠️ 每个输入框先 eraseText：重装 APK 保留了持久化设置，inputText 是追加而非替换
+- tapOn: "ws://.*"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:19985/ws"
+- tapOn: "password (optional)"
+- eraseText: 100
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- eraseText: 100
+- inputText: "D:/code/mobile-agent-bridge"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 进入 Files 页
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "Search files..."
+    timeout: 15000
+
+- assertVisible: "⬆ Upload"
+
+# 导航进 logs/ 小目录：仓库根目录条目过多，上传产物会排序到首屏之外（断言视口问题）；
+# logs/ 被 gitignore，宿主产物零残留。上传目标 = 当前浏览目录（本功能语义）。
+- scrollUntilVisible:
+    element: "logs"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "logs"
+- extendedWaitUntil:
+    visible: ".."
+    timeout: 10000
+
+# ── 第一次上传：真实系统文件选择器 ─────────────────────────
+- tapOn: "⬆ Upload"
+- extendedWaitUntil:
+    visible: "reallink-device-upload.txt"
+    timeout: 20000
+- tapOn: "reallink-device-upload.txt"
+
+# 上传成功（RN Alert 无按钮时 Android 默认 "OK"）
+- extendedWaitUntil:
+    visible: "上传成功"
+    timeout: 20000
+- tapOn: "OK"
+
+# 列表刷新后文件可见（logs/ 条目少，必在视口内）
+- extendedWaitUntil:
+    visible: "reallink-device-upload.txt"
+    timeout: 15000
+
+# ── 第二次上传：撞名三选（覆盖/改名/取消）─────────────────────
+- tapOn: "⬆ Upload"
+- extendedWaitUntil:
+    visible: "reallink-device-upload.txt"
+    timeout: 20000
+- tapOn: "reallink-device-upload.txt"
+
+- extendedWaitUntil:
+    visible: "文件已存在"
+    timeout: 15000
+- assertVisible: "覆盖"
+- assertVisible: "改名"
+- assertVisible: "取消"
+- tapOn: "覆盖"
+
+- extendedWaitUntil:
+    visible: "上传成功"
+    timeout: 20000
+- tapOn: "OK"
+
+# 覆盖后列表仍可见该文件
+- assertVisible: "reallink-device-upload.txt"
