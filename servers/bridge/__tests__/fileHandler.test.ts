@@ -1,7 +1,12 @@
 import * as fs from "fs/promises"
 import * as path from "path"
 import { fileURLToPath } from "url"
-import { fileList, fileRead, fileSearch, getFileInfo, fileExists } from "../src/server/fileHandler"
+import {
+  fileList, fileRead, fileSearch, getFileInfo, fileExists,
+  uploadBegin, uploadAbort,
+  _testGetUploads, sweepStaleUploads,
+  UPLOAD_CHUNK_SIZE_CHARS, UPLOAD_TTL_MS,
+} from "../src/server/fileHandler"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -150,6 +155,85 @@ describe("File Handler", () => {
     it("should return false for non-existent file", async () => {
       const exists = await fileExists("/nonexistent/file.txt")
       expect(exists).toBe(false)
+    })
+  })
+
+  describe("upload — begin/abort/sweep", () => {
+    afterEach(async () => {
+      delete process.env.BRIDGE_MAX_UPLOAD_BYTES
+      for (const id of [..._testGetUploads().keys()]) {
+        await uploadAbort(id)
+      }
+    })
+
+    it("begin 返回 uploadId 与 4 的倍数 chunkSize，并创建临时文件", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "new-upload.txt", size: 10 })
+      expect(typeof r.uploadId).toBe("string")
+      expect(r.uploadId.length).toBeGreaterThan(8)
+      expect(r.chunkSize).toBe(UPLOAD_CHUNK_SIZE_CHARS)
+      expect(r.chunkSize % 4).toBe(0)
+      const s = _testGetUploads().get(r.uploadId)
+      expect(s).toBeDefined()
+      expect(s!.tempPath.endsWith(".part")).toBe(true)
+      expect(await fileExists(s!.tempPath)).toBe(true)
+      // 落盘前不产生目标文件
+      expect(await fileExists(path.join(testDir, "new-upload.txt"))).toBe(false)
+    })
+
+    it("begin 拒绝不存在的目录", async () => {
+      await expect(uploadBegin({ dir: path.join(testDir, "nope-dir"), name: "a.txt", size: 1 }))
+        .rejects.toThrow("directory not found")
+    })
+
+    it("begin 按 BRIDGE_MAX_UPLOAD_BYTES 拒绝超限文件", async () => {
+      process.env.BRIDGE_MAX_UPLOAD_BYTES = "1024"
+      await expect(uploadBegin({ dir: testDir, name: "big.bin", size: 2048 }))
+        .rejects.toThrow("file too large: 2048 bytes > limit 1024 bytes")
+      delete process.env.BRIDGE_MAX_UPLOAD_BYTES
+      // 恢复默认（5MB）后同 size 放行
+      const r = await uploadBegin({ dir: testDir, name: "big.bin", size: 2048 })
+      expect(r.uploadId).toBeTruthy()
+      await uploadAbort(r.uploadId)
+    })
+
+    it("begin 同名文件未 overwrite 抛 EEXIST，overwrite 放行", async () => {
+      await expect(uploadBegin({ dir: testDir, name: "test.txt", size: 5 }))
+        .rejects.toThrow("EEXIST")
+      const r = await uploadBegin({ dir: testDir, name: "test.txt", size: 5, overwrite: true })
+      expect(r.uploadId).toBeTruthy()
+      await uploadAbort(r.uploadId)
+    })
+
+    it("begin 拒绝路径穿越/空文件名", async () => {
+      await expect(uploadBegin({ dir: testDir, name: "../evil.txt", size: 1 })).rejects.toThrow("invalid file name")
+      await expect(uploadBegin({ dir: testDir, name: "..\\evil.txt", size: 1 })).rejects.toThrow("invalid file name")
+      await expect(uploadBegin({ dir: testDir, name: "", size: 1 })).rejects.toThrow("invalid file name")
+      await expect(uploadBegin({ dir: testDir, name: "..", size: 1 })).rejects.toThrow("invalid file name")
+    })
+
+    it("begin 拒绝非法 size", async () => {
+      await expect(uploadBegin({ dir: testDir, name: "x.txt", size: -1 })).rejects.toThrow("invalid size")
+      await expect(uploadBegin({ dir: testDir, name: "x.txt", size: 1.5 })).rejects.toThrow("invalid size")
+    })
+
+    it("abort 删除临时文件，重复 abort 幂等返回 ok", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "canceled.txt", size: 3 })
+      const temp = _testGetUploads().get(r.uploadId)!.tempPath
+      expect(await uploadAbort(r.uploadId)).toEqual({ ok: true })
+      expect(await fileExists(temp)).toBe(false)
+      expect(_testGetUploads().has(r.uploadId)).toBe(false)
+      expect(await uploadAbort(r.uploadId)).toEqual({ ok: true })
+    })
+
+    it("sweepStaleUploads 回收超过 TTL 的残留会话与临时文件", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "stale.txt", size: 3 })
+      const s = _testGetUploads().get(r.uploadId)!
+      const temp = s.tempPath
+      s.lastActive = Date.now() - UPLOAD_TTL_MS - 1000
+      sweepStaleUploads()
+      await new Promise((res) => setTimeout(res, 50)) // unlink 异步，等一个 tick
+      expect(_testGetUploads().has(r.uploadId)).toBe(false)
+      expect(await fileExists(temp)).toBe(false)
     })
   })
 })

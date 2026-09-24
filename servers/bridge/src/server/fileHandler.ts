@@ -1,5 +1,7 @@
 import * as fs from "fs/promises"
 import * as path from "path"
+import { randomUUID } from "node:crypto"
+import { resolveMaxUploadBytes } from "../config.js"
 
 export interface FileInfo {
   name: string
@@ -213,4 +215,90 @@ export async function getFileInfo(filePath: string): Promise<FileInfo> {
     modified: stat.mtime.toISOString(),
     permissions: (stat.mode & 0o777).toString(8),
   }
+}
+
+// ===== 分块上传（file.upload.*） =====
+
+/** 分块大小：base64 字符数（4 的倍数保证每块可独立解码；262144 字符 ≈ 192KB 二进制） */
+export const UPLOAD_CHUNK_SIZE_CHARS = 262144
+/** 上传会话 TTL：60s 无 chunk 视为残留，回收临时文件（begin/chunk 时惰性触发，不引入定时器） */
+export const UPLOAD_TTL_MS = 60_000
+/** 上传临时文件后缀（fileList 过滤，浏览不外露） */
+export const UPLOAD_PART_SUFFIX = ".part"
+
+export interface UploadSession {
+  tempPath: string
+  targetPath: string
+  expectedSize: number
+  received: number
+  nextIndex: number
+  lastActive: number
+}
+
+const uploads = new Map<string, UploadSession>()
+
+/** @internal 测试用：暴露会话表 */
+export function _testGetUploads(): Map<string, UploadSession> { return uploads }
+
+async function cleanupUpload(uploadId: string): Promise<void> {
+  const s = uploads.get(uploadId)
+  if (!s) return
+  uploads.delete(uploadId)
+  await fs.unlink(s.tempPath).catch(() => {})
+}
+
+/** 回收超过 TTL 的残留会话（惰性触发，无定时器） */
+export function sweepStaleUploads(now: number = Date.now()): void {
+  for (const [id, s] of uploads) {
+    if (now - s.lastActive > UPLOAD_TTL_MS) {
+      void cleanupUpload(id)
+    }
+  }
+}
+
+/** 开始上传：校验目录/大小/重名，创建 .part 临时文件 */
+export async function uploadBegin(params: {
+  dir: string
+  name: string
+  size: number
+  overwrite?: boolean
+}): Promise<{ uploadId: string; chunkSize: number }> {
+  sweepStaleUploads()
+  const { dir, name, size, overwrite } = params
+
+  // 文件名必须是纯 basename（含显式反斜杠检查，Windows/POSIX 双防）
+  if (!name || name === "." || name === ".." || /[\\/]/.test(name)) {
+    throw new Error(`invalid file name: ${name}`)
+  }
+  const resolvedDir = path.resolve(dir)
+  const dirStat = await fs.stat(resolvedDir).catch(() => null)
+  if (!dirStat || !dirStat.isDirectory()) throw new Error(`directory not found: ${dir}`)
+
+  if (!Number.isInteger(size) || size < 0) throw new Error(`invalid size: ${size}`)
+  const limit = resolveMaxUploadBytes(process.env)
+  if (size > limit) throw new Error(`file too large: ${size} bytes > limit ${limit} bytes`)
+
+  const targetPath = path.join(resolvedDir, name)
+  if (!overwrite && await fileExists(targetPath)) {
+    throw new Error(`EEXIST: ${targetPath} already exists`)
+  }
+
+  const uploadId = randomUUID()
+  const tempPath = path.join(resolvedDir, `.${name}.${uploadId.slice(0, 8)}${UPLOAD_PART_SUFFIX}`)
+  await fs.writeFile(tempPath, "")
+  uploads.set(uploadId, {
+    tempPath,
+    targetPath,
+    expectedSize: size,
+    received: 0,
+    nextIndex: 0,
+    lastActive: Date.now(),
+  })
+  return { uploadId, chunkSize: UPLOAD_CHUNK_SIZE_CHARS }
+}
+
+/** 中止上传：删临时文件；未知 uploadId 幂等返回 ok（客户端重复取消安全） */
+export async function uploadAbort(uploadId: string): Promise<{ ok: boolean }> {
+  await cleanupUpload(uploadId)
+  return { ok: true }
 }
