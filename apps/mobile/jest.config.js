@@ -11,6 +11,7 @@ export default {
     '^react-native-markdown-display$': '<rootDir>/__mocks__/react-native-markdown-display.js',
     '^react-native-marked$': '<rootDir>/__mocks__/react-native-marked.js',
     '^react-native-webview$': '<rootDir>/__mocks__/react-native-webview.js',
+    '^@react-native-documents/picker$': '<rootDir>/__mocks__/@react-native-documents/picker.js',
   },
   transform: {
     '^.+\\.tsx?$': [
