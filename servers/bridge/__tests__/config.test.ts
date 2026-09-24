@@ -5,6 +5,8 @@ import {
   resolveDataDir,
   resolveBridgePort,
   resolveOpenCodeUrl,
+  DEFAULT_MAX_UPLOAD_BYTES,
+  resolveMaxUploadBytes,
 } from "../src/config.js"
 
 describe("config.parseServePortPool", () => {
@@ -77,5 +79,23 @@ describe("config.resolveOpenCodeUrl", () => {
   })
   it("空白回退默认", () => {
     expect(resolveOpenCodeUrl({ OPENCODE_URL: "  " })).toBe("http://localhost:4096")
+  })
+})
+
+describe("config.resolveMaxUploadBytes", () => {
+  it("默认 5MB", () => {
+    expect(DEFAULT_MAX_UPLOAD_BYTES).toBe(5 * 1024 * 1024)
+    expect(resolveMaxUploadBytes({})).toBe(5 * 1024 * 1024)
+  })
+
+  it("读取 BRIDGE_MAX_UPLOAD_BYTES", () => {
+    expect(resolveMaxUploadBytes({ BRIDGE_MAX_UPLOAD_BYTES: "1048576" })).toBe(1048576)
+  })
+
+  it("非法/非正数回退默认", () => {
+    expect(resolveMaxUploadBytes({ BRIDGE_MAX_UPLOAD_BYTES: "abc" })).toBe(DEFAULT_MAX_UPLOAD_BYTES)
+    expect(resolveMaxUploadBytes({ BRIDGE_MAX_UPLOAD_BYTES: "0" })).toBe(DEFAULT_MAX_UPLOAD_BYTES)
+    expect(resolveMaxUploadBytes({ BRIDGE_MAX_UPLOAD_BYTES: "-5" })).toBe(DEFAULT_MAX_UPLOAD_BYTES)
+    expect(resolveMaxUploadBytes({ BRIDGE_MAX_UPLOAD_BYTES: "   " })).toBe(DEFAULT_MAX_UPLOAD_BYTES)
   })
 })
