@@ -196,4 +196,21 @@ describe('fileStore — HTML preview modal', () => {
     expect(state.viewerHtmlRendered).toBeUndefined()
     expect(state.toggleHtmlRendered).toBeUndefined()
   })
+
+  it('should have null uploadProgress initially', () => {
+    expect(useFileStore.getState().uploadProgress).toBeNull()
+  })
+
+  it('should set and clear uploadProgress', () => {
+    useFileStore.getState().setUploadProgress({ name: 'a.txt', sent: 10, total: 100 })
+    expect(useFileStore.getState().uploadProgress).toEqual({ name: 'a.txt', sent: 10, total: 100 })
+    useFileStore.getState().setUploadProgress(null)
+    expect(useFileStore.getState().uploadProgress).toBeNull()
+  })
+
+  it('reset clears uploadProgress', () => {
+    useFileStore.getState().setUploadProgress({ name: 'a.txt', sent: 1, total: 2 })
+    useFileStore.getState().reset()
+    expect(useFileStore.getState().uploadProgress).toBeNull()
+  })
 })

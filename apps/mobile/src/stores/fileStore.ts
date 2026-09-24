@@ -4,6 +4,7 @@
  * 管理文件列表、当前路径、文件内容等
  */
 import { create } from 'zustand'
+import type { UploadProgress } from '../services/uploadFile'
 
 export interface FileInfo {
   name: string
@@ -66,6 +67,8 @@ export interface FileState {
   htmlPreviewFile: FileContent | null
   /** HTML 弹窗：true=显示源码，false=WebView 渲染 */
   htmlPreviewSource: boolean
+  /** 上传进度（非 null 即显示进度条） */
+  uploadProgress: UploadProgress | null
 
   /** 设置当前路径 */
   setCurrentPath: (path: string) => void
@@ -101,6 +104,8 @@ export interface FileState {
   closeHtmlPreview: () => void
   /** 切换 HTML 弹窗 渲染/源码 */
   toggleHtmlPreviewSource: () => void
+  /** 更新上传进度（null = 清除） */
+  setUploadProgress: (p: UploadProgress | null) => void
   /** 导航到上级目录 */
   goUp: () => void
   /** 进入子目录 */
@@ -152,6 +157,7 @@ const initialState = {
   viewerWrap: true,
   htmlPreviewFile: null,
   htmlPreviewSource: false,
+  uploadProgress: null,
 }
 
 export const useFileStore = create<FileState>((set, get) => ({
@@ -202,6 +208,8 @@ export const useFileStore = create<FileState>((set, get) => ({
   closeHtmlPreview: () => set({ htmlPreviewFile: null }),
 
   toggleHtmlPreviewSource: () => set((s) => ({ htmlPreviewSource: !s.htmlPreviewSource })),
+
+  setUploadProgress: (p) => set({ uploadProgress: p }),
 
   goUp: () => {
     const { currentPath } = get()

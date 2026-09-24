@@ -32,6 +32,11 @@ export interface MockClient {
   listFiles: jest.Mock
   readFile: jest.Mock
   searchFiles: jest.Mock
+  uploadBegin: jest.Mock
+  uploadChunk: jest.Mock
+  uploadFinish: jest.Mock
+  uploadAbort: jest.Mock
+  getFileInfo: jest.Mock
   /** 回前台立即重连（AppState 秒连） */
   reconnectNow: jest.Mock
   /** 回前台验活（僵尸半开探测） */
@@ -64,6 +69,12 @@ export function mockClient(
       path: '', content: '', encoding: 'utf-8', size: 0,
     }),
     searchFiles: jest.fn().mockResolvedValue([]),
+    uploadBegin: jest.fn().mockResolvedValue({ uploadId: 'mock_up1', chunkSize: 262144 }),
+    uploadChunk: jest.fn().mockResolvedValue({ received: 11, total: 11 }),
+    uploadFinish: jest.fn().mockResolvedValue({ path: '/mock/hello.txt', size: 11 }),
+    uploadAbort: jest.fn().mockResolvedValue({ ok: true }),
+    // 默认"目标不存在"（撞名检测走 catch 分支），撞名测试内覆写
+    getFileInfo: jest.fn().mockRejectedValue(new Error('ENOENT: not found')),
     reconnectNow: jest.fn(),
     verifyAlive: jest.fn().mockResolvedValue(undefined),
   }
