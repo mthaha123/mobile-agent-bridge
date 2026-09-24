@@ -3,7 +3,7 @@ import * as path from "path"
 import { fileURLToPath } from "url"
 import {
   fileList, fileRead, fileSearch, getFileInfo, fileExists,
-  uploadBegin, uploadAbort,
+  uploadBegin, uploadChunk, uploadAbort,
   _testGetUploads, sweepStaleUploads,
   UPLOAD_CHUNK_SIZE_CHARS, UPLOAD_TTL_MS,
 } from "../src/server/fileHandler"
@@ -155,6 +155,56 @@ describe("File Handler", () => {
     it("should return false for non-existent file", async () => {
       const exists = await fileExists("/nonexistent/file.txt")
       expect(exists).toBe(false)
+    })
+  })
+
+  describe("upload — chunk", () => {
+    afterEach(async () => {
+      for (const id of [..._testGetUploads().keys()]) {
+        await uploadAbort(id)
+      }
+    })
+
+    it("chunk 按序追加并返回累计 received/total", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "chunked.txt", size: 6 })
+      const c1 = await uploadChunk(r.uploadId, 0, Buffer.from("abc").toString("base64"))
+      expect(c1).toEqual({ received: 3, total: 6 })
+      const c2 = await uploadChunk(r.uploadId, 1, Buffer.from("def").toString("base64"))
+      expect(c2).toEqual({ received: 6, total: 6 })
+      const temp = _testGetUploads().get(r.uploadId)!.tempPath
+      expect(await fs.readFile(temp, "utf8")).toBe("abcdef")
+    })
+
+    it("chunk 拒绝乱序/重复 index（期望序号不前移）", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "ooo.txt", size: 6 })
+      await uploadChunk(r.uploadId, 0, Buffer.from("ab").toString("base64"))
+      await expect(uploadChunk(r.uploadId, 2, Buffer.from("cd").toString("base64")))
+        .rejects.toThrow("out-of-order chunk")
+      await expect(uploadChunk(r.uploadId, 0, Buffer.from("ab").toString("base64")))
+        .rejects.toThrow("out-of-order chunk")
+      // 乱序被拒后正确序号仍可继续
+      const c = await uploadChunk(r.uploadId, 1, Buffer.from("cd").toString("base64"))
+      expect(c.received).toBe(4)
+      await uploadAbort(r.uploadId)
+    })
+
+    it("chunk 拒绝未知 uploadId", async () => {
+      await expect(uploadChunk("no-such-upload-id", 0, "AA==")).rejects.toThrow("unknown uploadId")
+    })
+
+    it("chunk 超出声明 size 时清理会话并报错", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "overflow.txt", size: 2 })
+      await expect(uploadChunk(r.uploadId, 0, Buffer.from("abcd").toString("base64")))
+        .rejects.toThrow("overflow")
+      expect(_testGetUploads().has(r.uploadId)).toBe(false)
+      expect(await fileExists(path.join(testDir, "overflow.txt"))).toBe(false)
+    })
+
+    it("chunk 拒绝超大单帧（> UPLOAD_CHUNK_SIZE_CHARS）", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "huge.txt", size: UPLOAD_CHUNK_SIZE_CHARS * 3 })
+      await expect(uploadChunk(r.uploadId, 0, "A".repeat(UPLOAD_CHUNK_SIZE_CHARS + 4)))
+        .rejects.toThrow("chunk too large")
+      await uploadAbort(r.uploadId)
     })
   })
 

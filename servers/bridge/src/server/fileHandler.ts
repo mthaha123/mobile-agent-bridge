@@ -302,3 +302,34 @@ export async function uploadAbort(uploadId: string): Promise<{ ok: boolean }> {
   await cleanupUpload(uploadId)
   return { ok: true }
 }
+
+/** 追加一个分块：严格顺序单发（index 必须等于期望序号），返回累计进度 */
+export async function uploadChunk(
+  uploadId: string,
+  index: number,
+  data: string,
+): Promise<{ received: number; total: number }> {
+  sweepStaleUploads()
+  const s = uploads.get(uploadId)
+  if (!s) throw new Error(`unknown uploadId: ${uploadId}`)
+  s.lastActive = Date.now()
+
+  if (index !== s.nextIndex) {
+    throw new Error(`out-of-order chunk: expected index ${s.nextIndex}, got ${index}`)
+  }
+  if (data.length > UPLOAD_CHUNK_SIZE_CHARS) {
+    throw new Error(`chunk too large: ${data.length} chars > ${UPLOAD_CHUNK_SIZE_CHARS}`)
+  }
+
+  const buf = Buffer.from(data, "base64")
+  // 兜底防超声明大小（begin 已按 BRIDGE_MAX_UPLOAD_BYTES 拦总大小）
+  if (s.received + buf.length > s.expectedSize) {
+    await cleanupUpload(uploadId)
+    throw new Error(`upload overflow: would exceed declared size ${s.expectedSize} bytes`)
+  }
+
+  await fs.appendFile(s.tempPath, buf)
+  s.received += buf.length
+  s.nextIndex += 1
+  return { received: s.received, total: s.expectedSize }
+}
