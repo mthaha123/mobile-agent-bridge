@@ -17,6 +17,8 @@ import { useUiStore } from '../stores/uiStore'
 import ReactNativeBlobUtil from 'react-native-blob-util'
 import { useThemeColors } from '../theme/ThemeContext'
 import { ThemeColors } from '../theme/colors'
+import { pick, keepLocalCopy, types } from '@react-native-documents/picker'
+import { uploadFile } from '../services/uploadFile'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'avif']
 const HTML_EXTS = ['html', 'htm']
@@ -45,12 +47,14 @@ export const FileBrowserScreen: React.FC = () => {
     searchQuery,
     loading,
     error,
+    uploadProgress,
     setCurrentPath,
     setFiles,
     setSearchResults,
     setSearchQuery,
     setLoading,
     setError,
+    setUploadProgress,
     goUp,
     enterDirectory,
   } = useFileStore()
@@ -63,6 +67,9 @@ export const FileBrowserScreen: React.FC = () => {
   const pushViewer = useUiStore((s) => s.pushViewer)
 
   const [fileInfoTarget, setFileInfoTarget] = useState<FileInfo | null>(null)
+
+  const uploadIdRef = useRef<string | null>(null)
+  const cancelRef = useRef(false)
 
   const loadSeqRef = useRef(0)
 
@@ -207,6 +214,108 @@ export const FileBrowserScreen: React.FC = () => {
     }
   }
 
+  /** 算出下一个空闲重名：foo.txt → foo (1).txt → foo (2).txt ... */
+  const pickUniqueName = async (dir: string, name: string): Promise<string> => {
+    if (!client) return name
+    const dot = name.lastIndexOf('.')
+    const stem = dot > 0 ? name.slice(0, dot) : name
+    const ext = dot > 0 ? name.slice(dot) : ''
+    const base = dir.replace(/\/+$/, '')
+    for (let i = 1; i < 100; i++) {
+      const candidate = `${stem} (${i})${ext}`
+      const exists = await client
+        .getFileInfo(`${base}/${candidate}`)
+        .then(() => true, () => false)
+      if (!exists) return candidate
+    }
+    return `${stem} (${Date.now()})${ext}`
+  }
+
+  /** 执行上传：进度走 fileStore，失败 Alert（错误消息含服务端真实 limit） */
+  const startUpload = async (uri: string, name: string, overwrite: boolean, uploadDir: string) => {
+    if (!client) return
+    cancelRef.current = false
+    setUploadProgress({ name, sent: 0, total: 0 })
+    try {
+      const result = await uploadFile(client, uri, { dir: uploadDir, name }, {
+        overwrite,
+        onUploadId: (id) => { uploadIdRef.current = id },
+        onProgress: setUploadProgress,
+      })
+      if (!cancelRef.current) {
+        Alert.alert('上传成功', `${result.path}（${formatSize(result.size)}）`)
+        loadDirectory(uploadDir) // 刷新发起时目录（非 currentPath，防中途导航）
+      }
+    } catch (err: unknown) {
+      if (!cancelRef.current) {
+        const msg = err instanceof Error ? err.message : String(err)
+        Alert.alert('上传失败', msg)
+      }
+    } finally {
+      uploadIdRef.current = null
+      setUploadProgress(null)
+    }
+  }
+
+  /** 上传入口：系统选择器 → content:// 拷入本地缓存 → 撞名三选 → startUpload */
+  const handleUpload = async () => {
+    if (!client) return
+    const uploadDir = currentPath // 发起时路径为准
+
+    let picked: { uri?: string; name?: string } | null = null
+    try {
+      const res = await pick({
+        type: [types.allFiles],
+        allowMultiSelection: false,
+      })
+      picked = Array.isArray(res) && res.length > 0 ? res[0] : null
+    } catch {
+      return // 用户取消选择器（OPERATION_CANCELED rejection）
+    }
+    if (!picked?.uri || !picked.name) return
+
+    // Android 返回 content://，blob-util 只能读文件路径 → 拷入 app 缓存
+    const copyRes = await keepLocalCopy({
+      files: [{ uri: picked.uri, fileName: picked.name }],
+      destination: 'cachesDirectory',
+    })
+    const local = copyRes[0]
+    if (!local || local.status !== 'success') {
+      Alert.alert('上传失败', local && local.status === 'error' ? local.copyError : '本地缓存拷贝失败')
+      return
+    }
+    const localUri = local.localUri.replace(/^file:\/\//, '')
+
+    let name = picked.name
+    let overwrite = false
+    const base = uploadDir.replace(/\/+$/, '')
+    const targetPath = `${base}/${name}`
+    const exists = await client.getFileInfo(targetPath).then(() => true, () => false)
+    if (exists) {
+      const choice = await new Promise<'overwrite' | 'rename' | 'cancel'>((resolve) => {
+        Alert.alert('文件已存在', `${name} 已存在，如何处理？`, [
+          { text: '覆盖', onPress: () => resolve('overwrite') },
+          { text: '改名', onPress: () => resolve('rename') },
+          { text: '取消', style: 'cancel', onPress: () => resolve('cancel') },
+        ])
+      })
+      if (choice === 'cancel') return
+      if (choice === 'overwrite') overwrite = true
+      else name = await pickUniqueName(uploadDir, name)
+    }
+
+    await startUpload(localUri, name, overwrite, uploadDir)
+  }
+
+  /** 取消上传：通知服务端删临时文件；在途 chunk 会因会话消失而失败（cancelRef 静默） */
+  const handleCancelUpload = async () => {
+    cancelRef.current = true
+    const id = uploadIdRef.current
+    if (id && client) {
+      try { await client.uploadAbort(id) } catch { /* 幂等，忽略 */ }
+    }
+  }
+
   const renderFileItem = ({ item }: { item: FileInfo }) => (
     <TouchableOpacity
       style={styles.fileItem}
@@ -248,7 +357,42 @@ export const FileBrowserScreen: React.FC = () => {
         <Text style={styles.title} numberOfLines={1}>
           {currentPath}
         </Text>
+        <TouchableOpacity
+          style={styles.uploadButton}
+          onPress={handleUpload}
+          disabled={!!uploadProgress}
+        >
+          <Text style={styles.uploadButtonText}>⬆ Upload</Text>
+        </TouchableOpacity>
       </View>
+
+      {uploadProgress && (
+        <View style={styles.progressRow}>
+          <Text style={styles.progressText} numberOfLines={1}>
+            {uploadProgress.name}{' '}
+            {uploadProgress.total > 0
+              ? Math.min(100, Math.round((uploadProgress.sent / uploadProgress.total) * 100))
+              : 0}%
+          </Text>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${
+                    uploadProgress.total > 0
+                      ? Math.min(100, (uploadProgress.sent / uploadProgress.total) * 100)
+                      : 0
+                  }%`,
+                },
+              ]}
+            />
+          </View>
+          <TouchableOpacity style={styles.progressCancel} onPress={handleCancelUpload}>
+            <Text style={styles.progressCancelText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.searchBar}>
         <TextInput
@@ -553,5 +697,52 @@ const makeStyles = (colors: ThemeColors) =>
   },
   downloadAction: {
     marginTop: 8,
+  },
+  uploadButton: {
+    marginLeft: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  uploadButtonText: {
+    color: colors.textOnPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  progressText: {
+    color: colors.text,
+    fontSize: 12,
+    minWidth: 90,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceVariant,
+    marginHorizontal: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  progressCancel: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  progressCancelText: {
+    color: colors.textTertiary,
+    fontSize: 16,
   },
 })

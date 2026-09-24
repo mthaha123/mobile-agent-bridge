@@ -565,3 +565,235 @@ describe('FileBrowserScreen — html preview routing', () => {
     tree.unmount()
   })
 })
+
+// ─── 上传（file.upload.*） ──────────────────────────────
+
+describe('FileBrowserScreen — upload', () => {
+  const { pick, keepLocalCopy, types } = require('@react-native-documents/picker')
+
+  beforeEach(() => {
+    ;(Alert.alert as jest.Mock).mockClear()
+    ;(pick as jest.Mock).mockClear()
+    ;(keepLocalCopy as jest.Mock).mockClear()
+    ;(pick as jest.Mock).mockResolvedValue([
+      { uri: 'content://mock/hello.txt', name: 'hello.txt', size: 11, type: 'text/plain' },
+    ])
+    ;(keepLocalCopy as jest.Mock).mockResolvedValue([
+      { status: 'success', sourceUri: 'content://mock/hello.txt', localUri: 'file:///mock/cache/hello.txt' },
+    ])
+    // 非空内容（'hello world'）：保证至少 1 个 chunk，否则空文件直接 finish、无上传中状态
+    const RNBlob = require('react-native-blob-util')
+    ;(RNBlob.default.fs.readFile as jest.Mock).mockResolvedValue('aGVsbG8gd29ybGQ=')
+  })
+
+  /** 找到含指定文本的可点击节点 */
+  function findBtn(tree: TestRenderer.ReactTestRenderer, label: string) {
+    return tree.root.findAll((n: any) => typeof n.props?.onPress === 'function').find((n: any) => {
+      let t = ''
+      const walk = (node: any) => {
+        if (!node) return
+        if (typeof node === 'string') { t += node; return }
+        if (node.children) node.children.forEach(walk)
+      }
+      walk(n)
+      return t.includes(label)
+    })
+  }
+
+  /** 获取 Alert.alert 最近一次调用的 [title, msg, buttons] */
+  function lastAlert(): [string, string, any[]] | null {
+    const calls = (Alert.alert as jest.Mock).mock.calls
+    if (!calls.length) return null
+    const [title, msg, buttons] = calls[calls.length - 1]
+    return [title, msg, buttons || []]
+  }
+
+  function renderWith(client: any, path = '/test') {
+    act(() => {
+      useAuthStore.setState({ client })
+      useProjectStore.setState({ directory: path })
+      useFileStore.setState({ currentPath: path, files: [], searchResults: [] })
+    })
+    return TestRenderer.create(<FileBrowserScreen />)
+  }
+
+  it('header renders Upload button', () => {
+    const client = mockClient()
+    const tree = renderWith(client as any)
+    expect(textOf(tree)).toContain('⬆ Upload')
+  })
+
+  it('upload button opens system picker with allFiles type', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    const tree = renderWith(client as any)
+    await act(async () => {})
+    const btn = findBtn(tree, '⬆ Upload')
+    expect(btn).toBeTruthy()
+    await act(async () => { await btn!.props.onPress() })
+    expect(pick).toHaveBeenCalledWith({ type: [types.allFiles], allowMultiSelection: false })
+  })
+
+  it('copies picked content:// to local cache before upload', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => { await findBtn(tree, '⬆ Upload')!.props.onPress() })
+    expect(keepLocalCopy).toHaveBeenCalledWith({
+      files: [{ uri: 'content://mock/hello.txt', fileName: 'hello.txt' }],
+      destination: 'cachesDirectory',
+    })
+    expect(client.uploadBegin).toHaveBeenCalled()
+  })
+
+  it('picker cancel (rejection) is silent — no upload, no alert', async () => {
+    ;(pick as jest.Mock).mockRejectedValueOnce(new Error('OPERATION_CANCELED'))
+    const client = mockClient({ 'file.list': () => [] })
+    const tree = renderWith(client as any)
+    await act(async () => {})
+    await act(async () => { await findBtn(tree, '⬆ Upload')!.props.onPress() })
+    expect(client.uploadBegin).not.toHaveBeenCalled()
+    expect(Alert.alert).not.toHaveBeenCalled()
+  })
+
+  it('no collision → uploads into current dir, then refreshes list', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => { await findBtn(tree, '⬆ Upload')!.props.onPress() })
+
+    expect(client.getFileInfo).toHaveBeenCalledWith('/test/dir/hello.txt')
+    expect(client.uploadBegin).toHaveBeenCalledWith({
+      dir: '/test/dir', name: 'hello.txt', size: expect.any(Number), overwrite: false,
+    })
+    expect(client.uploadFinish).toHaveBeenCalledWith('mock_up1')
+    expect(Alert.alert).toHaveBeenCalledWith('上传成功', expect.stringContaining('/mock/hello.txt'))
+    // 成功后刷新发起时目录
+    expect(client.listFiles).toHaveBeenCalledWith('/test/dir')
+    expect(useFileStore.getState().uploadProgress).toBeNull()
+  })
+
+  it('collision → overwrite choice sends overwrite=true', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    client.getFileInfo = jest.fn().mockResolvedValue({
+      name: 'hello.txt', type: 'file', size: 11, modified: '', permissions: '',
+    })
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => {
+      void findBtn(tree, '⬆ Upload')!.props.onPress() // 不 await：撞名弹窗会阻塞 handleUpload
+      await new Promise((r) => setImmediate(r))
+    })
+
+    const alert = lastAlert()
+    expect(alert?.[0]).toBe('文件已存在')
+    expect(alert?.[1]).toContain('hello.txt')
+    const overwriteBtn = alert![2].find((b: any) => b.text === '覆盖')
+    expect(overwriteBtn).toBeTruthy()
+    await act(async () => {
+      overwriteBtn.onPress()
+      await new Promise((r) => setImmediate(r))
+    })
+
+    expect(client.uploadBegin).toHaveBeenCalledWith(expect.objectContaining({ overwrite: true }))
+  })
+
+  it('collision → rename choice picks next free name "hello (1).txt"', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    client.getFileInfo = jest.fn()
+      .mockResolvedValueOnce({ name: 'hello.txt', type: 'file', size: 11, modified: '', permissions: '' })
+      .mockRejectedValueOnce(new Error('ENOENT')) // hello (1).txt 空闲
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => {
+      void findBtn(tree, '⬆ Upload')!.props.onPress() // 不 await：撞名弹窗会阻塞 handleUpload
+      await new Promise((r) => setImmediate(r))
+    })
+
+    const alert = lastAlert()
+    const renameBtn = alert![2].find((b: any) => b.text === '改名')
+    expect(renameBtn).toBeTruthy()
+    await act(async () => {
+      renameBtn.onPress()
+      await new Promise((r) => setImmediate(r))
+    })
+
+    expect(client.uploadBegin).toHaveBeenCalledWith(expect.objectContaining({ name: 'hello (1).txt' }))
+  })
+
+  it('collision → cancel aborts upload entirely', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    client.getFileInfo = jest.fn().mockResolvedValue({
+      name: 'hello.txt', type: 'file', size: 11, modified: '', permissions: '',
+    })
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => {
+      void findBtn(tree, '⬆ Upload')!.props.onPress() // 不 await：撞名弹窗会阻塞 handleUpload
+      await new Promise((r) => setImmediate(r))
+    })
+
+    const alert = lastAlert()
+    const cancelBtn = alert![2].find((b: any) => b.text === '取消')
+    await act(async () => { cancelBtn.onPress() })
+
+    expect(client.uploadBegin).not.toHaveBeenCalled()
+  })
+
+  it('server error (含真实 limit) surfaced via Alert', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    client.uploadBegin = jest.fn().mockRejectedValue(
+      new Error('file too large: 9999999 bytes > limit 5242880 bytes'),
+    )
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => { await findBtn(tree, '⬆ Upload')!.props.onPress() })
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      '上传失败',
+      expect.stringContaining('limit 5242880 bytes'),
+    )
+    expect(useFileStore.getState().uploadProgress).toBeNull()
+  })
+
+  it('keepLocalCopy 失败时 Alert 且不发起上传', async () => {
+    ;(keepLocalCopy as jest.Mock).mockResolvedValueOnce([
+      { status: 'error', sourceUri: 'content://mock/hello.txt', copyError: 'disk full' },
+    ])
+    const client = mockClient({ 'file.list': () => [] })
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => { await findBtn(tree, '⬆ Upload')!.props.onPress() })
+
+    expect(client.uploadBegin).not.toHaveBeenCalled()
+    expect(Alert.alert).toHaveBeenCalledWith('上传失败', expect.stringContaining('disk full'))
+  })
+
+  it('renders progress bar + cancel button from store state', () => {
+    const client = mockClient()
+    const tree = renderWith(client as any)
+    act(() => {
+      useFileStore.setState({ uploadProgress: { name: 'hello.txt', sent: 50, total: 100 } })
+    })
+    expect(textOf(tree)).toContain('hello.txt')
+    expect(textOf(tree)).toContain('50%')
+    expect(textOf(tree)).toContain('✕')
+  })
+
+  it('cancel button during upload calls uploadAbort with current uploadId', async () => {
+    const client = mockClient({ 'file.list': () => [] })
+    // chunk 永不 resolve → 停留在上传中，验证取消按钮
+    client.uploadChunk = jest.fn().mockReturnValue(new Promise(() => {}))
+    const tree = renderWith(client as any, '/test/dir')
+    await act(async () => {})
+    await act(async () => {
+      void findBtn(tree, '⬆ Upload')!.props.onPress() // 不 await：卡在首个 chunk
+      await new Promise((r) => setImmediate(r))
+    })
+
+    expect(useFileStore.getState().uploadProgress).not.toBeNull()
+    const cancelBtn = findBtn(tree, '✕')
+    expect(cancelBtn).toBeTruthy()
+    await act(async () => { await cancelBtn!.props.onPress() })
+    expect(client.uploadAbort).toHaveBeenCalledWith('mock_up1')
+  })
+})
