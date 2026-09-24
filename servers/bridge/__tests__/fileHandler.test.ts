@@ -3,7 +3,7 @@ import * as path from "path"
 import { fileURLToPath } from "url"
 import {
   fileList, fileRead, fileSearch, getFileInfo, fileExists,
-  uploadBegin, uploadChunk, uploadAbort,
+  uploadBegin, uploadChunk, uploadFinish, uploadAbort,
   _testGetUploads, sweepStaleUploads,
   UPLOAD_CHUNK_SIZE_CHARS, UPLOAD_TTL_MS,
 } from "../src/server/fileHandler"
@@ -205,6 +205,71 @@ describe("File Handler", () => {
       await expect(uploadChunk(r.uploadId, 0, "A".repeat(UPLOAD_CHUNK_SIZE_CHARS + 4)))
         .rejects.toThrow("chunk too large")
       await uploadAbort(r.uploadId)
+    })
+  })
+
+  describe("upload — finish", () => {
+    afterEach(async () => {
+      for (const id of [..._testGetUploads().keys()]) {
+        await uploadAbort(id)
+      }
+    })
+
+    it("组装文本内容并原子落盘", async () => {
+      const text = "Hello, World!\n上传测试"
+      const bytes = Buffer.byteLength(text, "utf8")
+      const r = await uploadBegin({ dir: testDir, name: "up-text.txt", size: bytes })
+      await uploadChunk(r.uploadId, 0, Buffer.from(text, "utf8").toString("base64"))
+      const f = await uploadFinish(r.uploadId)
+      expect(f.path).toBe(path.join(path.resolve(testDir), "up-text.txt"))
+      expect(f.size).toBe(bytes)
+      expect(await fs.readFile(f.path, "utf8")).toBe(text)
+      expect(_testGetUploads().has(r.uploadId)).toBe(false)
+      // 临时文件已消失
+      expect((await fs.readdir(testDir)).some((n) => n.startsWith(".up-text.txt") && n.endsWith(".part"))).toBe(false)
+    })
+
+    it("组装二进制内容逐字节一致", async () => {
+      const bin = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff])
+      const r = await uploadBegin({ dir: testDir, name: "up-bin.png", size: bin.length })
+      await uploadChunk(r.uploadId, 0, bin.toString("base64"))
+      await uploadFinish(r.uploadId)
+      const written = await fs.readFile(path.join(path.resolve(testDir), "up-bin.png"))
+      expect(Buffer.compare(written, bin)).toBe(0)
+    })
+
+    it("多块顺序上传后 finish 内容完整", async () => {
+      const content = Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n")
+      const bytes = Buffer.byteLength(content, "utf8")
+      const b64 = Buffer.from(content, "utf8").toString("base64")
+      const r = await uploadBegin({ dir: testDir, name: "multi.txt", size: bytes })
+      // 手工按 4 字符对齐切片模拟客户端
+      const step = 16
+      for (let i = 0, idx = 0; i < b64.length; i += step, idx++) {
+        await uploadChunk(r.uploadId, idx, b64.slice(i, i + step))
+      }
+      await uploadFinish(r.uploadId)
+      expect(await fs.readFile(path.join(testDir, "multi.txt"), "utf8")).toBe(content)
+    })
+
+    it("overwrite=true 覆盖同名既有文件", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "test.txt", size: 5, overwrite: true })
+      await uploadChunk(r.uploadId, 0, Buffer.from("new!!").toString("base64"))
+      await uploadFinish(r.uploadId)
+      expect(await fs.readFile(path.join(testDir, "test.txt"), "utf8")).toBe("new!!")
+    })
+
+    it("长度不符时清理会话且不产生目标文件", async () => {
+      const r = await uploadBegin({ dir: testDir, name: "short.txt", size: 10 })
+      await uploadChunk(r.uploadId, 0, Buffer.from("abc").toString("base64"))
+      await expect(uploadFinish(r.uploadId)).rejects.toThrow("incomplete")
+      expect(_testGetUploads().has(r.uploadId)).toBe(false)
+      expect(await fileExists(path.join(testDir, "short.txt"))).toBe(false)
+      expect((await fs.readdir(testDir)).some((n) => n.startsWith(".short.txt"))).toBe(false)
+    })
+
+    it("finish 未知 uploadId 报错", async () => {
+      await expect(uploadFinish("no-such-id")).rejects.toThrow("unknown uploadId")
     })
   })
 

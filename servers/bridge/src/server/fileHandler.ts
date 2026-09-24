@@ -333,3 +333,19 @@ export async function uploadChunk(
   s.nextIndex += 1
   return { received: s.received, total: s.expectedSize }
 }
+
+/** 完成上传：校验字节数 → rename 原子落盘 → 清理会话；不符则清理并报错 */
+export async function uploadFinish(uploadId: string): Promise<{ path: string; size: number }> {
+  const s = uploads.get(uploadId)
+  if (!s) throw new Error(`unknown uploadId: ${uploadId}`)
+
+  if (s.received !== s.expectedSize) {
+    await cleanupUpload(uploadId)
+    throw new Error(`incomplete upload: received ${s.received} of ${s.expectedSize} bytes`)
+  }
+
+  // 同目录 rename（同一文件系统）→ 原子替换（Windows 由 libuv 映射 MOVEFILE_REPLACE_EXISTING）
+  await fs.rename(s.tempPath, s.targetPath)
+  uploads.delete(uploadId)
+  return { path: s.targetPath, size: s.received }
+}
