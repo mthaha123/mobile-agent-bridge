@@ -5,7 +5,10 @@ import type { TokenPayload } from "./auth.js"
 import { handleLogin, handleRefresh, handleLogout } from "./auth.js"
 import { switchProject, getCurrentProject } from "../state/project.js"
 import { getBackend } from "../adapters/OpenCodeAdapter.js"
-import { fileList, fileRead, fileSearch, getFileInfo } from "./fileHandler.js"
+import {
+  fileList, fileRead, fileSearch, getFileInfo,
+  uploadBegin, uploadChunk, uploadFinish, uploadAbort,
+} from "./fileHandler.js"
 import {
   getProjects, addProject, removeProject,
   startProject, stopProject, getServeUrl, getProjectByDir,
@@ -450,4 +453,31 @@ registerHandler("file.info", async (p) => {
   const filePath = p.path || p.file
   if (!filePath) throw new Error("file.info requires path parameter")
   return getFileInfo(filePath)
+})
+
+// ===== 分块上传（file.upload.*，协议见 docs/plans/2026-09-24-file-upload-design.md）=====
+
+registerHandler("file.upload.begin", async (p) => {
+  const dir = p.dir || p.path || p.directory
+  if (!dir) throw new Error("file.upload.begin requires dir parameter")
+  if (typeof p.name !== "string" || !p.name) throw new Error("file.upload.begin requires name parameter")
+  if (typeof p.size !== "number") throw new Error("file.upload.begin requires size number")
+  return uploadBegin({ dir, name: p.name, size: p.size, overwrite: !!p.overwrite })
+})
+
+registerHandler("file.upload.chunk", async (p) => {
+  if (typeof p.uploadId !== "string" || !p.uploadId) throw new Error("file.upload.chunk requires uploadId parameter")
+  if (typeof p.index !== "number" || !Number.isInteger(p.index) || p.index < 0) throw new Error("file.upload.chunk requires index number")
+  if (typeof p.data !== "string") throw new Error("file.upload.chunk requires data string")
+  return uploadChunk(p.uploadId, p.index, p.data)
+})
+
+registerHandler("file.upload.finish", async (p) => {
+  if (typeof p.uploadId !== "string" || !p.uploadId) throw new Error("file.upload.finish requires uploadId parameter")
+  return uploadFinish(p.uploadId)
+})
+
+registerHandler("file.upload.abort", async (p) => {
+  if (typeof p.uploadId !== "string" || !p.uploadId) throw new Error("file.upload.abort requires uploadId parameter")
+  return uploadAbort(p.uploadId)
 })

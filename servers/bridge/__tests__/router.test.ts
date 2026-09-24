@@ -130,9 +130,19 @@ function mockCreateClientForSwitch(extra?: { subscribeBlock?: Promise<void> }) {
 }
 
 describe("RPC Router", () => {
+  // 环境隔离：宿主可能注入 BRIDGE_PASSWORD（生产 env 泄漏进测试进程），
+  // auth 用例密码固定 "test" → 测试期间清除、结束后还原（与 auth.test.ts 同策略）
+  const savedBridgePassword = process.env.BRIDGE_PASSWORD
+
   beforeEach(() => {
+    delete process.env.BRIDGE_PASSWORD
     initBackend("http://localhost:4096")
     getBackend().sdk = null
+  })
+
+  afterEach(() => {
+    if (savedBridgePassword === undefined) delete process.env.BRIDGE_PASSWORD
+    else process.env.BRIDGE_PASSWORD = savedBridgePassword
   })
 
   it("should reject unknown method", async () => {
@@ -1433,6 +1443,116 @@ describe("RPC Router", () => {
       project: { name: "probe" },
       currentServe: null,
     })
+  })
+
+  // ===== File upload handlers（file.upload.* 接口对齐保障） =====
+
+  it("should reject file.upload.begin without dir", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.upload.begin",
+      params: { name: "a.txt", size: 1 },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("dir")
+  })
+
+  it("should reject file.upload.begin without name", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.upload.begin",
+      params: { dir: ".", size: 1 },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("name")
+  })
+
+  it("should reject file.upload.begin without size", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.upload.begin",
+      params: { dir: ".", name: "a.txt" },
+    }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("size")
+  })
+
+  it("should reject file.upload.chunk without uploadId/index/data", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, { type: "req", id: "1", method: "file.upload.chunk", params: { index: 0, data: "AA==" } }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("uploadId")
+    await handleFrame("conn1", ws, { type: "req", id: "2", method: "file.upload.chunk", params: { uploadId: "u", data: "AA==" } }, testPayload)
+    expect(messages[1].ok).toBe(false)
+    expect(messages[1].error).toContain("index")
+    await handleFrame("conn1", ws, { type: "req", id: "3", method: "file.upload.chunk", params: { uploadId: "u", index: 0 } }, testPayload)
+    expect(messages[2].ok).toBe(false)
+    expect(messages[2].error).toContain("data")
+  })
+
+  it("should reject file.upload.finish without uploadId", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, { type: "req", id: "1", method: "file.upload.finish", params: {} }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("uploadId")
+  })
+
+  it("should reject file.upload.abort without uploadId", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, { type: "req", id: "1", method: "file.upload.abort", params: {} }, testPayload)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("uploadId")
+  })
+
+  it("should reject file.upload.begin without auth payload (unauthorized)", async () => {
+    const { ws, messages } = createMockWs()
+    await handleFrame("conn1", ws, {
+      type: "req", id: "1", method: "file.upload.begin",
+      params: { dir: ".", name: "a.txt", size: 1 },
+    }, null)
+    expect(messages[0].ok).toBe(false)
+    expect(messages[0].error).toContain("unauthorized")
+  })
+
+  it("should roundtrip file.upload.begin → chunk → finish via handleFrame", async () => {
+    const fsMod = await import("node:fs/promises")
+    const pathMod = await import("node:path")
+    const osMod = await import("node:os")
+    const dir = await fsMod.mkdtemp(pathMod.join(osMod.tmpdir(), "mab-upload-"))
+    try {
+      const content = "hello upload"
+      const bytes = Buffer.byteLength(content, "utf8")
+
+      const w1 = createMockWs()
+      await handleFrame("conn1", w1.ws, {
+        type: "req", id: "1", method: "file.upload.begin",
+        params: { dir, name: "up.txt", size: bytes },
+      }, testPayload)
+      expect(w1.messages[0].ok).toBe(true)
+      const { uploadId, chunkSize } = w1.messages[0].payload
+      expect(typeof uploadId).toBe("string")
+      expect(chunkSize % 4).toBe(0)
+
+      const w2 = createMockWs()
+      await handleFrame("conn1", w2.ws, {
+        type: "req", id: "2", method: "file.upload.chunk",
+        params: { uploadId, index: 0, data: Buffer.from(content, "utf8").toString("base64") },
+      }, testPayload)
+      expect(w2.messages[0].ok).toBe(true)
+      expect(w2.messages[0].payload).toEqual({ received: bytes, total: bytes })
+
+      const w3 = createMockWs()
+      await handleFrame("conn1", w3.ws, {
+        type: "req", id: "3", method: "file.upload.finish", params: { uploadId },
+      }, testPayload)
+      expect(w3.messages[0].ok).toBe(true)
+      expect(w3.messages[0].payload.size).toBe(bytes)
+
+      const written = await fsMod.readFile(pathMod.join(dir, "up.txt"), "utf8")
+      expect(written).toBe(content)
+    } finally {
+      await fsMod.rm(dir, { recursive: true, force: true })
+    }
   })
 
 })
