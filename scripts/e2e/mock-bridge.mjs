@@ -208,6 +208,10 @@ const MOCK_PAYLOADS = {
     modified: new Date().toISOString(),
     permissions: "-rw-r--r--",
   },
+  "file.upload.begin": { uploadId: "mock_up1", chunkSize: 262144 },
+  "file.upload.chunk": { received: 11, total: 11 },
+  "file.upload.finish": { path: "/mock-project/hello.txt", size: 11 },
+  "file.upload.abort": { ok: true },
 }
 
 function getDefaultPayload(method) {

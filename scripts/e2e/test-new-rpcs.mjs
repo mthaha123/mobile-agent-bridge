@@ -121,7 +121,22 @@ async function main() {
     const childrenList = Array.isArray(children) ? children : (children?.sessions || [])
     assert(Array.isArray(childrenList), "返回子会话数组")
 
-    // 9. 清理
+    // 9. 测试 file.upload.*（分块上传 4 步协议）
+    console.log("\n── file.upload.* ──")
+    const up = await call("file.upload.begin", { dir: "/mock-project", name: "hello.txt", size: 11 })
+    assert(typeof up?.uploadId === "string" && up.uploadId.length > 0, "begin 返回 uploadId")
+    assert(Number.isInteger(up?.chunkSize) && up.chunkSize % 4 === 0, "begin 返回 4 的倍数 chunkSize")
+
+    const upChunk = await call("file.upload.chunk", { uploadId: up.uploadId, index: 0, data: "aGVsbG8gd29ybGQ=" })
+    assert(upChunk?.total === 11, "chunk 返回 total 进度")
+
+    const upDone = await call("file.upload.finish", { uploadId: up.uploadId })
+    assert(typeof upDone?.path === "string" && upDone?.size === 11, "finish 返回 path/size")
+
+    const upAbort = await call("file.upload.abort", { uploadId: "whatever" })
+    assert(upAbort?.ok === true, "abort 返回 ok 幂等")
+
+    // 10. 清理
     ws.close()
     mockProcess.kill()
 
