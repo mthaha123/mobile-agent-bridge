@@ -61,6 +61,8 @@ export async function fileList(dirPath: string): Promise<FileInfo[]> {
   const results: FileInfo[] = []
 
   for (const entry of entries) {
+    // 隐藏上传中的 .part 临时文件（浏览器不外露半成品）
+    if (entry.name.endsWith(UPLOAD_PART_SUFFIX)) continue
     try {
       const fullPath = path.join(resolved, entry.name)
       const stat = await fs.stat(fullPath)

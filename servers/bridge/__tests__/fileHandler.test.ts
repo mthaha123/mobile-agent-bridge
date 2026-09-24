@@ -61,6 +61,19 @@ describe("File Handler", () => {
     it("should handle non-existent directory", async () => {
       await expect(fileList("/nonexistent/path")).rejects.toThrow()
     })
+
+    it("过滤上传临时文件（.part），正常文件仍可见", async () => {
+      const partFile = path.join(testDir, ".up.txt.abcdef12.part")
+      await fs.writeFile(partFile, "partial-data")
+      try {
+        const files = await fileList(testDir)
+        const names = files.map((f) => f.name)
+        expect(names).not.toContain(".up.txt.abcdef12.part")
+        expect(names).toContain("test.txt")
+      } finally {
+        await fs.rm(partFile, { force: true })
+      }
+    })
   })
 
   describe("fileRead", () => {
