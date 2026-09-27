@@ -3,6 +3,18 @@
 日期：2026-09-24
 状态：已评审通过（Approach C — 分块 WS 上传）
 
+## 变更记录
+
+- **2026-09-27（上限 5MB → 50MB + 客户端流式改造）**：
+  - `DEFAULT_MAX_UPLOAD_BYTES` 默认值改为 `50 * 1024 * 1024`（env `BRIDGE_MAX_UPLOAD_BYTES` 仍可覆盖）。
+  - 客户端整读方案被设备实测证伪：`react-native-blob-util readFile('base64')` 在 Java 层
+    一次性 `Base64.encodeToString(46MB)` → 123MB String → 超 192MB Java heap → OOM 杀进程
+    （logcat: `ReactNativeBlobUtilFS.readFile:287` / `OutOfMemoryError: Failed to allocate a 123032976 byte allocation`）。
+  - 按计划内预留分支升级为 `fs.readStream` 流式分块（`bufferSize=65536`、`tick=0` 关闭 Java
+    每块 sleep），单块 Java 内存 ~65KB；服务端协议与 `UPLOAD_CHUNK_SIZE_CHARS` 上限不变。
+  - 设备端验证：44MB 文件 705 帧上传，宿主 SHA256 与源逐位一致、全程无 OOM；
+    撞名三选/覆盖小文件 flow 回归全绿（`.maestro/flows/l2-bridge-file-upload-50mb.yaml`）。
+
 ## 背景与目标
 
 Files 页（`FileBrowserScreen`）当前只支持浏览/查看/下载 PC 侧文件（`file.list` / `file.read` / `file.search` / `file.info`），无上传能力。本设计为 Files 页增加"把手机上的小文件上传到当前浏览目录"的功能。

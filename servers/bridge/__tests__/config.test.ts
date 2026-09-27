@@ -83,9 +83,9 @@ describe("config.resolveOpenCodeUrl", () => {
 })
 
 describe("config.resolveMaxUploadBytes", () => {
-  it("默认 5MB", () => {
-    expect(DEFAULT_MAX_UPLOAD_BYTES).toBe(5 * 1024 * 1024)
-    expect(resolveMaxUploadBytes({})).toBe(5 * 1024 * 1024)
+  it("默认 50MB", () => {
+    expect(DEFAULT_MAX_UPLOAD_BYTES).toBe(50 * 1024 * 1024)
+    expect(resolveMaxUploadBytes({})).toBe(50 * 1024 * 1024)
   })
 
   it("读取 BRIDGE_MAX_UPLOAD_BYTES", () => {

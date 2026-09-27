@@ -70,8 +70,8 @@ export function resolveOpenCodeUrl(env: NodeJS.ProcessEnv = process.env): string
   return (env.OPENCODE_URL || "http://localhost:4096").trim() || "http://localhost:4096"
 }
 
-/** 上传大小上限默认值：5MB（字节）。可用 BRIDGE_MAX_UPLOAD_BYTES 覆盖 */
-export const DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+/** 上传大小上限默认值：50MB（字节）。可用 BRIDGE_MAX_UPLOAD_BYTES 覆盖 */
+export const DEFAULT_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 /**
  * 解析上传大小上限（字节）：BRIDGE_MAX_UPLOAD_BYTES，非法/未设回退 DEFAULT_MAX_UPLOAD_BYTES。

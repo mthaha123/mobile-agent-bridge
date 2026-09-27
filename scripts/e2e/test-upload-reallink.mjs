@@ -167,13 +167,17 @@ async function main() {
     const onDisk2 = await readFile(join(targetDir, "reallink.txt"), "utf8")
     assert(onDisk2 === content, "被放弃的 overwrite 未破坏已落盘文件")
 
-    // 8. 超限（服务端真实 env，默认 5MB）
+    // 8. 大小限制（服务端真实 env，默认 50MB = 52428800 字节）
     console.log("\n── 大小限制 ──")
     await expectError(
       call("file.upload.begin", { dir: targetDir, name: "huge.bin", size: 99_999_999 }),
-      "limit",
-      "超限拒绝（错误含真实 limit）",
+      "limit 52428800 bytes",
+      "超限拒绝（错误含真实 limit=50MB）",
     )
+    // 正向边界：52,000,000 < 52,428,800（50MiB）→ 放行（证明默认已到 50MB 而非 5MB）
+    const near = await call("file.upload.begin", { dir: targetDir, name: "near-limit.bin", size: 52_000_000 })
+    assert(typeof near.uploadId === "string", "52,000,000 字节（<50MB）放行")
+    await call("file.upload.abort", { uploadId: near.uploadId })
 
     // 9. abort 幂等（未知 id）
     const abortUnknown = await call("file.upload.abort", { uploadId: "no-such-id" })

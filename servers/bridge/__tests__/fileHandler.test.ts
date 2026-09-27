@@ -318,7 +318,7 @@ describe("File Handler", () => {
       await expect(uploadBegin({ dir: testDir, name: "big.bin", size: 2048 }))
         .rejects.toThrow("file too large: 2048 bytes > limit 1024 bytes")
       delete process.env.BRIDGE_MAX_UPLOAD_BYTES
-      // 恢复默认（5MB）后同 size 放行
+      // 恢复默认（50MB）后同 size 放行
       const r = await uploadBegin({ dir: testDir, name: "big.bin", size: 2048 })
       expect(r.uploadId).toBeTruthy()
       await uploadAbort(r.uploadId)
