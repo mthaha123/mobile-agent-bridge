@@ -1,0 +1,67 @@
+appId: com.mobileagentbridge
+---
+# Layer 2 真实链路 — 大文件上传专项（≈44MB，验证 50MB 上限 + Hermes 内存）
+#
+# 前置：
+#   1. 测试桥 19985（BRIDGE_PASSWORD=test123）
+#   2. fixture 生成并推送：
+#      powershell 生成 46,137,360 字节随机文件（含 BIG-50MB-MARKER 头）→
+#      adb push 到 /sdcard/Download/big-50mb-test.bin + 媒体扫描
+#   3. 含 picker 的 APK 已安装
+# 断言闭环（测试脚本在 flow 后做）：
+#   宿主 D:\code\mobile-agent-bridge\logs\big-50mb-test.bin 存在且 SHA256 与源一致
+#
+# 撞名/三选场景由小文件 flow（l2-bridge-file-upload.yaml）覆盖，本 flow 只做单次上传。
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Connect"
+    timeout: 20000
+
+# 连接测试桥（每个输入框先 eraseText——持久化设置会被 inputText 追加）
+- tapOn: "ws://.*"
+- eraseText: 50
+- inputText: "ws://10.0.2.2:19985/ws"
+- tapOn: "password (optional)"
+- eraseText: 100
+- inputText: "test123"
+- tapOn: "project directory (e.g. /home/user/project)"
+- eraseText: 100
+- inputText: "D:/code/mobile-agent-bridge"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "+ New"
+    timeout: 20000
+
+# 进入 Files → logs/ 小目录（产物 gitignore、视口可控）
+- tapOn: "Files"
+- extendedWaitUntil:
+    visible: "Search files..."
+    timeout: 15000
+- scrollUntilVisible:
+    element: "logs"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "logs"
+- extendedWaitUntil:
+    visible: ".."
+    timeout: 10000
+
+# 上传大文件：真实系统选择器
+- tapOn: "⬆ Upload"
+- extendedWaitUntil:
+    visible: "big-50mb-test.bin"
+    timeout: 30000
+- tapOn: "big-50mb-test.bin"
+
+# 44MB：keepLocalCopy + ~705 个 WS 分块（实测 ~140ms/帧 ≈ 100s+）+ finish —— 宽限 300s；
+# 若 Hermes/Java OOM 应用会崩溃，本断言将失败（那正是要抓的信号）
+- extendedWaitUntil:
+    visible: "上传成功"
+    timeout: 300000
+- tapOn: "OK"
+
+# 列表刷新后大文件可见
+- extendedWaitUntil:
+    visible: "big-50mb-test.bin"
+    timeout: 15000
