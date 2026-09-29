@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react'
+import React, { useEffect, useCallback, useMemo, useState } from 'react'
 import {
   Alert,
   View,
@@ -15,6 +15,7 @@ import { useSessionStore, filterSessions } from '../stores/sessionStore'
 import { useAuthStore } from '../stores/authStore'
 import { useChatStore } from '../stores/chatStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useServeStore, type ServeEntry } from '../stores/serveStore'
 import { useUiStore } from '../stores/uiStore'
 import { useQuestionStore } from '../stores/questionStore'
 import { useThemeColors } from '../theme/ThemeContext'
@@ -40,11 +41,29 @@ export function formatRelativeTime(isoDate: string): string {
   return `${minutes}m ago`
 }
 
+/** 目录末段名（Windows / POSIX 路径都兼容），用于列表项展示 */
+function baseName(dir: string): string {
+  return dir.split(/[/\\]/).filter(Boolean).pop() || dir
+}
+
+/** Switch Project 弹窗里的可选项目：有 serve 的项目优先（点选即切，无需手输目录） */
+export interface SwitchCandidate {
+  key: string
+  directory: string
+  name: string
+  /** 该目录注册的 serve 实例 id；undefined = 无 serve，切换时走默认 serve */
+  serveId?: string
+  port?: number
+  status?: ServeEntry['status']
+}
+
 export const SessionsScreen: React.FC = () => {
   const colors = useThemeColors()
   const styles = makeStyles(colors)
   const [switchDirInput, setSwitchDirInput] = useState('')
   const [showSwitchModal, setShowSwitchModal] = useState(false)
+  /** 正在拉起的 serve 项目 id（点选 stopped 项目时先起 serve 再切换） */
+  const [pendingServeId, setPendingServeId] = useState<string | null>(null)
   const [renameTarget, setRenameTarget] = useState<import('../stores/sessionStore').Session | null>(null)
   const [renameInput, setRenameInput] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -62,28 +81,118 @@ export const SessionsScreen: React.FC = () => {
   // 待回答提问（含息屏/断线期间对账补回的）→ 列表徽标，未进入会话也能发现
   const pendingQuestions = useQuestionStore((s) => s.pending)
   const directory = useProjectStore((s) => s.directory)
+  const project = useProjectStore((s) => s.project)
   const switching = useProjectStore((s) => s.switching)
   const currentServe = useProjectStore((s) => s.currentServe)
   const projects = useProjectStore((s) => s.projects)
   const switchProject = useProjectStore((s) => s.switchProject)
   const listProjects = useProjectStore((s) => s.listProjects)
+  // 有服务器（serve 已注册）的项目清单 → 切换项目时点选即可，不必每次输目录
+  const serves = useServeStore((s) => s.serves)
+  const servesLoading = useServeStore((s) => s.loading)
+  const fetchServes = useServeStore((s) => s.fetchServes)
+  const startServe = useServeStore((s) => s.startServe)
   const pushChat = useUiStore((s) => s.pushChat)
+
+  /** 可切换项目候选：serve 项目优先，其次 project.list，最后当前项目兜底（按 directory 去重） */
+  const switchCandidates = useMemo<SwitchCandidate[]>(() => {
+    const out: SwitchCandidate[] = []
+    const seen = new Set<string>()
+    const push = (c: SwitchCandidate) => {
+      if (!c.directory || seen.has(c.directory)) return
+      seen.add(c.directory)
+      out.push(c)
+    }
+    serves.forEach((s) =>
+      push({
+        key: `serve:${s.id}`,
+        directory: s.directory,
+        name: s.name || baseName(s.directory),
+        serveId: s.id,
+        port: s.port,
+        status: s.status,
+      }),
+    )
+    projects.forEach((p) =>
+      push({
+        key: `project:${p.directory}`,
+        directory: p.directory,
+        name: p.name || baseName(p.directory),
+      }),
+    )
+    if (directory) {
+      push({
+        key: `current:${directory}`,
+        directory,
+        name: project?.name || baseName(directory),
+      })
+    }
+    return out
+  }, [serves, projects, directory, project])
 
   const handleOpenSwitch = () => {
     const client = useAuthStore.getState().client
     setSwitchDirInput(directory || '')
     setShowSwitchModal(true)
     if (client) {
-      listProjects(client.call.bind(client))
+      const call = client.call.bind(client)
+      // 有服务器的项目清单（serve.list）+ 当前项目兜底（project.list）
+      fetchServes(call)
+      listProjects(call)
+    }
+  }
+
+  /**
+   * 点选候选项目：有 serve 且未运行 → 先拉起 serve，再切换。
+   * （直接切到 stopped 的 serve 会让 SDK 连上死端口，后续 RPC 全挂）
+   */
+  const handleSelectProject = async (candidate: SwitchCandidate) => {
+    if (pendingServeId) return
+    const client = useAuthStore.getState().client
+    if (!client) { Alert.alert('Error', '未连接到服务器'); return }
+    const call = client.call.bind(client)
+
+    if (candidate.serveId && candidate.status !== 'running') {
+      setPendingServeId(candidate.serveId)
+      try {
+        const started = await startServe(call, candidate.serveId)
+        if (!started) {
+          Alert.alert('Error', `启动 ${candidate.name} 的 serve 失败（端口耗尽或 opencode 缺失）`)
+          return
+        }
+      } catch (e) {
+        Alert.alert('Error', `启动 serve 失败: ${e instanceof Error ? e.message : String(e)}`)
+        return
+      } finally {
+        setPendingServeId(null)
+      }
+    }
+
+    setShowSwitchModal(false)
+    try {
+      await switchProject(candidate.directory)
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : '切换项目失败')
     }
   }
 
   const handleConfirmSwitch = async () => {
-    if (switchDirInput.trim()) {
-      setShowSwitchModal(false)
-      await switchProject(switchDirInput.trim())
-    } else {
+    const dir = switchDirInput.trim()
+    if (!dir) {
       Alert.alert('Error', '请输入项目目录路径')
+      return
+    }
+    // 手输目录若命中候选（含 serve 项目），走同一条「先起 serve 再切换」路径
+    const candidate = switchCandidates.find((c) => c.directory === dir)
+    if (candidate) {
+      await handleSelectProject(candidate)
+      return
+    }
+    setShowSwitchModal(false)
+    try {
+      await switchProject(dir)
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : '切换项目失败')
     }
   }
 
@@ -289,25 +398,66 @@ export const SessionsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Switch Project</Text>
-            {projects.length > 0 && (
+            {switchCandidates.length > 0 ? (
               <ScrollView style={styles.projectList}>
-                {projects.map((p: { directory: string; name?: string }, i: number) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.projectListItem, p.directory === directory && styles.projectListItemActive]}
-                    onPress={() => {
-                      setShowSwitchModal(false)
-                      switchProject(p.directory)
-                    }}
-                  >
-                    <Text style={styles.projectListItemName}>
-                      {p.name || (p.directory || '').split('/').pop() || p.directory || '(none)'}
-                    </Text>
-                    <Text style={styles.projectListItemDir} numberOfLines={1}>{p.directory}</Text>
-                  </TouchableOpacity>
-                ))}
+                {switchCandidates.map((c) => {
+                  const isPending = pendingServeId === c.serveId
+                  const isActive = c.directory === directory
+                  return (
+                    <TouchableOpacity
+                      key={c.key}
+                      testID={`switch-project-${c.key}`}
+                      accessibilityLabel={`Switch to ${c.name}`}
+                      style={[
+                        styles.projectListItem,
+                        isActive && styles.projectListItemActive,
+                        pendingServeId !== null && styles.projectListItemDisabled,
+                      ]}
+                      disabled={pendingServeId !== null}
+                      onPress={() => handleSelectProject(c)}
+                    >
+                      <View style={styles.projectListItemHeader}>
+                        <Text style={styles.projectListItemName} numberOfLines={1}>
+                          {c.name}
+                        </Text>
+                        {isPending ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : isActive ? (
+                          <Text style={styles.projectListCurrentTag}>current</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.projectListItemDir} numberOfLines={1}>{c.directory}</Text>
+                      {c.serveId ? (
+                        <Text
+                          testID={`switch-project-serve-${c.serveId}`}
+                          style={[
+                            styles.projectServeMeta,
+                            c.status === 'running' ? styles.projectServeRunning : styles.projectServeStopped,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          ⚡ :{c.port} · {isPending ? 'starting serve…' : (c.status === 'running' ? 'running' : 'stopped · tap to start')}
+                        </Text>
+                      ) : (
+                        <Text style={styles.projectServeMeta} numberOfLines={1}>
+                          no serve · uses default
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )
+                })}
               </ScrollView>
+            ) : servesLoading ? (
+              <View style={styles.projectListLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.projectListEmpty}>Loading projects…</Text>
+              </View>
+            ) : (
+              <Text style={styles.projectListEmpty}>
+                No projects yet. Add one in Settings → OpenCode Serves, or enter a directory below.
+              </Text>
             )}
+            <Text style={styles.modalHint}>Or enter a directory manually</Text>
             <TextInput
               style={styles.modalInput}
               value={switchDirInput}
@@ -316,6 +466,7 @@ export const SessionsScreen: React.FC = () => {
               placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="Switch project directory input"
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -325,8 +476,9 @@ export const SessionsScreen: React.FC = () => {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalConfirmBtn}
+                style={[styles.modalConfirmBtn, pendingServeId !== null && styles.switchBtnDisabled]}
                 onPress={handleConfirmSwitch}
+                disabled={pendingServeId !== null}
               >
                 <Text style={styles.modalConfirmText}>Switch</Text>
               </TouchableOpacity>
@@ -581,15 +733,57 @@ const makeStyles = (colors: ThemeColors) =>
     borderWidth: 1,
     borderColor: colors.primary,
   },
+  projectListItemDisabled: {
+    opacity: 0.6,
+  },
+  projectListItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   projectListItemName: {
     color: colors.text,
     fontSize: 15,
     fontWeight: '500',
+    flexShrink: 1,
+  },
+  projectListCurrentTag: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '600',
   },
   projectListItemDir: {
     color: colors.textTertiary,
     fontSize: 12,
     marginTop: 2,
+  },
+  projectServeMeta: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  projectServeRunning: {
+    color: colors.success,
+  },
+  projectServeStopped: {
+    color: colors.warning,
+  },
+  projectListEmpty: {
+    color: colors.textTertiary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  projectListLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  modalHint: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginBottom: 6,
   },
   modalInput: {
     backgroundColor: colors.surfaceVariant,

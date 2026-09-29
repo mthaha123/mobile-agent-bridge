@@ -84,6 +84,28 @@ const MOCK_PAYLOADS = {
     project: { name: "mock-project", type: "node" },
   },
 
+  // 有服务器（serve 已注册）的项目清单：Sessions 页 Switch Project 弹窗点选用
+  "serve.list": [
+    {
+      id: "mock_sv1",
+      name: "mock-project",
+      directory: "/mock-project",
+      port: 4100,
+      status: "running",
+      createdAt: 1,
+    },
+    {
+      id: "mock_sv2",
+      name: "second-project",
+      directory: "/mock-project-2",
+      port: 4101,
+      status: "stopped",
+      createdAt: 2,
+    },
+  ],
+  "serve.start": true,
+  "serve.stop": { ok: true },
+
   "session.list": {
     sessions: [
       { id: "mock_s1", name: "Session 1", messageCount: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },

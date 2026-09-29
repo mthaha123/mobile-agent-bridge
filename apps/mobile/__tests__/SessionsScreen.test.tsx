@@ -6,6 +6,7 @@ import { useSessionStore } from '../src/stores/sessionStore'
 import { useAuthStore } from '../src/stores/authStore'
 import { useChatStore } from '../src/stores/chatStore'
 import { useProjectStore } from '../src/stores/projectStore'
+import { useServeStore } from '../src/stores/serveStore'
 import { useUiStore } from '../src/stores/uiStore'
 import { mockClient, resetAllStores, textOf, findAllPressable } from './test-utils'
 import { useQuestionStore } from '../src/stores/questionStore'
@@ -257,7 +258,10 @@ describe('SessionsScreen — interactions', () => {
       messageCount: 0,
     }]
     useSessionStore.setState({ sessions })
+    // session.list 必须回吐同一份列表：组件挂载后的 loadSessions 会覆盖 store，
+    // 缺 handler 时 fetchSessions 走 catch 分支把 sessions 清空 → 断言读不到 sessions[0]
     const client = mockClient({
+      'session.list': () => ({ sessions }),
       'session.rename': (params: any) => {
         return { id: params.sessionId, title: params.title, time: { updated: Date.now() } }
       },
@@ -569,5 +573,167 @@ describe('SessionsScreen — search', () => {
     act(() => { clearBtn.props.onPress() })
 
     expect(cardLabels(tree)).toHaveLength(2)
+  })
+})
+
+// ─── 切换项目：点选「有服务器的项目」（无需每次输入目录）────
+
+describe('SessionsScreen — switch project picker（有服务器项目点选）', () => {
+  const SERVES = [
+    { id: 'sv-alpha', name: 'alpha', directory: '/repo/alpha', port: 4100, status: 'running', createdAt: 1 },
+    { id: 'sv-beta', name: 'beta', directory: '/repo/beta', port: 4101, status: 'stopped', createdAt: 2 },
+  ]
+
+  const baseHandlers: Record<string, (params?: any) => any> = {
+    'session.list': () => [],
+    'session.status': () => ({}),
+    'project.list': () => [],
+    'project.switch': (p: any) => ({ directory: p.directory, project: { name: 'switched' }, currentServe: null }),
+    'config.agents': () => [],
+    'command.list': () => [],
+    'model.list': () => [],
+  }
+
+  beforeEach(() => {
+    resetAllStores()
+    useServeStore.setState({ serves: [], loading: false })
+    useProjectStore.setState({ directory: '', project: null, currentServe: null, switching: false, projects: [] })
+  })
+
+  /** 渲染 + 点 Switch 打开弹窗（顺带触发 serve.list / project.list 拉取） */
+  const openSwitchModal = async (extraHandlers: Record<string, (params?: any) => any> = {}) => {
+    const client = mockClient({ ...baseHandlers, ...extraHandlers })
+    act(() => { useAuthStore.setState({ client: client as any }) })
+
+    const tree = TestRenderer.create(
+      <SessionsScreen onNavigateToChat={onNavigateToChat} onBack={onBack} />,
+    )
+    const switchBtn = findAllPressable(tree).find((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t.includes('Switch') && !t.includes('Switch Project')
+    })
+    expect(switchBtn).toBeDefined()
+
+    await act(async () => {
+      await switchBtn!.props.onPress()
+      // 让 serve.list / project.list 的异步 state 更新落定
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    return { tree, client }
+  }
+
+  const pressCandidate = async (tree: TestRenderer.ReactTestRenderer, label: string) => {
+    const item = tree.root.findAll((n: any) => n.props?.accessibilityLabel === label)[0]
+    expect(item).toBeDefined()
+    await act(async () => { await item.props.onPress() })
+  }
+
+  it('打开弹窗拉取 serve.list，并列出有服务器的项目', async () => {
+    const { tree, client } = await openSwitchModal({ 'serve.list': () => SERVES })
+
+    expect(client.call).toHaveBeenCalledWith('serve.list', {})
+    expect(textOf(tree)).toContain('alpha')
+    expect(textOf(tree)).toContain('/repo/alpha')
+    expect(textOf(tree)).toContain('beta')
+    expect(textOf(tree)).toContain('/repo/beta')
+    // serve 状态行：running 直显、stopped 提示点选即拉起
+    expect(textOf(tree)).toContain('running')
+    expect(textOf(tree)).toContain('stopped · tap to start')
+  })
+
+  it('点选 running 项目 → 直接 project.switch，无需输入目录', async () => {
+    const { tree, client } = await openSwitchModal({ 'serve.list': () => SERVES })
+    client.call.mockClear()
+
+    await pressCandidate(tree, 'Switch to alpha')
+
+    expect(client.call).toHaveBeenCalledWith('project.switch', { directory: '/repo/alpha' })
+    // running 的 serve 不重复拉起
+    expect(client.call).not.toHaveBeenCalledWith('serve.start', expect.anything(), expect.anything())
+    expect(useProjectStore.getState().directory).toBe('/repo/alpha')
+  })
+
+  it('点选 stopped 项目 → 先 serve.start，成功后才 project.switch', async () => {
+    const { tree, client } = await openSwitchModal({
+      'serve.list': () => SERVES,
+      'serve.start': () => true,
+    })
+    client.call.mockClear()
+
+    await pressCandidate(tree, 'Switch to beta')
+
+    const methods = client.call.mock.calls.map((c) => c[0])
+    expect(methods).toContain('serve.start')
+    expect(methods).toContain('project.switch')
+    expect(methods.indexOf('serve.start')).toBeLessThan(methods.indexOf('project.switch'))
+    expect(client.call).toHaveBeenCalledWith('serve.start', { id: 'sv-beta' }, { timeoutMs: 60_000 })
+    expect(client.call).toHaveBeenCalledWith('project.switch', { directory: '/repo/beta' })
+    expect(useProjectStore.getState().directory).toBe('/repo/beta')
+  })
+
+  it('serve.start 失败 → 不切换项目，弹错误提示，弹窗保持打开', async () => {
+    const { tree, client } = await openSwitchModal({
+      'serve.list': () => SERVES,
+      'serve.start': () => false,
+    })
+    client.call.mockClear()
+
+    await pressCandidate(tree, 'Switch to beta')
+
+    expect(client.call).not.toHaveBeenCalledWith('project.switch', expect.anything())
+    expect(Alert.alert).toHaveBeenCalled()
+    expect(textOf(tree)).toContain('Switch Project')
+    expect(useProjectStore.getState().directory).toBe('')
+  })
+
+  it('当前项目也作为候选展示（无 serve 时标注 uses default）', async () => {
+    useProjectStore.setState({ directory: '/repo/current-only' })
+    const { tree } = await openSwitchModal({ 'serve.list': () => [] })
+
+    expect(textOf(tree)).toContain('/repo/current-only')
+    expect(textOf(tree)).toContain('no serve · uses default')
+  })
+
+  it('没有任何候选时显示引导文案（去 Settings 添加 serve）', async () => {
+    const { tree } = await openSwitchModal({ 'serve.list': () => [] })
+    expect(textOf(tree)).toContain('No projects yet. Add one in Settings')
+  })
+
+  it('手输目录仍可用：确认按钮把输入目录交给 project.switch', async () => {
+    const { tree, client } = await openSwitchModal({ 'serve.list': () => SERVES })
+    client.call.mockClear()
+
+    const input = tree.root.findByProps({ accessibilityLabel: 'Switch project directory input' })
+    act(() => { input.props.onChangeText('/tmp/typed-project') })
+
+    const confirmBtn = findAllPressable(tree).filter((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t === 'Switch'
+    }).pop()
+    expect(confirmBtn).toBeDefined()
+    await act(async () => { await confirmBtn!.props.onPress() })
+
+    expect(client.call).toHaveBeenCalledWith('project.switch', { directory: '/tmp/typed-project' })
+  })
+
+  it('手输目录命中 serve 项目时，同样先 serve.start 再切换', async () => {
+    const { tree, client } = await openSwitchModal({
+      'serve.list': () => SERVES,
+      'serve.start': () => true,
+    })
+    client.call.mockClear()
+
+    const input = tree.root.findByProps({ accessibilityLabel: 'Switch project directory input' })
+    act(() => { input.props.onChangeText('/repo/beta') })
+
+    const confirmBtn = findAllPressable(tree).filter((p: any) => {
+      const t = textOf({ toJSON: () => p } as any)
+      return t === 'Switch'
+    }).pop()
+    await act(async () => { await confirmBtn!.props.onPress() })
+
+    const methods = client.call.mock.calls.map((c) => c[0])
+    expect(methods.indexOf('serve.start')).toBeLessThan(methods.indexOf('project.switch'))
+    expect(client.call).toHaveBeenCalledWith('project.switch', { directory: '/repo/beta' })
   })
 })
